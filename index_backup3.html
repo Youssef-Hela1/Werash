@@ -1,0 +1,3197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WERASH</title>
+    <style>
+        /* Declare the custom extracted font */
+        @font-face {
+            font-family: 'GuiltyTreasure';
+            src: url('Guilty Treasure.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* Reset and main layout */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-creamy: #FDFBF7; /* Premium Creamy Off-White */
+            --bg-brand: #4D6E4F;  /* Reseda Sage Green */
+            --text-cream: #F7F5F0;
+            --text-brand-muted: rgba(77, 110, 79, 0.45);
+            --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --transition-speed: 1.4s;
+            --transition-ease: cubic-bezier(0.76, 0, 0.24, 1); /* Luxurious cinematic curve */
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: var(--bg-creamy);
+            font-family: var(--font-sans);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* =============================================
+           Global Custom Scrollbar — Reseda Sage Green
+           ============================================= */
+
+        /* Width of the scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        /* Track (the background rail) */
+        ::-webkit-scrollbar-track {
+            background: rgba(77, 110, 79, 0.04);
+            border-radius: 100px;
+        }
+
+        /* Thumb (the draggable handle) */
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(77, 110, 79, 0.3);
+            border-radius: 100px;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Thumb on hover */
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(77, 110, 79, 0.55);
+        }
+
+        /* Thumb while actively dragging */
+        ::-webkit-scrollbar-thumb:active {
+            background-color: var(--bg-brand);
+        }
+
+        /* Corner piece (where vertical and horizontal scrollbars meet) */
+        ::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+
+        /* Firefox scrollbar (limited styling support) */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(77, 110, 79, 0.3) rgba(77, 110, 79, 0.04);
+        }
+
+
+
+        /* Ambient Noise / Grain Layer */
+        .grain-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.035;
+            pointer-events: none;
+            z-index: 200;
+        }
+
+        /* 
+           Reseda Green Full Viewport Cover (State 1) 
+           Shrinks smoothly to a Top Bar (State 2)
+        */
+        .brand-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background-color: var(--bg-brand);
+            z-index: 100;
+            overflow: hidden;
+            transition: height var(--transition-speed) var(--transition-ease),
+                        box-shadow var(--transition-speed) var(--transition-ease);
+        }
+
+        /* 
+           Unified Brand Lockup Container.
+           Keeps absolute top/left coordinates transitioning smoothly 
+           between States 1 (Splash) and 2 (Header).
+        */
+        .brand-lockup {
+            position: absolute;
+            transition: all var(--transition-speed) var(--transition-ease);
+            
+            /* State 1: Perfectly centered absolute splash container */
+            top: 50%;
+            left: 50%;
+            transform: translate3d(-50%, -50%, 0);
+            width: 680px;
+            height: 680px;
+        }
+
+        /* 
+           Logo Positioning:
+           - Kept as position: absolute in both states to prevent layout snaps.
+           - Matches size exactly, with stable transitions.
+        */
+        .brand-logo {
+            position: absolute;
+            background: transparent;
+            border: none;
+            outline: none;
+            object-fit: contain;
+            transition: all var(--transition-speed) var(--transition-ease);
+            
+            /* State 1: Large centered splash logo */
+            top: 50%;
+            left: 50%;
+            transform: translate3d(-50%, -50%, 0) scale3d(3.8, 3.8, 1);
+            width: 180px;
+            height: 180px;
+            max-height: none;
+            filter: drop-shadow(0 32px 48px rgba(0, 0, 0, 0.26));
+        }
+
+        /* 
+           Text Positioning:
+           - Font size kept at a stable 4.5rem in both states to eliminate sub-pixel text jitter.
+           - Scaled dynamically using GPU transform: scale(1.22) in State 1.
+        */
+        .brand-text {
+            position: absolute;
+            font-family: 'GuiltyTreasure', sans-serif;
+            font-size: 4.5rem; /* Stable font size in both states */
+            color: var(--text-cream);
+            letter-spacing: 0.05em;
+            line-height: 1;
+            text-transform: uppercase;
+            
+            /* Initial load state (transparent) */
+            opacity: 0;
+            
+            /* State 1: Center splash coordinate directly under the logo graphic */
+            top: calc(50% + 195px);
+            left: 50%;
+            transform: translate3d(-50%, -50%, 0) scale3d(1.22, 1.22, 1); /* GPU scaled up to match 5.5rem */
+            
+            text-shadow: 0 16px 32px rgba(0, 0, 0, 0.25);
+            
+            transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1),
+                        top var(--transition-speed) var(--transition-ease),
+                        left var(--transition-speed) var(--transition-ease),
+                        transform var(--transition-speed) var(--transition-ease),
+                        text-shadow var(--transition-speed) var(--transition-ease);
+        }
+
+        /* 
+           State 1.5: LOADED SPLASH STATE 
+           Fades in text directly into its pre-calculated centered splash coordinates
+        */
+        body.active-load .brand-text {
+            opacity: 1;
+        }
+
+        /* 
+           State 2: SHRUNKEN HEADER BAR (Hardware-Accelerated Transitions)
+           Smoothly shifts coordinates of the lockup container and children 
+           without changing font sizes or absolute structures.
+        */
+        body.shrunk .brand-bar {
+            height: 90px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        body.shrunk .brand-lockup {
+            top: 45px; /* Vertical center of 90px bar */
+            left: 6.5rem; /* Shifted right to leave exact space for fixed sidebar toggle */
+            transform: translate3d(0, -50%, 0);
+            width: 480px;
+            height: 90px;
+        }
+
+        /* Shrunkun Logo: shifts left to offset transparent padding margins */
+        body.shrunk .brand-logo {
+            top: 50%;
+            left: -50px;
+            transform: translate3d(0, -50%, 0) scale3d(1, 1, 1);
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.12));
+        }
+
+        /* 
+           Shrunkun Text:
+           - Tuned vertical translateY offset slightly up from translateY(12px) to translateY(4px) 
+             to align the text perfectly and visually with the horizontal midline.
+        */
+        body.shrunk .brand-text {
+            top: 50%;
+            left: 88px; 
+            transform: translate3d(0, -50%, 0) translateY(4px) scale3d(1, 1, 1); /* Shifted slightly up for visual balance */
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+            opacity: 1;
+        }
+
+        /* 
+           Creamy Off-White Page Canvas Area
+           Fades in gracefully as the green bar shrinks upwards
+        */
+        /* 
+           Creamy Off-White Page Canvas Area
+           Fades in gracefully as the green bar shrinks upwards
+        */
+        .content-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-creamy);
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 1.2s var(--transition-ease),
+                        transform 1.2s var(--transition-ease);
+            transition-delay: 0.3s;
+            z-index: 10;
+            padding-top: 90px; /* Safe spacing under top brand bar */
+        }
+
+        body.shrunk .content-canvas {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 
+           Main Page Layout: 1 to 4 split (Sidebar 20%, Content Panel 80%)
+        */
+        .main-layout-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Left Side Panel (1/5th or 20% Width) */
+        .main-sidebar {
+            width: 20%;
+            background-color: rgba(77, 110, 79, 0.06); /* Slightly darker shade */
+            border-right: 1px solid rgba(77, 110, 79, 0.08);
+            padding: 2.5rem 0; /* Removed horizontal padding to allow full-bleed items */
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+            height: 100%;
+            overflow-y: auto;
+            transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1), padding 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .main-sidebar.collapsed {
+            width: 0;
+            opacity: 0;
+            padding-left: 0;
+            padding-right: 0;
+            pointer-events: none;
+            border-right-width: 0;
+            overflow: hidden;
+        }
+
+        /* Right Side Workspace Panel (4/5ths or 80% Width) */
+        .main-content-panel {
+            width: 80%;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .main-content-panel.expanded {
+            width: 100%;
+        }
+
+        /* Sidebar Elements */
+        .sidebar-user-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 1.5rem; /* Indent user details horizontally */
+        }
+
+        .avatar-placeholder {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background-color: var(--bg-brand);
+            color: var(--text-cream);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'GuiltyTreasure', sans-serif;
+            font-size: 1.4rem;
+            text-transform: uppercase;
+        }
+
+        .user-info-widget {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .user-greeting-name {
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--bg-brand);
+        }
+
+        .user-status-text {
+            font-size: 0.75rem;
+            color: var(--text-brand-muted);
+        }
+
+        /* Car Widget in Sidebar */
+        .sidebar-car-widget {
+            background-color: rgba(77, 110, 79, 0.05);
+            border: 1px solid rgba(77, 110, 79, 0.12);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            margin: 0 1.5rem;
+            overflow: hidden;
+            position: relative;
+            padding: 0;
+        }
+
+        .car-widget-text {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 3; /* Takes ~60% of the widget width */
+            min-width: 0;
+            padding: 1rem 1rem 1rem 1.1rem;
+        }
+
+        .car-widget-image {
+            flex: 2; /* Takes ~40% of the widget width */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-color: rgba(77, 110, 79, 0.07);
+            border-left: 1px solid rgba(77, 110, 79, 0.1);
+            padding: 0.5rem;
+        }
+
+        .car-widget-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            mix-blend-mode: multiply;
+        }
+
+        .car-widget-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--bg-brand);
+            opacity: 0.85;
+        }
+
+        .car-widget-header svg {
+            stroke: var(--bg-brand);
+        }
+
+        .car-name-display {
+            font-family: var(--font-sans);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--bg-brand);
+            margin-top: 4px;
+        }
+
+        .car-year-display {
+            font-size: 0.8rem;
+            color: var(--text-brand-muted);
+        }
+
+        /* Sidebar Navigation */
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0; /* Stack items seamlessly edge-to-edge */
+        }
+
+        .sidebar-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 1.5rem; /* Full horizontal padding matching inset margins */
+            color: var(--bg-brand);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            opacity: 0.75;
+            width: 100%;
+            border-radius: 0; /* Sharp rectangular edges */
+        }
+
+        .sidebar-nav-item svg {
+            stroke: var(--bg-brand);
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-nav-item:hover {
+            background-color: rgba(77, 110, 79, 0.04);
+            opacity: 1;
+        }
+
+        .sidebar-nav-item.active {
+            background-color: rgba(77, 110, 79, 0.12); /* Slightly darker, not highlighted in green, not circular */
+            color: var(--bg-brand); /* Keep dark green brand text color */
+            opacity: 1;
+            border-right: 3px solid var(--bg-brand); /* High-end right visual indicator line */
+        }
+
+        .sidebar-nav-item.active svg {
+            stroke: var(--bg-brand);
+        }
+
+        /* Workspace Elements */
+        .content-welcome-banner {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background-color: rgba(77, 110, 79, 0.04); /* Cozy subtle dark greige matching sidebar */
+            border-bottom: 1px solid rgba(77, 110, 79, 0.09); /* Bottom separation line */
+            border-radius: 0; /* Full bleed layout */
+            padding: 0.85rem 4rem; /* Matching horizontal inset margin, very compact vertical spacing */
+            width: 100%;
+            flex-shrink: 0; /* Prevent vertical shrinkage */
+        }
+
+        .welcome-heading {
+            font-family: 'GuiltyTreasure', var(--font-sans);
+            font-size: 1.45rem; /* Ultra-compact display size */
+            font-weight: normal;
+            color: var(--bg-brand);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .welcome-subtext {
+            font-size: 0.78rem; /* Ultra-compact details size */
+            color: var(--text-brand-muted);
+            max-width: 720px;
+            line-height: 1.4;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            overflow-y: auto;
+            height: 100%;
+            padding: 2rem 4rem; /* Clean vertical spacing and perfect horizontal alignment */
+        }
+
+        .grid-card {
+            background-color: #ffffff;
+            border: 1px solid rgba(77, 110, 79, 0.06);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(77, 110, 79, 0.02);
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .grid-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 40px rgba(77, 110, 79, 0.06);
+            border-color: rgba(77, 110, 79, 0.15);
+        }
+
+        .grid-card h3 {
+            font-family: var(--font-sans);
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--bg-brand);
+            margin-bottom: 0.75rem;
+        }
+
+        .grid-card p {
+            font-size: 0.88rem;
+            color: var(--text-brand-muted);
+            line-height: 1.5;
+        }
+
+        .canvas-message {
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-brand-muted);
+            animation: breathe-message 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes breathe-message {
+            0% { opacity: 0.45; transform: scale(0.98); }
+            100% { opacity: 0.85; transform: scale(1.02); }
+        }
+
+        /* 
+           Responsive adjustments for absolute coordinates 
+        */
+        @media (max-width: 768px) {
+            .brand-lockup {
+                width: 380px;
+                height: 380px;
+            }
+            
+            /* Center logo splash for mobile screen bounds */
+            .brand-logo {
+                width: 120px;
+                height: 120px;
+                transform: translate3d(-50%, -50%, 0) scale3d(3.2, 3.2, 1);
+            }
+
+            .brand-text {
+                font-size: 3rem;
+                top: calc(50% + 135px);
+                transform: translate3d(-50%, -50%, 0) scale3d(1.33, 1.33, 1);
+            }
+
+            /* Shrunk settings on mobile */
+            body.shrunk .brand-bar {
+                height: 75px;
+            }
+
+            body.shrunk .brand-lockup {
+                top: 37.5px;
+                left: 4.5rem; /* Shifted right to leave space for toggle button */
+                transform: translate3d(0, -50%, 0);
+                width: 240px;
+                height: 75px;
+            }
+
+            #sidebarToggleBtn {
+                top: 21px; /* Centered in 75px mobile bar */
+                left: 1.25rem;
+            }
+
+            body.shrunk .brand-logo {
+                top: 50%;
+                left: -30px;
+                transform: translate3d(0, -50%, 0) scale3d(1, 1, 1);
+            }
+
+            body.shrunk .brand-text {
+                top: 50%;
+                left: 65px;
+                transform: translate3d(0, -50%, 0) translateY(2px) scale3d(1, 1, 1); /* Adjusted mobile vertical shift */
+                font-size: 3rem;
+            }
+
+            .content-canvas {
+                padding-top: 75px;
+            }
+
+            .main-layout-container {
+                flex-direction: column;
+                overflow-y: auto;
+            }
+
+            .main-sidebar {
+                width: 100%;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid rgba(77, 110, 79, 0.08);
+                padding: 1.75rem 1.25rem;
+                gap: 1.5rem;
+                transition: height 0.4s cubic-bezier(0.25, 1, 0.5, 1), padding 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease;
+            }
+
+            .main-sidebar.collapsed {
+                height: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+                opacity: 0;
+                pointer-events: none;
+                border-bottom-width: 0;
+                overflow: hidden;
+            }
+
+            .main-content-panel {
+                width: 100%;
+                padding: 0;
+                gap: 0;
+                height: auto;
+                overflow: visible;
+            }
+
+            .view-container {
+                height: auto;
+                overflow: visible;
+                gap: 0;
+            }
+
+            .profile-settings-layout {
+                height: auto;
+                overflow: visible;
+                padding: 1.5rem 1.25rem;
+            }
+
+            .dashboard-grid {
+                height: auto;
+                overflow: visible;
+                padding: 1.5rem 1.25rem;
+            }
+
+            .content-welcome-banner {
+                padding: 0.85rem 1.25rem;
+            }
+
+            .welcome-heading {
+                font-size: 1.25rem;
+            }
+        }
+
+        /* 
+           Fixed Sidebar Toggle Button 
+           Completely isolated from logo lockup, invisible on load/intro.
+        */
+        #sidebarToggleBtn {
+            position: fixed;
+            top: 29px; /* Centered in 90px header height */
+            left: 2.5rem;
+            z-index: 150; /* Above brand bar */
+            background: none;
+            border: none;
+            color: var(--text-cream);
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+        }
+
+        /* Show toggle button only AFTER cinematic loading/intro transition finishes */
+        body.shrunk #sidebarToggleBtn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #sidebarToggleBtn:hover {
+            opacity: 0.85;
+            transform: scale(1.05);
+        }
+
+        /* 
+           Auth Button Positioning & Styling
+        */
+        .auth-container {
+            position: absolute;
+            top: 45px;
+            right: 2.5rem;
+            transform: translate3d(0, -50%, 0) translateY(15px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all var(--transition-speed) var(--transition-ease);
+            z-index: 110;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        body.shrunk .auth-container {
+            transform: translate3d(0, -50%, 0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .btn-auth {
+            font-family: var(--font-sans);
+            font-weight: 500;
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-cream);
+            background: rgba(247, 245, 240, 0.05);
+            border: 1px solid rgba(247, 245, 240, 0.25);
+            padding: 10px 22px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-auth svg {
+            transition: transform 0.3s ease;
+        }
+
+        .btn-auth:hover {
+            background: var(--text-cream);
+            color: var(--bg-brand);
+            transform: scale(1.03);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-auth:hover svg {
+            transform: scale(1.1);
+        }
+
+        .btn-auth:active {
+            transform: scale(0.98);
+        }
+
+        /* 
+           Glassmorphic Modal Split Layout
+        */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(235, 230, 220, 0.78); /* Soft, slightly darker blurred warm-beige backdrop */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 300;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background-color: var(--bg-creamy);
+            border: 1px solid rgba(77, 110, 79, 0.15);
+            width: 800px;
+            height: 540px; /* Fixed height for no size changes when switching forms */
+            border-radius: 24px;
+            box-shadow: 0 30px 80px rgba(15, 23, 17, 0.25);
+            transform: scale(0.92) translateY(15px);
+            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+            position: relative;
+            display: flex;
+            overflow: hidden; /* Clips children to preserve rounded corners */
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1) translateY(0);
+        }
+
+        /* Forms Panel (Left / Creamy) */
+        .modal-panel-form {
+            width: 50%;
+            padding: 3.5rem 2.5rem;
+            background-color: var(--bg-creamy);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            transition: transform 0.6s cubic-bezier(0.76, 0, 0.24, 1);
+            z-index: 5;
+        }
+
+        /* Info Panel (Right / Teal Green) */
+        .modal-panel-info {
+            width: 50%;
+            padding: 3.5rem 2.5rem;
+            background-color: var(--bg-brand);
+            color: var(--text-cream);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.6s cubic-bezier(0.76, 0, 0.24, 1);
+            z-index: 5;
+        }
+
+        /* Slide panels horizontally in Sign In Mode (Teal on Left, Forms on Right) */
+        .modal-card.card-signin-mode .modal-panel-form {
+            transform: translate3d(100%, 0, 0);
+        }
+
+        .modal-card.card-signin-mode .modal-panel-info {
+            transform: translate3d(-100%, 0, 0);
+        }
+
+        /* Static Close Button (Fixed on Top-Right of Card) */
+        .modal-close {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-cream); /* Default for Register mode (teal on right) */
+            opacity: 0.6;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            border-radius: 50%;
+            z-index: 20; /* Sits statically on top of sliding panels */
+        }
+
+        /* Dynamically changes color based on panel state to keep perfect contrast */
+        .modal-card.card-signin-mode .modal-close {
+            color: var(--bg-brand); /* Sign In mode (off-white on right) */
+        }
+
+        .modal-close:hover {
+            opacity: 1;
+            background: rgba(247, 245, 240, 0.15); /* Light hover for teal background */
+            transform: rotate(90deg);
+        }
+
+        .modal-card.card-signin-mode .modal-close:hover {
+            background: rgba(77, 110, 79, 0.08); /* Dark hover for off-white background */
+        }
+
+        /* Typography & Layouts inside panels */
+        .form-container {
+            transition: opacity 0.3s ease;
+        }
+
+        .auth-title {
+            font-family: 'GuiltyTreasure', var(--font-sans);
+            font-size: 2rem;
+            font-weight: normal;
+            color: var(--bg-brand);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .auth-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-brand-muted);
+            margin-bottom: 2rem;
+            line-height: 1.4;
+        }
+
+        .info-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            max-width: 280px;
+            transition: opacity 0.3s ease;
+        }
+
+        .info-title {
+            font-family: 'GuiltyTreasure', var(--font-sans);
+            font-size: 2rem;
+            font-weight: normal;
+            margin-bottom: 1rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .info-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            opacity: 0.85;
+            margin-bottom: 2rem;
+        }
+
+        /* Outline button for dark panel */
+        .btn-outline-cream {
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-cream);
+            background: transparent;
+            border: 2px solid rgba(247, 245, 240, 0.45);
+            padding: 12px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .btn-outline-cream:hover {
+            background: var(--text-cream);
+            color: var(--bg-brand);
+            border-color: var(--text-cream);
+            transform: scale(1.03);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-outline-cream:active {
+            transform: scale(0.98);
+        }
+
+        /* Forms Styling */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--bg-brand);
+            margin-bottom: 0.4rem;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 11px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(77, 110, 79, 0.2);
+            background-color: rgba(253, 251, 247, 0.5);
+            color: var(--bg-brand);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--bg-brand);
+            box-shadow: 0 0 0 4px rgba(77, 110, 79, 0.08);
+            background-color: #fff;
+        }
+
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.82rem;
+            margin-bottom: 1.25rem;
+            color: var(--bg-brand);
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .form-checkbox input {
+            accent-color: var(--bg-brand);
+            width: 14px;
+            height: 14px;
+        }
+
+        .form-link {
+            color: var(--bg-brand);
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+
+        .form-link:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background-color: var(--bg-brand);
+            color: var(--text-cream);
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(77, 110, 79, 0.15);
+        }
+
+        .btn-submit:hover {
+            opacity: 0.95;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(77, 110, 79, 0.25);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        /* 
+           Elegant Toast System
+        */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background-color: var(--bg-brand);
+            color: var(--text-cream);
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateY(100px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 400;
+        }
+
+        .toast.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 
+           Responsive adjustments for Split Modal layout
+        */
+        @media (max-width: 768px) {
+            .modal-card {
+                flex-direction: column;
+                width: calc(100% - 2.5rem);
+                max-width: 440px;
+                height: 640px; /* Fixed height on mobile stacked view too */
+            }
+
+            /* Disable sliding transitions on stacked mobile viewports to prevent layout break */
+            .modal-card.card-signin-mode .modal-panel-form,
+            .modal-card.card-signin-mode .modal-panel-info {
+                transform: none !important;
+            }
+
+            .modal-panel-form {
+                width: 100%;
+                padding: 2.5rem 1.75rem;
+                order: 1;
+            }
+
+            .modal-panel-info {
+                width: 100%;
+                padding: 2rem 1.75rem;
+                order: 2;
+            }
+
+            .auth-title, .info-title {
+                font-size: 1.5rem;
+            }
+
+            .auth-subtitle, .info-text {
+                margin-bottom: 1.25rem;
+            }
+
+            .info-content {
+                max-width: 100%;
+            }
+            
+            body.shrunk .auth-container {
+                right: 1.25rem;
+                top: 37.5px;
+            }
+
+            .btn-auth {
+                padding: 6px 14px;
+                font-size: 0.7rem;
+                gap: 6px;
+            }
+        }
+
+        .view-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0; /* Align full-bleed header bar directly against scrolling layout container */
+            width: 100%;
+            flex: 1;
+            overflow: hidden;
+            transition: opacity 0.3s ease;
+        }
+
+        .profile-settings-layout {
+            display: flex;
+            gap: 4rem;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            padding: 2rem 4rem; /* Clean vertical margins and pixel-perfect horizontal alignment */
+        }
+
+        .profile-avatar-column {
+            width: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .avatar-editor-container {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            overflow: hidden;
+            background-color: var(--bg-brand);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(77, 110, 79, 0.08);
+            border: 2px solid rgba(77, 110, 79, 0.15);
+            cursor: pointer;
+            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .avatar-editor-container:hover {
+            transform: scale(1.03);
+        }
+
+        .avatar-large {
+            font-family: 'GuiltyTreasure', sans-serif;
+            font-size: 3.5rem;
+            color: var(--text-cream);
+            text-transform: uppercase;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .avatar-hover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 17, 0.65);
+            color: var(--text-cream);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+        }
+
+        .avatar-editor-container:hover .avatar-hover-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .avatar-tip-text {
+            font-size: 0.72rem;
+            color: var(--text-brand-muted);
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        .profile-form-column {
+            flex: 1;
+        }
+
+        .profile-grid-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-section-title {
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--bg-brand);
+            font-weight: 700;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(77, 110, 79, 0.08);
+        }
+
+        .form-row-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-row-three-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 992px) {
+            .profile-settings-layout {
+                flex-direction: column;
+                gap: 2.5rem;
+            }
+
+            .profile-avatar-column {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .form-row-two-col, .form-row-three-col {
+                grid-template-columns: 1fr;
+                gap: 1.25rem;
+            }
+        }
+
+        /* Input Icon Wrapper */
+        .input-icon-wrapper {
+            position: relative;
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon-wrapper svg {
+            position: absolute;
+            left: 14px;
+            stroke: var(--bg-brand);
+            opacity: 0.45;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .input-icon-wrapper .form-input {
+            padding-left: 42px; /* Extra padding to fit the icon */
+        }
+
+        .input-icon-wrapper .form-input:focus + svg {
+            opacity: 0.95;
+            transform: scale(1.05);
+        }
+
+        /* Header Dropdown Menu */
+        .user-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 200px;
+            background-color: var(--bg-creamy);
+            border: 1px solid rgba(77, 110, 79, 0.15);
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 120;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .user-dropdown.active {
+            transform: translateY(0);
+            opacity: 1 !important;
+            pointer-events: auto;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: var(--bg-brand);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background-color: rgba(77, 110, 79, 0.08);
+        }
+
+        .dropdown-item svg {
+            stroke: var(--bg-brand);
+        }
+
+        /* My Garage Layouts */
+        .garage-member-layout {
+            display: flex;
+            gap: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .garage-left-panel {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            flex-shrink: 0;
+            height: 100%;
+            overflow-y: auto;
+            padding: 2rem 2rem 2rem 4rem;
+            border-right: 1px solid rgba(77, 110, 79, 0.08);
+        }
+
+        .garage-right-panel {
+            flex: 1;
+            height: 100%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .garage-details-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            width: 100%;
+            background-color: var(--bg-creamy);
+            border-bottom: 1px solid rgba(77, 110, 79, 0.08);
+            padding: 0.85rem 4rem 0.85rem 2.5rem;
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            border-radius: 0;
+        }
+
+        .garage-right-content-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 2rem 4rem 2rem 2.5rem;
+            width: 100%;
+        }
+
+        @media (max-width: 992px) {
+            .garage-member-layout {
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+            }
+            .garage-left-panel {
+                width: 100%;
+                height: auto;
+                overflow: visible;
+                padding: 1.5rem;
+                border-right: none;
+                border-bottom: 1px solid rgba(77, 110, 79, 0.08);
+            }
+            .garage-right-panel {
+                width: 100%;
+                height: auto;
+                overflow: visible;
+            }
+            .garage-details-header {
+                padding: 0.85rem 1.5rem;
+            }
+            .garage-right-content-wrapper {
+                padding: 1.5rem;
+            }
+        }
+
+        .garage-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(77, 110, 79, 0.08);
+            width: 100%;
+        }
+
+        .vehicle-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-top: 1.25rem;
+            width: 100%;
+        }
+
+        .vehicle-card {
+            background-color: rgba(77, 110, 79, 0.03);
+            border: 1px solid rgba(77, 110, 79, 0.08);
+            border-radius: 16px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .vehicle-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(77, 110, 79, 0.2);
+            box-shadow: 0 8px 24px rgba(77, 110, 79, 0.04);
+            background-color: rgba(77, 110, 79, 0.05);
+        }
+
+        .vehicle-card.active {
+            border-color: var(--bg-brand);
+            background-color: rgba(77, 110, 79, 0.06);
+            box-shadow: 0 8px 24px rgba(77, 110, 79, 0.06);
+        }
+
+        .vehicle-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .vehicle-title {
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--bg-brand);
+        }
+
+        .vehicle-meta {
+            font-size: 0.78rem;
+            color: var(--text-brand-muted);
+        }
+
+        .vehicle-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: rgba(77, 110, 79, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--bg-brand);
+            margin-bottom: 2px;
+            transition: all 0.2s ease;
+        }
+
+        .vehicle-card.active .vehicle-icon-wrapper {
+            background-color: var(--bg-brand);
+            color: var(--text-cream);
+        }
+
+        .vehicle-badge-active {
+            position: absolute;
+            top: 1.25rem;
+            right: 1.25rem;
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--bg-brand);
+            background-color: rgba(77, 110, 79, 0.12);
+            padding: 4px 8px;
+            border-radius: 20px;
+        }
+
+        .vehicle-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(77, 110, 79, 0.06);
+            gap: 12px;
+            width: 100%;
+        }
+
+        .btn-card-action {
+            font-family: var(--font-sans);
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--bg-brand);
+            opacity: 0.75;
+            transition: opacity 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-card-action:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .btn-card-action.delete {
+            color: #C0392B; /* Premium soft red */
+        }
+
+        /* Collapsible Form Card */
+        .inline-add-car-card {
+            background-color: #ffffff;
+            border: 1px solid rgba(77, 110, 79, 0.12);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-top: 1.25rem;
+            box-shadow: 0 10px 30px rgba(77, 110, 79, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Atmospheric Procedural Grain Overlay -->
+    <div class="grain-overlay"></div>
+
+    <!-- Sidebar Toggle Button (Fixed on Top-Left) -->
+    <button id="sidebarToggleBtn" aria-label="Toggle Navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="sidebar-toggle-icon"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
+
+    <!-- Green Cover Bar -->
+    <div class="brand-bar">
+        <div class="brand-lockup">
+            <!-- Stable Logo -->
+            <img 
+                src="No background.png" 
+                alt="Logo" 
+                class="brand-logo"
+            >
+            <!-- Stable Brand Typography -->
+            <h1 class="brand-text">WERASH</h1>
+        </div>
+        
+        <!-- Premium Action Button -->
+        <div class="auth-container">
+            <button class="btn-auth" id="authBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="auth-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Sign In</span>
+            </button>
+            <div class="user-dropdown" id="userDropdown">
+                <a href="#" class="dropdown-item" id="dropdownProfileBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <span>Profile Settings</span>
+                </a>
+                <a href="#" class="dropdown-item" id="dropdownLogoutBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    <span>Sign Out</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revealed Creamy Off-White Content Area -->
+    <main class="content-canvas">
+        <div class="main-layout-container">
+            <!-- Sidebar (1/5th or 20% width) -->
+            <aside class="main-sidebar">
+                <div class="sidebar-user-card">
+                    <div class="avatar-placeholder" id="sidebarAvatar">G</div>
+                    <div class="user-info-widget">
+                        <h4 class="user-greeting-name" id="sidebarUserName">Guest</h4>
+                        <p class="user-status-text">Warsha Member</p>
+                    </div>
+                </div>
+
+                <!-- Active Car Widget (Dynamic based on registration!) -->
+                <div class="sidebar-car-widget" id="sidebarCarWidget" style="display: none;">
+                    <!-- Left: Text Info -->
+                    <div class="car-widget-text">
+                        <div class="car-widget-header">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                            <span>Active Vehicle</span>
+                        </div>
+                        <h5 class="car-name-display" id="sidebarCarName">Porsche 911</h5>
+                        <p class="car-year-display" id="sidebarCarYear">2024 Model</p>
+                    </div>
+                    <!-- Right: Car Side Profile Image -->
+                    <div class="car-widget-image">
+                        <img src="car_side_profile.png" alt="Active vehicle side profile">
+                    </div>
+                </div>
+
+                <!-- Navigation Menu -->
+                <nav class="sidebar-nav">
+                    <a href="#" class="sidebar-nav-item active" id="navLinkProfile">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <span>Profile</span>
+                    </a>
+                    <a href="#" class="sidebar-nav-item" id="navLinkGarage">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                        <span>My Warsha</span>
+                    </a>
+                    <a href="#" class="sidebar-nav-item" id="navLinkExperts">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        <span>Browse Experts</span>
+                    </a>
+                    <a href="#" class="sidebar-nav-item" id="navLinkDashboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" class="sidebar-nav-item" id="navLinkParts">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <span>Spare Parts</span>
+                    </a>
+                    <a href="#" class="sidebar-nav-item" id="navLinkLogBook">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        <span>Log Book</span>
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Main Content Panel (4/5ths or 80% width) -->
+            <section class="main-content-panel">
+                <!-- Profile Settings Setup View (Active by Default) -->
+                <div id="profileView" class="view-container">
+                    <div class="content-welcome-banner">
+                        <h2 class="welcome-heading">Profile Settings</h2>
+                        <p class="welcome-subtext">Manage your personal details, avatar, credentials, and Warsha vehicles in real-time.</p>
+                    </div>
+
+                    <!-- GUEST STATE (Shown only when not logged in) -->
+                    <div id="profileGuestState" class="profile-guest-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; flex: 1; padding: 4rem 2rem; gap: 1.5rem;">
+                        <div class="guest-illustration" style="color: var(--bg-brand); opacity: 0.15; transform: scale(1.1);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        </div>
+                        <h3 class="guest-title" style="font-family: 'GuiltyTreasure', var(--font-sans); font-size: 1.5rem; color: var(--bg-brand); letter-spacing: 0.04em;">Sign In to Continue</h3>
+                        <p class="guest-text" style="font-size: 0.85rem; color: var(--text-brand-muted); max-width: 340px; line-height: 1.5; margin-bottom: 0.5rem;">Please log in or create an account to view and edit your personal details, profile picture, and active vehicles.</p>
+                        <button class="btn-submit" id="btnProfileGuestAuth" style="width: auto; padding: 12px 36px; border-radius: 50px;">Sign In / Register</button>
+                    </div>
+
+                    <!-- MEMBER STATE (Shown only when logged in) -->
+                    <div id="profileMemberState" class="profile-settings-layout" style="display: none; opacity: 0;">
+                        <!-- Profile Pic Column -->
+                        <div class="profile-avatar-column">
+                            <div class="avatar-editor-container" onclick="document.getElementById('avatarUpload').click();">
+                                <div class="avatar-large" id="avatarLargeDisplay">G</div>
+                                <div class="avatar-hover-overlay">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="camera-icon"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                    <span>Change Photo</span>
+                                </div>
+                                <input type="file" id="avatarUpload" accept="image/*" style="display: none;">
+                            </div>
+                            <div class="avatar-actions" style="display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px;">
+                                <a href="#" id="btnRemoveAvatar" class="form-link" style="font-size: 0.72rem; display: none; opacity: 0.85;">Remove Photo</a>
+                                <p class="avatar-tip-text">JPG or PNG.<br>Max size 2MB.</p>
+                            </div>
+                        </div>
+
+                        <!-- Form Column -->
+                        <div class="profile-form-column">
+                            <form id="profileUpdateForm" class="profile-grid-form">
+                                <div class="form-section-title">Personal Details</div>
+                                
+                                <div class="form-row-two-col">
+                                    <div class="form-group">
+                                        <label class="form-label" for="profile-name-input">Full Name</label>
+                                        <div class="input-icon-wrapper">
+                                            <input class="form-input" type="text" id="profile-name-input" placeholder="Guest User" value="Guest">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="profile-email-input">Email Address</label>
+                                        <div class="input-icon-wrapper">
+                                            <input class="form-input" type="email" id="profile-email-input" placeholder="name@example.com" value="">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row-two-col">
+                                    <div class="form-group">
+                                        <label class="form-label" for="profile-phone-input">Phone Number</label>
+                                        <div class="input-icon-wrapper">
+                                            <input class="form-input" type="tel" id="profile-phone-input" placeholder="+1 (555) 000-0000" value="">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <!-- Spacer -->
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn-submit" style="width: auto; padding: 12px 36px; margin-top: 0.5rem; align-self: flex-start;">Save Changes</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Garage View (Initially Hidden) -->
+                <div id="garageView" class="view-container" style="display: none; opacity: 0;">
+                    <div class="content-welcome-banner">
+                        <h2 class="welcome-heading">My Warsha</h2>
+                        <p class="welcome-subtext">Manage, toggle, and register your vehicles in your custom virtual Warsha space.</p>
+                    </div>
+
+                    <!-- GUEST STATE (Shown only when not logged in) -->
+                    <div id="garageGuestState" class="profile-guest-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; flex: 1; padding: 4rem 2rem; gap: 1.5rem;">
+                        <div class="guest-illustration" style="color: var(--bg-brand); opacity: 0.15; transform: scale(1.1);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                        </div>
+                        <h3 class="guest-title" style="font-family: 'GuiltyTreasure', var(--font-sans); font-size: 1.5rem; color: var(--bg-brand); letter-spacing: 0.04em;">Sign In to View My Warsha</h3>
+                        <p class="guest-text" style="font-size: 0.85rem; color: var(--text-brand-muted); max-width: 340px; line-height: 1.5; margin-bottom: 0.5rem;">Please log in or create an account to view, register, and select active vehicles in My Warsha.</p>
+                        <button class="btn-submit" id="btnGarageGuestAuth" style="width: auto; padding: 12px 36px; border-radius: 50px;">Sign In / Register</button>
+                    </div>
+
+                    <!-- MEMBER STATE (Shown only when logged in) -->
+                    <div id="garageMemberState" class="garage-member-layout" style="display: none; opacity: 0;">
+                        <!-- Left Side: Vehicle List Panel -->
+                        <div class="garage-left-panel">
+                            <!-- My Garage Header Row -->
+                            <div class="form-section-title garage-header-row" style="margin-top: 0; padding-bottom: 8px; border-bottom: 1px solid rgba(77, 110, 79, 0.08); display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <span>My Vehicles</span>
+                                <button type="button" class="btn-auth" id="btnShowAddCarForm" style="color: var(--bg-brand); border-color: rgba(77, 110, 79, 0.25); background: transparent; padding: 6px 14px; font-size: 0.72rem;">+ Add Car</button>
+                            </div>
+                            
+                            <!-- Collapsible Add Car Form Card -->
+                            <div id="inlineAddCarCard" class="inline-add-car-card" style="display: none; opacity: 0; margin-bottom: 1rem; transition: all 0.3s ease; width: 100%;">
+                                <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Add New Vehicle</h4>
+                                <form id="inlineAddCarForm" style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label class="form-label" for="add-car-brand" style="font-size: 0.65rem;">Car Brand</label>
+                                        <div class="input-icon-wrapper">
+                                            <input class="form-input" type="text" id="add-car-brand" placeholder="e.g. Porsche" style="padding: 9px 12px 9px 36px; font-size: 0.82rem;" required>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="left: 11px;"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label class="form-label" for="add-car-model" style="font-size: 0.65rem;">Model</label>
+                                        <div class="input-icon-wrapper">
+                                            <input class="form-input" type="text" id="add-car-model" placeholder="e.g. 911" style="padding: 9px 12px 9px 36px; font-size: 0.82rem;" required>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="left: 11px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label class="form-label" for="add-car-year" style="font-size: 0.65rem;">Year</label>
+                                        <div class="input-icon-wrapper">
+                                            <input class="form-input" type="number" id="add-car-year" placeholder="e.g. 2024" min="1900" max="2027" style="padding: 9px 12px 9px 36px; font-size: 0.82rem;" required>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="left: 11px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; justify-content: flex-start; align-items: center; margin-top: 0.25rem;">
+                                        <button type="submit" class="btn-submit" style="width: auto; padding: 6px 18px; font-size: 0.75rem; border-radius: 50px;">Save Vehicle</button>
+                                        <button type="button" class="btn-card-action" id="btnCancelAddCar" style="opacity: 0.6; font-size: 0.75rem; padding: 6px 12px;">Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Dynamic Vehicles Stack (Rendered vertically) -->
+                            <div id="vehiclesGrid" style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+                                <!-- Injected dynamically in JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Active Vehicle Details Panel -->
+                        <div class="garage-right-panel" id="garageCarDetailsContainer">
+                            <!-- Injected dynamically in JavaScript based on active vehicle! -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard View (Initially Hidden, Toggled via Sidebar) -->
+                <div id="dashboardView" class="view-container" style="display: none; opacity: 0;">
+                    <div class="content-welcome-banner">
+                        <h2 class="welcome-heading">My Warsha Dashboard</h2>
+                        <p class="welcome-subtext">Manage your Warsha, view logs, and maintain your vehicles in one unified dashboard.</p>
+                    </div>
+
+                    <!-- Dashboard Grid (Luxury cards layout) -->
+                    <div class="dashboard-grid">
+                        <div class="grid-card" id="dashboardCarCard">
+                            <h3>Car Profile</h3>
+                            <p class="card-desc" id="dashboardCarCardDesc">No active car. Register or log in to customize My Warsha.</p>
+                        </div>
+                        <div class="grid-card">
+                            <h3>Quick Log</h3>
+                            <p class="card-desc">Keep track of your fuel, maintenance details, and service logs easily.</p>
+                        </div>
+                        <div class="grid-card">
+                            <h3>Upcoming Tasks</h3>
+                            <p class="card-desc">Stay ahead of service reminders, oil changes, and registration renewals.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browse Experts View (Initially Hidden) -->
+                <div id="expertsView" class="view-container" style="display: none; opacity: 0; flex-direction: column; overflow-y: auto;">
+                    <div class="content-welcome-banner">
+                        <h2 class="welcome-heading">Browse Experts</h2>
+                        <p class="welcome-subtext">Connect with certified specialists, premium technicians, and expert advisors for your Warsha.</p>
+                    </div>
+
+                    <!-- Search and Filter Controls Panel -->
+                    <div class="experts-filter-panel" style="padding: 1.5rem 4rem 1rem 4rem; display: flex; flex-direction: column; gap: 1.25rem; width: 100%; box-sizing: border-box;">
+                        <div style="display: flex; gap: 1rem; width: 100%; flex-wrap: wrap; align-items: center;">
+                            <!-- Search Bar -->
+                            <div class="input-icon-wrapper" style="flex: 1; min-width: 280px; margin-bottom: 0;">
+                                <input class="form-input" type="text" id="expertSearchInput" placeholder="Search by name, specialty, or certifications..." style="padding: 11px 16px 11px 40px; font-size: 0.85rem; border-radius: 50px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="left: 14px; top: 50%; transform: translateY(-50%); position: absolute; color: var(--bg-brand); opacity: 0.65;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            </div>
+                            
+                            <!-- Filter Buttons -->
+                            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" id="expertCategoryFilters">
+                                <button class="btn-auth filter-btn active" data-filter="all" style="border-radius: 50px; font-size: 0.72rem; padding: 8px 16px; min-height: auto; width: auto; font-family: var(--font-sans); background-color: var(--bg-brand); color: var(--text-cream); border-color: var(--bg-brand);">Overall</button>
+                                <button class="btn-auth filter-btn" data-filter="Mechanical" style="border-radius: 50px; font-size: 0.72rem; padding: 8px 16px; background: transparent; color: var(--bg-brand); border-color: rgba(77, 110, 79, 0.2); min-height: auto; width: auto; font-family: var(--font-sans);">Mechanical</button>
+                                <button class="btn-auth filter-btn" data-filter="BodyShops" style="border-radius: 50px; font-size: 0.72rem; padding: 8px 16px; background: transparent; color: var(--bg-brand); border-color: rgba(77, 110, 79, 0.2); min-height: auto; width: auto; font-family: var(--font-sans);">Body Shops</button>
+                                <button class="btn-auth filter-btn" data-filter="Suspension" style="border-radius: 50px; font-size: 0.72rem; padding: 8px 16px; background: transparent; color: var(--bg-brand); border-color: rgba(77, 110, 79, 0.2); min-height: auto; width: auto; font-family: var(--font-sans);">Suspension</button>
+                                <button class="btn-auth filter-btn" data-filter="Electrician" style="border-radius: 50px; font-size: 0.72rem; padding: 8px 16px; background: transparent; color: var(--bg-brand); border-color: rgba(77, 110, 79, 0.2); min-height: auto; width: auto; font-family: var(--font-sans);">Electrician</button>
+                                <button class="btn-auth filter-btn" data-filter="Parts" style="border-radius: 50px; font-size: 0.72rem; padding: 8px 16px; background: transparent; color: var(--bg-brand); border-color: rgba(77, 110, 79, 0.2); min-height: auto; width: auto; font-family: var(--font-sans);">Parts</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Experts Grid -->
+                    <div class="dashboard-grid" id="expertsGrid" style="padding: 1rem 4rem 2rem 4rem; overflow-y: visible; height: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(285px, 320px)); gap: 1.5rem; justify-content: flex-start;">
+                        <!-- Expert cards will be rendered dynamically -->
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Sign In / Register Modal -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal-card card-signin-mode">
+            <!-- Static Close Button (Fixed on Top-Right of Card) -->
+            <button class="modal-close" id="closeModal" aria-label="Close modal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+
+            <!-- Left Side: Forms (Off-White Background) -->
+            <div class="modal-panel-form">
+
+                <!-- Sign In Form Container -->
+                <div id="signInContainer" class="form-container">
+                    <h2 class="auth-title">Welcome Back</h2>
+                    <p class="auth-subtitle">Please enter your credentials to access your space.</p>
+                    
+                    <form id="signInForm" class="modal-form">
+                        <div class="form-group">
+                            <label class="form-label" for="signin-email">Email Address</label>
+                            <input class="form-input" type="email" id="signin-email" placeholder="name@example.com" required autocomplete="email">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="signin-password">Password</label>
+                            <input class="form-input" type="password" id="signin-password" placeholder="••••••••" required autocomplete="current-password">
+                        </div>
+                        <div class="form-options">
+                            <label class="form-checkbox">
+                                <input type="checkbox">
+                                <span>Remember me</span>
+                            </label>
+                            <a href="#" class="form-link">Forgot password?</a>
+                        </div>
+                        <button type="submit" class="btn-submit">Sign In</button>
+                    </form>
+                </div>
+
+                <!-- Register Form Container -->
+                <div id="registerContainer" class="form-container" style="display: none; opacity: 0;">
+                    <!-- Step 1: Personal Info -->
+                    <div id="registerStep1">
+                        <h2 class="auth-title">Create Account</h2>
+                        <p class="auth-subtitle">Join us to start personalizing your environment today.</p>
+                        
+                        <form id="registerForm1" class="modal-form">
+                            <div class="form-group">
+                                <label class="form-label" for="register-name">Full Name</label>
+                                <input class="form-input" type="text" id="register-name" placeholder="John Doe" required autocomplete="name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="register-email">Email Address</label>
+                                <input class="form-input" type="email" id="register-email" placeholder="name@example.com" required autocomplete="email">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="register-password">Password</label>
+                                <input class="form-input" type="password" id="register-password" placeholder="Min. 8 characters" required autocomplete="new-password">
+                            </div>
+                            <div class="form-options">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" required>
+                                    <span>I agree to the Terms of Service</span>
+                                </label>
+                            </div>
+                            <button type="submit" class="btn-submit" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <span>Next Step</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Step 2: Add a Car (Initially Hidden) -->
+                    <div id="registerStep2" style="display: none; opacity: 0;">
+                        <h2 class="auth-title">Add Your Car</h2>
+                        <p class="auth-subtitle">Add a Warsha for your car to access related content.</p>
+                        
+                        <form id="registerForm2" class="modal-form">
+                            <div class="form-group">
+                                <label class="form-label" for="car-brand">Car Make / Brand</label>
+                                <input class="form-input" type="text" id="car-brand" placeholder="e.g. Porsche, BMW" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="car-model">Model</label>
+                                <input class="form-input" type="text" id="car-model" placeholder="e.g. 911, M3" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="car-year">Year</label>
+                                <input class="form-input" type="number" id="car-year" placeholder="e.g. 2024" min="1900" max="2027" required>
+                            </div>
+                            
+                            <button type="submit" class="btn-submit" style="margin-bottom: 1rem;">Complete Registration</button>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                                <a href="#" id="btnBackToStep1" class="form-link" style="font-size: 0.85rem;">← Back</a>
+                                <a href="#" id="btnSkipCar" class="form-link" style="font-size: 0.85rem; font-weight: 600; opacity: 0.8;">Skip for Now</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Switch Prompt (Teal Green Background) -->
+            <div class="modal-panel-info">
+                <!-- Switching Prompt: To Register -->
+                <div id="infoToRegister" class="info-content">
+                    <h3 class="info-title">New to Werash?</h3>
+                    <p class="info-text">Create a Warsha to access all content related to your car.</p>
+                    <button class="btn-outline-cream" id="btnGoToRegister">Register</button>
+                </div>
+
+                <!-- Switching Prompt: To Sign In -->
+                <div id="infoToSignIn" class="info-content" style="display: none; opacity: 0;">
+                    <h3 class="info-title">Already have a Warsha?</h3>
+                    <p class="info-text">Sign back in to continue where you left of with your car.</p>
+                    <button class="btn-outline-cream" id="btnGoToSignIn">Sign In</button>
+                </div>
+            </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span id="toastMessage">Success!</span>
+    </div>
+
+    <!-- Timing controller for the cinematic transition & interactive elements -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            // Global Session & State variables
+            let isLoggedIn = false;
+            let currentAvatarImg = null;
+            let userCars = [];
+            let activeCarId = null;
+
+            // Synchronize active car details across sidebar, dashboard, and cards
+            function syncActiveCarUI() {
+                const sidebarCarWidget = document.getElementById('sidebarCarWidget');
+                const sidebarCarName = document.getElementById('sidebarCarName');
+                const sidebarCarYear = document.getElementById('sidebarCarYear');
+                const dashboardCarCardDesc = document.getElementById('dashboardCarCardDesc');
+
+                if (isLoggedIn && activeCarId) {
+                    const activeCar = userCars.find(c => c.id === activeCarId);
+                    if (activeCar) {
+                        sidebarCarWidget.style.display = 'flex';
+                        sidebarCarWidget.style.opacity = '1';
+                        sidebarCarName.textContent = `${activeCar.brand} ${activeCar.model}`;
+                        sidebarCarYear.textContent = `${activeCar.year} Model`;
+                        dashboardCarCardDesc.textContent = `Your active vehicle is a ${activeCar.year} ${activeCar.brand} ${activeCar.model}. Click to view details.`;
+                        return;
+                    }
+                }
+
+                // If not logged in, or no active car
+                sidebarCarWidget.style.display = 'none';
+                sidebarCarWidget.style.opacity = '0';
+                dashboardCarCardDesc.textContent = 'No active car. Register or log in to customize My Warsha.';
+            }
+
+            // Render all cards inside the vehicles grid
+            function renderGarageList() {
+                const vehiclesGrid = document.getElementById('vehiclesGrid');
+                const detailsContainer = document.getElementById('garageCarDetailsContainer');
+                if (!vehiclesGrid || !detailsContainer) return;
+
+                vehiclesGrid.innerHTML = '';
+                detailsContainer.innerHTML = '';
+
+                if (userCars.length === 0) {
+                    // Show empty state inside left panel
+                    vehiclesGrid.innerHTML = `
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem 1rem; border: 1.5px dashed rgba(77, 110, 79, 0.15); border-radius: 16px; background-color: rgba(77, 110, 79, 0.01); width: 100%;">
+                            <div style="color: var(--bg-brand); opacity: 0.35; margin-bottom: 0.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                            </div>
+                            <h5 style="font-size: 0.8rem; font-weight: 700; color: var(--bg-brand); margin-bottom: 0.25rem; text-transform: uppercase;">Warsha Empty</h5>
+                            <p style="font-size: 0.7rem; color: var(--text-brand-muted); max-width: 180px; line-height: 1.4;">Add a vehicle to view logs and diagnostics.</p>
+                        </div>
+                    `;
+                    
+                    // Show empty state inside right details panel
+                    detailsContainer.innerHTML = `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed rgba(77, 110, 79, 0.12); border-radius: 20px; background-color: rgba(77, 110, 79, 0.005); padding: 3rem 2rem; width: 100%;">
+                            <div style="color: var(--bg-brand); opacity: 0.2; margin-bottom: 1rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            </div>
+                            <h4 style="font-family: 'GuiltyTreasure', var(--font-sans); font-size: 1.25rem; color: var(--bg-brand); letter-spacing: 0.04em; margin-bottom: 0.5rem; text-transform: uppercase;">No Vehicle Selected</h4>
+                            <p style="font-size: 0.8rem; color: var(--text-brand-muted); max-width: 320px; line-height: 1.5;">Please select a vehicle from the left panel or register a new one to view detailed maintenance history, oil changes, diagnostics, and customized logs.</p>
+                        </div>
+                    `;
+
+                    syncActiveCarUI();
+                    return;
+                }
+
+                // Render left-side stacked vehicles
+                userCars.forEach(car => {
+                    const isActive = car.id === activeCarId;
+                    
+                    const card = document.createElement('div');
+                    card.className = `vehicle-card${isActive ? ' active' : ''}`;
+                    card.style.cursor = 'pointer';
+                    card.style.width = '100%';
+                    
+                    // Clicking anywhere on the card sets it active
+                    card.addEventListener('click', (e) => {
+                        // Prevent click triggering if clicking delete button
+                        if (e.target.closest('.delete')) return;
+                        
+                        if (activeCarId !== car.id) {
+                            activeCarId = car.id;
+                            renderGarageList();
+                            showToast(`${car.brand} ${car.model} selected.`);
+                        }
+                    });
+                    
+                    // Vehicle icon container
+                    const iconWrapper = document.createElement('div');
+                    iconWrapper.className = 'vehicle-icon-wrapper';
+                    iconWrapper.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>`;
+                    card.appendChild(iconWrapper);
+
+                    // Badge if active
+                    if (isActive) {
+                        const badge = document.createElement('span');
+                        badge.className = 'vehicle-badge-active';
+                        badge.textContent = 'Active';
+                        card.appendChild(badge);
+                    }
+
+                    // Info block
+                    const info = document.createElement('div');
+                    info.className = 'vehicle-info';
+                    
+                    const title = document.createElement('h5');
+                    title.className = 'vehicle-title';
+                    title.textContent = `${car.brand} ${car.model}`;
+                    
+                    const meta = document.createElement('span');
+                    meta.className = 'vehicle-meta';
+                    meta.textContent = `${car.year} Model`;
+                    
+                    info.appendChild(title);
+                    info.appendChild(meta);
+                    card.appendChild(info);
+
+                    // Actions block
+                    const actions = document.createElement('div');
+                    actions.className = 'vehicle-actions';
+                    actions.style.marginTop = '4px';
+                    actions.style.paddingTop = '6px';
+
+                    if (!isActive) {
+                        const btnActive = document.createElement('button');
+                        btnActive.type = 'button';
+                        btnActive.className = 'btn-card-action';
+                        btnActive.textContent = 'Set Active';
+                        btnActive.style.fontSize = '0.68rem';
+                        actions.appendChild(btnActive);
+                    } else {
+                        const activeLabel = document.createElement('span');
+                        activeLabel.style.fontSize = '0.68rem';
+                        activeLabel.style.fontWeight = '600';
+                        activeLabel.style.color = 'var(--bg-brand)';
+                        activeLabel.textContent = 'Current Active';
+                        actions.appendChild(activeLabel);
+                    }
+
+                    const btnRemove = document.createElement('button');
+                    btnRemove.type = 'button';
+                    btnRemove.className = 'btn-card-action delete';
+                    btnRemove.textContent = 'Remove';
+                    btnRemove.style.fontSize = '0.68rem';
+                    btnRemove.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Stop card click activation trigger
+                        userCars = userCars.filter(c => c.id !== car.id);
+                        if (activeCarId === car.id) {
+                            activeCarId = userCars.length > 0 ? userCars[0].id : null;
+                        }
+                        renderGarageList();
+                        showToast(`${car.brand} ${car.model} removed from Warsha.`);
+                    });
+                    actions.appendChild(btnRemove);
+
+                    card.appendChild(actions);
+                    vehiclesGrid.appendChild(card);
+                });
+
+                // Render right-side details panel for the active vehicle
+                const activeCar = userCars.find(c => c.id === activeCarId);
+                if (activeCar) {
+                    detailsContainer.innerHTML = `
+                        <!-- Fixed/Sticky Rectangular Vehicle Title Header -->
+                        <div class="garage-details-header">
+                            <!-- Left: Car Side Profile Image (Sharp, Compact) -->
+                            <div style="width: 90px; height: 56px; overflow: hidden; background-color: rgba(77, 110, 79, 0.04); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(77, 110, 79, 0.08); flex-shrink: 0; border-radius: 0;">
+                                <img src="car_side_profile.png" alt="Car Side Profile" style="width: 90%; height: 90%; object-fit: contain; mix-blend-mode: multiply;">
+                            </div>
+                            
+                            <!-- Right: Car Details -->
+                            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; z-index: 5;">
+                                <div>
+                                    <span style="font-size: 0.62rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85;">Active Vehicle Space</span>
+                                    <h3 style="font-family: 'GuiltyTreasure', var(--font-sans); font-size: 1.45rem; font-weight: normal; margin-top: 1px; margin-bottom: 1px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--bg-brand);">${activeCar.brand} ${activeCar.model}</h3>
+                                    <span style="font-size: 0.72rem; color: var(--text-brand-muted);">${activeCar.year} Model • Verified Member Profile</span>
+                                </div>
+                                
+                                <!-- Active badge (Sharp edges, minimal) -->
+                                <div style="background-color: rgba(77, 110, 79, 0.06); border: 1px solid rgba(77, 110, 79, 0.12); color: var(--bg-brand); padding: 6px 14px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; border-radius: 0;">
+                                    Active Warsha
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Details Content Scrollable Area -->
+                        <div class="garage-right-content-wrapper">
+                            <!-- Diagnostics Mini Cards Grid -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.25rem; width: 100%;">
+                                <!-- Card 1: Kilometer Odometer -->
+                                <div class="grid-card" style="padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                                    <span style="font-size: 0.65rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85;">Current Odometer</span>
+                                    <h4 style="font-size: 1.25rem; font-weight: 700; color: var(--bg-brand); margin: 2px 0;">18,450 km</h4>
+                                    <span style="font-size: 0.72rem; color: var(--text-brand-muted);">Updated 2 hours ago</span>
+                                </div>
+
+                                <!-- Card 2: Last Oil Change -->
+                                <div class="grid-card" style="padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                                    <span style="font-size: 0.65rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85;">Last Oil Change</span>
+                                    <h4 style="font-size: 1.25rem; font-weight: 700; color: var(--bg-brand); margin: 2px 0;">12,500 km</h4>
+                                    <span style="font-size: 0.72rem; color: var(--text-brand-muted);">Interval: 10,000 km</span>
+                                </div>
+
+                                <!-- Card 3: Next Oil Change Due -->
+                                <div class="grid-card" style="padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                                    <span style="font-size: 0.65rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85;">Next Oil Change Due</span>
+                                    <h4 style="font-size: 1.25rem; font-weight: 700; color: var(--bg-brand); margin: 2px 0;">22,500 km</h4>
+                                    <span style="font-size: 0.72rem; color: #4D6E4F; font-weight: 600;">In 4,050 km</span>
+                                </div>
+                            </div>
+
+                            <!-- Diagnostic Specifications Table Card -->
+                            <div class="grid-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; width: 100%;">
+                                <h4 style="font-family: var(--font-sans); font-size: 0.8rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 8px; border-bottom: 1px solid rgba(77, 110, 79, 0.08); margin: 0; width: 100%;">Diagnostic Report & Vehicle Stats</h4>
+                                
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem 2rem; width: 100%;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); width: 100%;">
+                                        <span style="font-size: 0.78rem; color: var(--text-brand-muted);">Battery State</span>
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--bg-brand);">14.2V (Excellent)</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); width: 100%;">
+                                        <span style="font-size: 0.78rem; color: var(--text-brand-muted);">Brake Fluid Level</span>
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--bg-brand);">96% (Optimal)</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); width: 100%;">
+                                        <span style="font-size: 0.78rem; color: var(--text-brand-muted);">Tire Pressure</span>
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--bg-brand);">32 PSI Front / 34 PSI Rear</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); width: 100%;">
+                                        <span style="font-size: 0.78rem; color: var(--text-brand-muted);">Engine Coolant Temp</span>
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--bg-brand);">92°C (Stable)</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); width: 100%;">
+                                        <span style="font-size: 0.78rem; color: var(--text-brand-muted);">Next Inspection</span>
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--bg-brand);">October 24, 2026</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); width: 100%;">
+                                        <span style="font-size: 0.78rem; color: var(--text-brand-muted);">Maintenance Insurance</span>
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: #4D6E4F;">Active Cover</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Service Log History Card -->
+                            <div class="grid-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+                                <h4 style="font-family: var(--font-sans); font-size: 0.8rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 8px; border-bottom: 1px solid rgba(77, 110, 79, 0.08); margin: 0; width: 100%;">Recent Warsha Activity Logs</h4>
+                                
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
+                                    <div style="display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px dashed rgba(77, 110, 79, 0.05); align-items: flex-start; width: 100%;">
+                                        <div style="background-color: rgba(77, 110, 79, 0.08); color: var(--bg-brand); padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; font-family: var(--font-sans);">12.5K</div>
+                                        <div style="flex: 1;">
+                                            <h5 style="font-size: 0.82rem; font-weight: 700; color: var(--bg-brand); margin: 0 0 2px 0;">Routine Oil & Filter Change Service</h5>
+                                            <p style="font-size: 0.72rem; color: var(--text-brand-muted); margin: 0;">Completed at Werash Central Shop • Certified mechanic log attached</p>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 12px; padding: 6px 0; align-items: flex-start; width: 100%;">
+                                        <div style="background-color: rgba(77, 110, 79, 0.08); color: var(--bg-brand); padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; font-family: var(--font-sans);">8.2K</div>
+                                        <div style="flex: 1;">
+                                            <h5 style="font-size: 0.82rem; font-weight: 700; color: var(--bg-brand); margin: 0 0 2px 0;">Tire Rotation & Balance Alignment Check</h5>
+                                            <p style="font-size: 0.72rem; color: var(--text-brand-muted); margin: 0;">Full alignment service performed to solve high speed steering wheel jitter</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                syncActiveCarUI();
+            }
+
+            // Step 1: Trigger the entrance slide-in of the brand text (0.5s delay)
+            setTimeout(() => {
+                document.body.classList.add('active-load');
+            }, 500);
+
+            // Step 2: Trigger the cinematic shrink to top bar header (3.0s delay)
+            setTimeout(() => {
+                document.body.classList.add('shrunk');
+            }, 3000);
+
+            // Initial view setup for profile settings (Guest by default)
+            syncProfileStateView();
+
+            // Auth Modal Controls
+            const authBtn = document.getElementById('authBtn');
+            const authModal = document.getElementById('authModal');
+            const closeModal = document.getElementById('closeModal');
+            
+            const btnGoToRegister = document.getElementById('btnGoToRegister');
+            const btnGoToSignIn = document.getElementById('btnGoToSignIn');
+            
+            const signInContainer = document.getElementById('signInContainer');
+            const registerContainer = document.getElementById('registerContainer');
+            
+            const infoToRegister = document.getElementById('infoToRegister');
+            const infoToSignIn = document.getElementById('infoToSignIn');
+            
+            const signInForm = document.getElementById('signInForm');
+            
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+
+            // Set dynamic transition speed in JS matching CSS transitions
+            signInContainer.style.transition = 'opacity 0.3s ease';
+            registerContainer.style.transition = 'opacity 0.3s ease';
+            infoToRegister.style.transition = 'opacity 0.3s ease';
+            infoToSignIn.style.transition = 'opacity 0.3s ease';
+
+            // Open Modal or Toggle User Dropdown
+            authBtn.addEventListener('click', (e) => {
+                if (isLoggedIn) {
+                    const userDropdown = document.getElementById('userDropdown');
+                    userDropdown.classList.toggle('active');
+                    e.stopPropagation();
+                } else {
+                    authModal.classList.add('active');
+                    
+                    // Default to Sign In mode (teal on left, form on right)
+                    const modalCard = authModal.querySelector('.modal-card');
+                    modalCard.classList.add('card-signin-mode');
+                    signInContainer.style.display = 'block';
+                    signInContainer.style.opacity = '1';
+                    registerContainer.style.display = 'none';
+                    registerContainer.style.opacity = '0';
+                    infoToRegister.style.display = 'flex';
+                    infoToRegister.style.opacity = '1';
+                    infoToSignIn.style.display = 'none';
+                    infoToSignIn.style.opacity = '0';
+                    
+                    // Focus active form's first input
+                    setTimeout(() => {
+                        signInContainer.querySelector('input').focus();
+                    }, 100);
+                }
+            });
+
+            // Close dropdown when clicking outside
+            window.addEventListener('click', () => {
+                const userDropdown = document.getElementById('userDropdown');
+                if (userDropdown && userDropdown.classList.contains('active')) {
+                    userDropdown.classList.remove('active');
+                }
+            });
+
+            // Close Modal
+            const hideModal = () => {
+                authModal.classList.remove('active');
+            };
+            closeModal.addEventListener('click', hideModal);
+            
+            // Close on overlay click
+            authModal.addEventListener('click', (e) => {
+                if (e.target === authModal) {
+                    hideModal();
+                }
+            });
+
+            // ESC key to close
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && authModal.classList.contains('active')) {
+                    hideModal();
+                }
+            });
+
+            // Panel Switching Transition Handler
+            const switchPanels = (hideForm, showForm, hideInfo, showInfo) => {
+                hideForm.style.opacity = '0';
+                hideInfo.style.opacity = '0';
+                
+                setTimeout(() => {
+                    hideForm.style.display = 'none';
+                    hideInfo.style.display = 'none';
+                    
+                    showForm.style.display = 'block';
+                    showInfo.style.display = 'flex';
+                    
+                    // Force vertical center reflow
+                    showForm.offsetHeight;
+                    showInfo.offsetHeight;
+                    
+                    showForm.style.opacity = '1';
+                    showInfo.style.opacity = '1';
+                    
+                    // Auto-focus first input field in active view
+                    const inputField = showForm.querySelector('input');
+                    if (inputField) inputField.focus();
+                }, 300);
+            };
+
+            // Switch to Register (Teal side prompt clicked)
+            btnGoToRegister.addEventListener('click', () => {
+                const modalCard = authModal.querySelector('.modal-card');
+                modalCard.classList.remove('card-signin-mode'); // Slides panels: teal goes to right, forms go to left
+                
+                // Reset wizard step back to step 1
+                registerStep1.style.display = 'block';
+                registerStep1.style.opacity = '1';
+                registerStep2.style.display = 'none';
+                registerStep2.style.opacity = '0';
+                
+                switchPanels(signInContainer, registerContainer, infoToRegister, infoToSignIn);
+            });
+
+            // Switch to Sign In (Teal side prompt clicked)
+            btnGoToSignIn.addEventListener('click', () => {
+                const modalCard = authModal.querySelector('.modal-card');
+                modalCard.classList.add('card-signin-mode'); // Slides panels: teal goes to left, forms go to right
+                switchPanels(registerContainer, signInContainer, infoToSignIn, infoToRegister);
+            });
+
+            // Toast Helper
+            const showToast = (message) => {
+                toastMessage.textContent = message;
+                toast.classList.add('active');
+                setTimeout(() => {
+                    toast.classList.remove('active');
+                }, 4000);
+            };
+
+            // Helper to clean and format name from email address
+            const extractNameFromEmail = (email) => {
+                const part = email.split('@')[0];
+                return part.split(/[\._-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            };
+
+            // Profile & Garage setup tab guest vs member view sync
+            function syncProfileStateView() {
+                const profileGuestState = document.getElementById('profileGuestState');
+                const profileMemberState = document.getElementById('profileMemberState');
+                const garageGuestState = document.getElementById('garageGuestState');
+                const garageMemberState = document.getElementById('garageMemberState');
+                
+                if (isLoggedIn) {
+                    profileGuestState.style.display = 'none';
+                    profileGuestState.style.opacity = '0';
+                    
+                    profileMemberState.style.display = 'flex';
+                    profileMemberState.style.opacity = '0';
+                    profileMemberState.offsetHeight; // force reflow
+                    profileMemberState.style.transition = 'opacity 0.3s ease';
+                    profileMemberState.style.opacity = '1';
+
+                    garageGuestState.style.display = 'none';
+                    garageGuestState.style.opacity = '0';
+                    
+                    garageMemberState.style.display = 'flex';
+                    garageMemberState.style.opacity = '0';
+                    garageMemberState.offsetHeight; // force reflow
+                    garageMemberState.style.transition = 'opacity 0.3s ease';
+                    garageMemberState.style.opacity = '1';
+                } else {
+                    profileMemberState.style.display = 'none';
+                    profileMemberState.style.opacity = '0';
+                    
+                    profileGuestState.style.display = 'flex';
+                    profileGuestState.style.opacity = '0';
+                    profileGuestState.offsetHeight; // force reflow
+                    profileGuestState.style.transition = 'opacity 0.3s ease';
+                    profileGuestState.style.opacity = '1';
+
+                    garageMemberState.style.display = 'none';
+                    garageMemberState.style.opacity = '0';
+                    
+                    garageGuestState.style.display = 'flex';
+                    garageGuestState.style.opacity = '0';
+                    garageGuestState.offsetHeight; // force reflow
+                    garageGuestState.style.transition = 'opacity 0.3s ease';
+                    garageGuestState.style.opacity = '1';
+                }
+            }
+
+            // Bind click handler for Guest state CTA buttons to trigger top-right Sign In
+            document.getElementById('btnProfileGuestAuth').addEventListener('click', () => {
+                authBtn.click();
+            });
+            document.getElementById('btnGarageGuestAuth').addEventListener('click', () => {
+                authBtn.click();
+            });
+
+            // Form Submissions
+            signInForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('signin-email').value;
+                hideModal();
+                showToast(`Welcome back! Successfully signed in as ${email}`);
+                
+                isLoggedIn = true;
+                const name = extractNameFromEmail(email);
+                const firstName = name.split(' ')[0]; // Display only first name
+                authBtn.querySelector('span').textContent = firstName;
+                
+                // Update sidebar details
+                document.getElementById('sidebarUserName').textContent = firstName;
+                document.getElementById('sidebarAvatar').textContent = firstName.charAt(0).toUpperCase();
+                
+                // Pre-populate Profile setup form values
+                document.getElementById('profile-name-input').value = name;
+                document.getElementById('profile-email-input').value = email;
+                document.getElementById('avatarLargeDisplay').textContent = firstName.charAt(0).toUpperCase();
+                
+                // Hide avatar remove action link since default initials are shown
+                document.getElementById('btnRemoveAvatar').style.display = 'none';
+                
+                // Seed premium starter vehicle if userCars is empty
+                if (userCars.length === 0) {
+                    userCars = [
+                        {
+                            id: 'starter-porsche',
+                            brand: 'Porsche',
+                            model: '911 Carrera',
+                            year: 2024
+                        }
+                    ];
+                    activeCarId = 'starter-porsche';
+                }
+                renderGarageList();
+                
+                syncProfileStateView();
+                
+                signInForm.reset();
+            });
+
+            // Dropdown Profile Click -> Switch active view to Profile tab
+            document.getElementById('dropdownProfileBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('userDropdown').classList.remove('active');
+                if (!navLinkProfile.classList.contains('active')) {
+                    navLinkProfile.click();
+                }
+            });
+
+            // Dropdown Sign Out Click -> Reset session state
+            document.getElementById('dropdownLogoutBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                signOut();
+            });
+
+            // Sign Out Routine
+            const signOut = () => {
+                isLoggedIn = false;
+                currentAvatarImg = null;
+                userCars = [];
+                activeCarId = null;
+                
+                // Reset header button
+                authBtn.querySelector('span').textContent = 'Sign In';
+                
+                // Close dropdown if open
+                document.getElementById('userDropdown').classList.remove('active');
+                
+                // Reset sidebar details
+                document.getElementById('sidebarUserName').textContent = 'Guest';
+                document.getElementById('sidebarAvatar').textContent = 'G';
+                
+                // Revert avatar displays in profile
+                avatarLargeDisplay.textContent = 'G';
+                document.getElementById('btnRemoveAvatar').style.display = 'none';
+                
+                // Render empty garage grid
+                renderGarageList();
+                
+                // Clear all input values in profile setup form
+                document.getElementById('profile-name-input').value = 'Guest';
+                document.getElementById('profile-email-input').value = '';
+                document.getElementById('profile-phone-input').value = '';
+                
+                // Switch back to Profile view (default tab for Guest)
+                if (!navLinkProfile.classList.contains('active')) {
+                    navLinkProfile.click();
+                }
+                
+                syncProfileStateView();
+                
+                showToast("Signed out successfully.");
+            };
+
+            // Multi-step Registration Logic
+            const registerStep1 = document.getElementById('registerStep1');
+            const registerStep2 = document.getElementById('registerStep2');
+            const registerForm1 = document.getElementById('registerForm1');
+            const registerForm2 = document.getElementById('registerForm2');
+            const btnBackToStep1 = document.getElementById('btnBackToStep1');
+            const btnSkipCar = document.getElementById('btnSkipCar');
+
+            registerStep1.style.transition = 'opacity 0.3s ease';
+            registerStep2.style.transition = 'opacity 0.3s ease';
+
+            // Transition between wizard steps
+            const transitionStep = (hideStep, showStep) => {
+                hideStep.style.opacity = '0';
+                setTimeout(() => {
+                    hideStep.style.display = 'none';
+                    showStep.style.display = 'block';
+                    showStep.style.opacity = '0';
+                    showStep.offsetHeight; // force reflow
+                    showStep.style.opacity = '1';
+                    
+                    const firstInput = showStep.querySelector('input');
+                    if (firstInput) firstInput.focus();
+                }, 300);
+            };
+
+            // Step 1: Submit -> goes to Step 2 (Add Car)
+            registerForm1.addEventListener('submit', (e) => {
+                e.preventDefault();
+                transitionStep(registerStep1, registerStep2);
+            });
+
+            // Step 2: Back button -> goes to Step 1
+            btnBackToStep1.addEventListener('click', (e) => {
+                e.preventDefault();
+                transitionStep(registerStep2, registerStep1);
+            });
+
+            // Helper to complete registration
+            const completeRegistration = (carDetails = null) => {
+                isLoggedIn = true;
+                const name = document.getElementById('register-name').value;
+                const email = document.getElementById('register-email').value;
+                hideModal();
+                
+                if (carDetails) {
+                    showToast(`Welcome, ${name}! Your profile and Warsha for ${carDetails} have been created.`);
+                } else {
+                    showToast(`Welcome, ${name}! Your profile has been created.`);
+                }
+                
+                const firstName = name.split(' ')[0]; // Display only first name
+                authBtn.querySelector('span').textContent = firstName;
+                
+                // Update sidebar and dashboard details
+                document.getElementById('sidebarUserName').textContent = firstName;
+                document.getElementById('sidebarAvatar').textContent = firstName.charAt(0).toUpperCase();
+                
+                // Pre-populate Profile setup form values
+                document.getElementById('profile-name-input').value = name;
+                document.getElementById('profile-email-input').value = email;
+                document.getElementById('avatarLargeDisplay').textContent = firstName.charAt(0).toUpperCase();
+                
+                userCars = [];
+                activeCarId = null;
+
+                if (carDetails) {
+                    const brand = document.getElementById('car-brand').value.trim();
+                    const model = document.getElementById('car-model').value.trim();
+                    const year = parseInt(document.getElementById('car-year').value.trim());
+                    
+                    const newCar = {
+                        id: 'car-' + Date.now(),
+                        brand: brand,
+                        model: model,
+                        year: year
+                    };
+                    userCars.push(newCar);
+                    activeCarId = newCar.id;
+                }
+                
+                renderGarageList();
+                
+                // Reset forms and wizard state back to Step 1 for next open
+                syncProfileStateView();
+                
+                registerForm1.reset();
+                registerForm2.reset();
+                registerStep1.style.display = 'block';
+                registerStep1.style.opacity = '1';
+                registerStep2.style.display = 'none';
+                registerStep2.style.opacity = '0';
+            };
+
+            // Step 2: Submit with Car -> Complete
+            registerForm2.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const brand = document.getElementById('car-brand').value;
+                const model = document.getElementById('car-model').value;
+                const year = document.getElementById('car-year').value;
+                completeRegistration(`${year} ${brand} ${model}`);
+            });
+
+            // Step 2: Skip Car -> Complete
+            btnSkipCar.addEventListener('click', (e) => {
+                e.preventDefault();
+                completeRegistration();
+            });
+
+            // --- Real-time Profile Tab & Form Setup Logic ---
+
+            // Tab Switching Variables
+            const navLinkProfile = document.getElementById('navLinkProfile');
+            const navLinkGarage = document.getElementById('navLinkGarage');
+            const navLinkExperts = document.getElementById('navLinkExperts');
+            const navLinkDashboard = document.getElementById('navLinkDashboard');
+            const navLinkParts = document.getElementById('navLinkParts');
+            const navLinkLogBook = document.getElementById('navLinkLogBook');
+            
+            const profileView = document.getElementById('profileView');
+            const garageView = document.getElementById('garageView');
+            const expertsView = document.getElementById('expertsView');
+            const dashboardView = document.getElementById('dashboardView');
+            
+            profileView.style.transition = 'opacity 0.3s ease';
+            garageView.style.transition = 'opacity 0.3s ease';
+            expertsView.style.transition = 'opacity 0.3s ease';
+            dashboardView.style.transition = 'opacity 0.3s ease';
+
+            const switchView = (activeLink, showView) => {
+                // Clear all active classes in sidebar nav items
+                document.querySelectorAll('.sidebar-nav-item').forEach(item => item.classList.remove('active'));
+                
+                // Add active to current
+                activeLink.classList.add('active');
+
+                // Hide all view containers
+                const views = [profileView, garageView, expertsView, dashboardView];
+                views.forEach(view => {
+                    if (view) {
+                        view.style.opacity = '0';
+                        view.style.display = 'none';
+                    }
+                });
+                
+                // Show current view
+                showView.style.display = 'flex';
+                showView.offsetHeight; // force reflow
+                showView.style.opacity = '1';
+            };
+
+            navLinkProfile.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!navLinkProfile.classList.contains('active')) {
+                    switchView(navLinkProfile, profileView);
+                }
+            });
+
+            navLinkGarage.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!navLinkGarage.classList.contains('active')) {
+                    switchView(navLinkGarage, garageView);
+                }
+            });
+
+            navLinkExperts.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!navLinkExperts.classList.contains('active')) {
+                    switchView(navLinkExperts, expertsView);
+                }
+            });
+
+            navLinkDashboard.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!navLinkDashboard.classList.contains('active')) {
+                    switchView(navLinkDashboard, dashboardView);
+                }
+            });
+
+            // Collapsible Sidebar Toggle behavior
+            const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+            const mainSidebar = document.querySelector('.main-sidebar');
+            const mainContentPanel = document.querySelector('.main-content-panel');
+
+            if (sidebarToggleBtn && mainSidebar && mainContentPanel) {
+                sidebarToggleBtn.addEventListener('click', () => {
+                    mainSidebar.classList.toggle('collapsed');
+                    mainContentPanel.classList.toggle('expanded');
+                });
+            }
+
+            // coming soon placeholder links
+            const showPlaceholder = (e, title) => {
+                e.preventDefault();
+                document.querySelectorAll('.sidebar-nav-item').forEach(item => item.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                showToast(`${title} module is coming soon to your Warsha!`);
+            };
+
+            navLinkParts.addEventListener('click', (e) => showPlaceholder(e, 'Spare Parts'));
+            navLinkLogBook.addEventListener('click', (e) => showPlaceholder(e, 'Log Book'));
+
+            // Profile Picture Editor File Reader
+            const avatarUpload = document.getElementById('avatarUpload');
+            const avatarLargeDisplay = document.getElementById('avatarLargeDisplay');
+            const sidebarAvatar = document.getElementById('sidebarAvatar');
+
+            avatarUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const imgUrl = event.target.result;
+                        currentAvatarImg = imgUrl;
+                        
+                        // Set image as circular avatar
+                        const imgHtml = `<img src="${imgUrl}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">`;
+                        avatarLargeDisplay.innerHTML = imgHtml;
+                        sidebarAvatar.innerHTML = imgHtml;
+                        
+                        // Show remove photo action link
+                        document.getElementById('btnRemoveAvatar').style.display = 'block';
+                        
+                        showToast("Avatar image uploaded successfully!");
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Profile Picture Removal Handler
+            const btnRemoveAvatar = document.getElementById('btnRemoveAvatar');
+            btnRemoveAvatar.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentAvatarImg = null;
+                avatarUpload.value = ''; // clear file input cache
+                
+                const nameVal = document.getElementById('profile-name-input').value || 'Guest';
+                const firstLetter = nameVal.trim().charAt(0).toUpperCase() || 'G';
+                
+                avatarLargeDisplay.textContent = firstLetter;
+                sidebarAvatar.textContent = firstLetter;
+                
+                btnRemoveAvatar.style.display = 'none';
+                showToast("Avatar image removed.");
+            });
+
+            // Form Submit for Profile Update
+            const profileUpdateForm = document.getElementById('profileUpdateForm');
+            profileUpdateForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const nameVal = document.getElementById('profile-name-input').value || 'Guest';
+                const emailVal = document.getElementById('profile-email-input').value;
+                const phoneVal = document.getElementById('profile-phone-input').value;
+                
+                // Transition session to active logged in state
+                isLoggedIn = true;
+                
+                // Update header username
+                const firstName = nameVal.trim().split(' ')[0] || 'Guest';
+                authBtn.querySelector('span').textContent = firstName;
+                
+                // Update sidebar details
+                document.getElementById('sidebarUserName').textContent = firstName;
+                
+                // If avatar is text letter and not image upload, update letter
+                if (!avatarLargeDisplay.querySelector('img')) {
+                    avatarLargeDisplay.textContent = firstName.charAt(0).toUpperCase();
+                }
+                if (!sidebarAvatar.querySelector('img')) {
+                    sidebarAvatar.textContent = firstName.charAt(0).toUpperCase();
+                }
+
+                showToast("Profile settings updated successfully!");
+            });
+
+            // --- Collapsible Inline Form Controls ---
+            const btnShowAddCarForm = document.getElementById('btnShowAddCarForm');
+            const inlineAddCarCard = document.getElementById('inlineAddCarCard');
+            const inlineAddCarForm = document.getElementById('inlineAddCarForm');
+            const btnCancelAddCar = document.getElementById('btnCancelAddCar');
+
+            const showAddCarForm = () => {
+                inlineAddCarCard.style.display = 'block';
+                inlineAddCarCard.offsetHeight; // Reflow
+                inlineAddCarCard.style.opacity = '1';
+                btnShowAddCarForm.style.display = 'none';
+                
+                // Focus brand input
+                document.getElementById('add-car-brand').focus();
+            };
+
+            const hideAddCarForm = () => {
+                inlineAddCarCard.style.opacity = '0';
+                setTimeout(() => {
+                    inlineAddCarCard.style.display = 'none';
+                    btnShowAddCarForm.style.display = 'block';
+                    inlineAddCarForm.reset();
+                }, 300);
+            };
+
+            if (btnShowAddCarForm && btnCancelAddCar) {
+                btnShowAddCarForm.addEventListener('click', showAddCarForm);
+                btnCancelAddCar.addEventListener('click', hideAddCarForm);
+            }
+
+            if (inlineAddCarForm) {
+                inlineAddCarForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const brand = document.getElementById('add-car-brand').value.trim();
+                    const model = document.getElementById('add-car-model').value.trim();
+                    const year = parseInt(document.getElementById('add-car-year').value.trim());
+
+                    if (brand && model && year) {
+                        const newCar = {
+                            id: 'car-' + Date.now(),
+                            brand: brand,
+                            model: model,
+                            year: year
+                        };
+                        userCars.push(newCar);
+                        activeCarId = newCar.id; // Automatically set as active
+                        renderGarageList();
+                        hideAddCarForm();
+                        showToast(`Successfully added ${brand} ${model} to your Warsha!`);
+                    }
+                });
+            }
+
+            // --- Experts Section Logic ---
+            const expertsGrid = document.getElementById('expertsGrid');
+            const expertSearchInput = document.getElementById('expertSearchInput');
+            const expertCategoryFilters = document.getElementById('expertCategoryFilters');
+
+            // Experts Database with locations and phone numbers
+            const expertsData = [
+                {
+                    id: 'expert-1',
+                    name: 'Kareem El-Sayed',
+                    specialty: 'Engine & Tuning',
+                    category: 'Mechanical',
+                    rating: 5.0,
+                    reviewsCount: 184,
+                    certifications: 'Master Porsche & German Specialist',
+                    status: 'Online',
+                    avatarLetter: 'K',
+                    experience: '12 Years Exp.',
+                    rate: '$65/hr',
+                    location: 'Sheikh Zayed, Giza',
+                    phone: '+20 100 123 4567',
+                    bio: 'Former OEM certified master tech specializing in high-performance German engineering, ECU remapping, and track prep.'
+                },
+                {
+                    id: 'expert-2',
+                    name: 'Elena Rostova',
+                    specialty: 'Diagnostics & ECU',
+                    category: 'Electrician',
+                    rating: 4.9,
+                    reviewsCount: 142,
+                    certifications: 'Advanced Auto Electrician & Tuner',
+                    status: 'Online',
+                    avatarLetter: 'E',
+                    experience: '9 Years Exp.',
+                    rate: '$55/hr',
+                    location: 'Heliopolis, Cairo',
+                    phone: '+20 111 234 5678',
+                    bio: 'Expert in complex multiplex wiring, automotive network diagnostics, ECU custom mapping, and sensor calibration.'
+                },
+                {
+                    id: 'expert-3',
+                    name: 'Samir Vance',
+                    specialty: 'Restoration & Coachwork',
+                    category: 'BodyShops',
+                    rating: 4.8,
+                    reviewsCount: 96,
+                    certifications: 'Vintage Coachwork & Detailing Master',
+                    status: 'Offline',
+                    avatarLetter: 'S',
+                    experience: '16 Years Exp.',
+                    rate: '$75/hr',
+                    location: 'Maadi, Cairo',
+                    phone: '+20 122 345 6789',
+                    bio: 'Dedicated restorer of European classic sportscars. Hand-crafted sheet metal repair, custom detailing, and period-correct restorations.'
+                },
+                {
+                    id: 'expert-4',
+                    name: 'Tariq Mansour',
+                    specialty: 'Brakes & Suspension',
+                    category: 'Suspension',
+                    rating: 4.9,
+                    reviewsCount: 115,
+                    certifications: 'Suspension & Chassis Setup Guru',
+                    status: 'Online',
+                    avatarLetter: 'T',
+                    experience: '8 Years Exp.',
+                    rate: '$50/hr',
+                    location: 'New Cairo, Egypt',
+                    phone: '+20 109 876 5432',
+                    bio: 'Chassis tuning specialist. Track alignment optimization, custom coilover setups, brake upgrade designs, and corner balancing.'
+                },
+                {
+                    id: 'expert-5',
+                    name: 'Michael Chang',
+                    specialty: 'Engine & Tuning',
+                    category: 'Mechanical',
+                    rating: 4.7,
+                    reviewsCount: 78,
+                    certifications: 'Japanese Import & Turbo Specialist',
+                    status: 'Online',
+                    avatarLetter: 'M',
+                    experience: '10 Years Exp.',
+                    rate: '$60/hr',
+                    location: 'October City, Giza',
+                    phone: '+20 115 987 6543',
+                    bio: 'Specialist in JDM engine tuning, turbocharger assemblies, dyno calibration, and high-horsepower street setups.'
+                },
+                {
+                    id: 'expert-6',
+                    name: 'Sarah Jenkins',
+                    specialty: 'Diagnostics & Electrical',
+                    category: 'Electrician',
+                    rating: 4.9,
+                    reviewsCount: 63,
+                    certifications: 'EV & Hybrid Certified Systems Engineer',
+                    status: 'Online',
+                    avatarLetter: 'S',
+                    experience: '7 Years Exp.',
+                    rate: '$70/hr',
+                    location: 'Heliopolis, Cairo',
+                    phone: '+20 120 456 7890',
+                    bio: 'High-voltage systems specialist. Diagnostic, repair, and cell balancing for hybrid drivetrains and full electric battery packs.'
+                },
+                {
+                    id: 'expert-7',
+                    name: 'Sherif Fawzy',
+                    specialty: 'OEM & Performance Parts',
+                    category: 'Parts',
+                    rating: 4.8,
+                    reviewsCount: 89,
+                    certifications: 'Authorized European Spare Parts Importer',
+                    status: 'Online',
+                    avatarLetter: 'F',
+                    experience: '14 Years Exp.',
+                    rate: '$40/hr',
+                    location: 'Sheikh Zayed, Giza',
+                    phone: '+20 102 345 6789',
+                    bio: 'Leading supplier of genuine spare parts, turbo upgrade packages, and certified racing hardware for high-end track and street builds.'
+                }
+            ];
+
+            let activeExpertFilter = 'all';
+            let expertSearchQuery = '';
+
+            function renderExpertsList() {
+                if (!expertsGrid) return;
+                expertsGrid.innerHTML = '';
+
+                const filtered = expertsData.filter(expert => {
+                    const matchesCategory = activeExpertFilter === 'all' || expert.category === activeExpertFilter;
+                    const matchesSearch = expert.name.toLowerCase().includes(expertSearchQuery) ||
+                        expert.specialty.toLowerCase().includes(expertSearchQuery) ||
+                        expert.certifications.toLowerCase().includes(expertSearchQuery) ||
+                        expert.location.toLowerCase().includes(expertSearchQuery) ||
+                        expert.bio.toLowerCase().includes(expertSearchQuery);
+                    return matchesCategory && matchesSearch;
+                });
+
+                if (filtered.length === 0) {
+                    expertsGrid.innerHTML = `
+                        <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px dashed rgba(77, 110, 79, 0.15); border-radius: 20px; padding: 4rem 2rem; background-color: rgba(77, 110, 79, 0.005); width: 100%; box-sizing: border-box;">
+                            <div style="color: var(--bg-brand); opacity: 0.35; margin-bottom: 1rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            </div>
+                            <h4 style="font-family: 'GuiltyTreasure', var(--font-sans); font-size: 1.25rem; color: var(--bg-brand); letter-spacing: 0.04em; margin-bottom: 0.5rem; text-transform: uppercase;">No Experts Found</h4>
+                            <p style="font-size: 0.8rem; color: var(--text-brand-muted); max-width: 320px; line-height: 1.5;">Try adjusting your keywords or switching specialties filters to find available workshop specialists.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                filtered.forEach(expert => {
+                    const card = document.createElement('div');
+                    card.className = 'grid-card';
+                    card.style.display = 'flex';
+                    card.style.flexDirection = 'column';
+                    card.style.gap = '0';
+                    card.style.padding = '0'; // Full bleed for the banner
+                    card.style.position = 'relative';
+                    card.style.overflow = 'hidden';
+
+                    const isOnline = expert.status === 'Online';
+
+                    card.innerHTML = `
+                        <!-- Workshop Banner Image -->
+                        <div style="width: 100%; height: 130px; overflow: hidden; position: relative;">
+                            <img src="modern_workshop_banner.png" alt="Workshop Banner" style="width: 100%; height: 100%; object-fit: cover;">
+                            <div style="position: absolute; top: 12px; right: 12px; font-size: 0.65rem; font-weight: 700; color: var(--bg-brand); background-color: var(--bg-creamy); padding: 4px 8px; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
+                                ${expert.experience}
+                            </div>
+                        </div>
+
+                        <!-- Card Padded Body -->
+                        <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1;">
+                            <!-- Header with Avatar and Online status -->
+                            <div style="display: flex; gap: 0.75rem; align-items: center; width: 100%;">
+                                <div style="width: 44px; height: 44px; border-radius: 50%; background-color: var(--bg-brand); color: var(--text-cream); display: flex; align-items: center; justify-content: center; font-family: 'GuiltyTreasure', var(--font-sans); font-size: 1.3rem; font-weight: normal; position: relative; flex-shrink: 0; box-shadow: 0 4px 10px rgba(77, 110, 79, 0.12);">
+                                    ${expert.avatarLetter}
+                                    <span style="position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; background-color: ${isOnline ? '#4D6E4F' : '#b5b0a3'}; border: 2px solid var(--bg-creamy); box-shadow: ${isOnline ? '0 0 6px #4D6E4F' : 'none'};"></span>
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                                        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--bg-brand); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0;">${expert.name}</h4>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="#4D6E4F" stroke="#FDFBF7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                    </div>
+                                    <span style="font-size: 0.62rem; font-weight: 700; color: var(--bg-brand); text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.85;">${expert.specialty}</span>
+                                </div>
+                            </div>
+
+                            <!-- Location Badge -->
+                            <div style="display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-brand-muted); font-weight: 500;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; color: var(--bg-brand); opacity: 0.75;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                <span>${expert.location}</span>
+                            </div>
+
+                            <!-- Rating & Rate Row -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; border-top: 1px solid rgba(77, 110, 79, 0.05); border-bottom: 1px solid rgba(77, 110, 79, 0.05); padding: 8px 0; width: 100%;">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <span style="color: #d4a373;">★</span>
+                                    <span style="font-weight: 700; color: var(--bg-brand);">${expert.rating.toFixed(1)}</span>
+                                    <span style="color: var(--text-brand-muted);">(${expert.reviewsCount} reviews)</span>
+                                </div>
+                                <div style="font-weight: 700; color: var(--bg-brand); font-size: 0.75rem;">
+                                    ${expert.rate}
+                                </div>
+                            </div>
+
+                            <!-- Bio Info -->
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                                <span style="font-size: 0.72rem; font-weight: 600; color: var(--bg-brand); opacity: 0.9;">${expert.certifications}</span>
+                                <p style="font-size: 0.75rem; color: var(--text-brand-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; margin: 0;">${expert.bio}</p>
+                            </div>
+
+                            <!-- Action buttons (Icons) -->
+                            <div style="display: flex; gap: 10px; margin-top: auto; justify-content: flex-end; align-items: center; width: 100%;">
+                                <button type="button" class="btn-auth call-btn" style="border-radius: 50%; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; background-color: transparent; border-color: rgba(77, 110, 79, 0.25); color: var(--bg-brand); flex-shrink: 0; transition: transform 0.2s;" data-expert-phone="${expert.phone}" data-expert-name="${expert.name}" aria-label="Call ${expert.name}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                </button>
+                                <button type="button" class="btn-auth chat-btn" style="border-radius: 50%; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; background-color: var(--bg-brand); border: none; color: var(--text-cream); flex-shrink: 0; transition: transform 0.2s;" data-expert-name="${expert.name}" aria-label="Text ${expert.name}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Hook up event listeners to buttons
+                    card.querySelector('.chat-btn').addEventListener('click', () => {
+                        showToast(`Opening chat conversation with ${expert.name}...`);
+                    });
+
+                    card.querySelector('.call-btn').addEventListener('click', () => {
+                        showToast(`Dialing ${expert.name} at ${expert.phone}...`);
+                    });
+
+                    expertsGrid.appendChild(card);
+                });
+            }
+
+            // Search input listener
+            if (expertSearchInput) {
+                expertSearchInput.addEventListener('input', (e) => {
+                    expertSearchQuery = e.target.value.toLowerCase().trim();
+                    renderExpertsList();
+                });
+            }
+
+            // Category filter click handler
+            if (expertCategoryFilters) {
+                expertCategoryFilters.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        // Toggle active class
+                        expertCategoryFilters.querySelectorAll('.filter-btn').forEach(b => {
+                            b.classList.remove('active');
+                            b.style.backgroundColor = 'transparent';
+                            b.style.color = 'var(--bg-brand)';
+                            b.style.borderColor = 'rgba(77, 110, 79, 0.2)';
+                        });
+                        
+                        btn.classList.add('active');
+                        btn.style.backgroundColor = 'var(--bg-brand)';
+                        btn.style.color = 'var(--text-cream)';
+                        btn.style.borderColor = 'var(--bg-brand)';
+
+                        activeExpertFilter = btn.getAttribute('data-filter');
+                        renderExpertsList();
+                    });
+                });
+            }
+
+            // Initial rendering of experts
+            renderExpertsList();
+        });
+    </script>
+</body>
+</html>
