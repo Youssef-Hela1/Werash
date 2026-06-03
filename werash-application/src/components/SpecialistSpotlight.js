@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity } from 'rea
 import { COLORS } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function SpecialistSpotlight() {
+export default function SpecialistSpotlight({ onNavigate }) {
   const scrollViewRef = useRef(null);
   const [showArrow, setShowArrow] = useState(true);
 
@@ -48,7 +48,11 @@ export default function SpecialistSpotlight() {
           <Text style={styles.sectionSub}>SPECIALIST SPOTLIGHT</Text>
           <Text style={styles.sectionMain}>CERTIFIED ADVISORS</Text>
         </View>
-        <TouchableOpacity activeOpacity={0.7} style={styles.browseAllWrapper}>
+        <TouchableOpacity 
+          activeOpacity={0.7} 
+          style={styles.browseAllWrapper}
+          onPress={() => onNavigate && onNavigate('mechanics')}
+        >
           <Text style={styles.browseAllText}>Browse All</Text>
           <Ionicons name="chevron-forward-outline" size={10} color={COLORS.textDark} style={{ marginLeft: 2 }} />
         </TouchableOpacity>

@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { COLORS } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function QuickServicesGrid() {
+export default function QuickServicesGrid({ onNavigate }) {
   const services = [
     {
       id: 'warsha',
@@ -41,7 +41,20 @@ export default function QuickServicesGrid() {
       
       <View style={styles.grid}>
         {services.map((service) => (
-          <TouchableOpacity key={service.id} style={styles.gridCard} activeOpacity={0.7}>
+          <TouchableOpacity 
+            key={service.id} 
+            style={styles.gridCard} 
+            activeOpacity={0.7}
+            onPress={() => {
+              if (service.id === 'mechanics') {
+                onNavigate && onNavigate('mechanics');
+              } else if (service.id === 'warsha') {
+                onNavigate && onNavigate('garage');
+              } else if (service.id === 'community') {
+                onNavigate && onNavigate('community');
+              }
+            }}
+          >
             {/* Top Row with Service Icon and Chevron */}
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>

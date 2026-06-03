@@ -1,29 +1,25 @@
 import React from 'react';
 import { StyleSheet, View, StatusBar } from 'react-native';
 import { COLORS } from '../styles/theme';
-import Header from '../components/Header';
 import ActiveVehicleCard from '../components/ActiveVehicleCard';
 import QuickServicesGrid from '../components/QuickServicesGrid';
 import SpecialistSpotlight from '../components/SpecialistSpotlight';
 
-export default function HomeScreen() {
+export default function HomeScreen({ onNavigate }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bgBrand} />
       <View style={styles.mainLayout}>
-        {/* Top Header Card Block */}
-        <Header />
-
         {/* Group content cards to align them snugly towards the bottom */}
         <View style={styles.contentBlock}>
           {/* Active Garage Vehicle Section */}
           <ActiveVehicleCard />
 
           {/* 2x2 Services Grid Panel */}
-          <QuickServicesGrid />
+          <QuickServicesGrid onNavigate={onNavigate} />
 
           {/* Specialist Carousel Section */}
-          <SpecialistSpotlight />
+          <SpecialistSpotlight onNavigate={onNavigate} />
         </View>
       </View>
     </View>

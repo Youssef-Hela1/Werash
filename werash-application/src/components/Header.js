@@ -63,13 +63,14 @@ const styles = StyleSheet.create({
     left: 0,
     width: screenWidth, // Force exact full device width
     height: 305, // Extend the green background further down the page
-    zIndex: -1, // Places the background image behind the header text/buttons
+    zIndex: 1, // Places the background image behind the header text/buttons but in front of screen content
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+    zIndex: 2,
   },
   logoContainer: {
     flexDirection: 'row',

@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-nati
 import { COLORS } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function BottomNavBar() {
+export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
   const tabs = [
     { id: 'home', label: 'Home', icon: 'home-sharp', activeIcon: 'home-sharp' },
     { id: 'garage', label: 'My Warsha', icon: 'car-outline', activeIcon: 'car-sharp' },
@@ -16,9 +16,14 @@ export default function BottomNavBar() {
     <View style={styles.navWrapper}>
       <View style={styles.navContainer}>
         {tabs.map((tab) => {
-          const isActive = tab.id === 'home';
+          const isActive = tab.id === activeTab;
           return (
-            <TouchableOpacity key={tab.id} style={styles.navItem} activeOpacity={0.7}>
+            <TouchableOpacity 
+              key={tab.id} 
+              style={styles.navItem} 
+              activeOpacity={0.7}
+              onPress={() => onTabPress && onTabPress(tab.id)}
+            >
               <Ionicons 
                 name={isActive ? tab.activeIcon : tab.icon} 
                 size={22} 
