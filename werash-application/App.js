@@ -10,10 +10,18 @@ import { COLORS } from './src/styles/theme';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
+  const [expandedSpecialistId, setExpandedSpecialistId] = useState(null);
   
   const [fontsLoaded] = useFonts({
     'GuiltyTreasure': require('./assets/fonts/GuiltyTreasure.otf'),
   });
+
+  const handleNavigate = (tab, targetSpecialistId = null) => {
+    setCurrentTab(tab);
+    if (targetSpecialistId) {
+      setExpandedSpecialistId(targetSpecialistId);
+    }
+  };
 
   if (!fontsLoaded) {
     return (
@@ -27,9 +35,14 @@ export default function App() {
   const renderScreen = () => {
     switch (currentTab) {
       case 'home':
-        return <HomeScreen onNavigate={setCurrentTab} />;
+        return <HomeScreen onNavigate={handleNavigate} />;
       case 'mechanics':
-        return <MechanicsScreen />;
+        return (
+          <MechanicsScreen 
+            initialExpandedCardId={expandedSpecialistId} 
+            onClearInitialExpanded={() => setExpandedSpecialistId(null)} 
+          />
+        );
       default:
         return (
           <View style={styles.placeholderContent}>
@@ -51,7 +64,13 @@ export default function App() {
         {renderScreen()}
 
         {/* Custom Floating Bottom Navigation Bar */}
-        <BottomNavBar activeTab={currentTab} onTabPress={setCurrentTab} />
+        <BottomNavBar 
+          activeTab={currentTab} 
+          onTabPress={(tab) => {
+            setCurrentTab(tab);
+            setExpandedSpecialistId(null);
+          }} 
+        />
       </View>
     </SafeAreaProvider>
   );

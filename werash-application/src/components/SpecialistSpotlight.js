@@ -96,7 +96,11 @@ export default function SpecialistSpotlight({ onNavigate }) {
                 </View>
 
                 {/* Connect Action Trigger */}
-                <TouchableOpacity style={styles.connectButton} activeOpacity={0.8}>
+                <TouchableOpacity 
+                  style={styles.connectButton} 
+                  activeOpacity={0.8}
+                  onPress={() => onNavigate && onNavigate('mechanics', specialist.id)}
+                >
                   <Text style={styles.connectText}>VIEW</Text>
                 </TouchableOpacity>
               </View>

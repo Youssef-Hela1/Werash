@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, StatusBar, TextInput, TouchableOpacity, ScrollView, Image, Animated } from 'react-native';
 import { COLORS } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,11 +90,18 @@ const specialists = [
   },
 ];
 
-export default function MechanicsScreen() {
+export default function MechanicsScreen({ initialExpandedCardId, onClearInitialExpanded }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('overall');
-  const [expandedCardId, setExpandedCardId] = useState(null);
+  const [expandedCardId, setExpandedCardId] = useState(initialExpandedCardId || null);
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (initialExpandedCardId) {
+      setExpandedCardId(initialExpandedCardId);
+      onClearInitialExpanded && onClearInitialExpanded();
+    }
+  }, [initialExpandedCardId]);
 
   const headerTranslateY = scrollY.interpolate({
     inputRange: [0, 192],
