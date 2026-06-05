@@ -1,27 +1,41 @@
-import React from 'react';
-import { StyleSheet, View, StatusBar } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, View, ScrollView, StatusBar } from 'react-native';
 import { COLORS } from '../styles/theme';
 import ActiveVehicleCard from '../components/ActiveVehicleCard';
 import QuickServicesGrid from '../components/QuickServicesGrid';
 import SpecialistSpotlight from '../components/SpecialistSpotlight';
 
 export default function HomeScreen({ onNavigate }) {
+  const scrollViewRef = useRef(null);
+
+  const handleScroll = (event) => {
+    const y = event.nativeEvent.contentOffset.y;
+    if (y > 0) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bgBrand} />
-      <View style={styles.mainLayout}>
-        {/* Group content cards to align them snugly towards the bottom */}
-        <View style={styles.contentBlock}>
-          {/* Active Garage Vehicle Section */}
-          <ActiveVehicleCard />
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        alwaysBounceVertical={true}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={handleScroll}
+      >
+        {/* Active Garage Vehicle Section */}
+        <ActiveVehicleCard />
 
-          {/* 2x2 Services Grid Panel */}
-          <QuickServicesGrid onNavigate={onNavigate} />
+        {/* 2x2 Services Grid Panel */}
+        <QuickServicesGrid onNavigate={onNavigate} />
 
-          {/* Specialist Carousel Section */}
-          <SpecialistSpotlight onNavigate={onNavigate} />
-        </View>
-      </View>
+        {/* Specialist Carousel Section */}
+        <SpecialistSpotlight onNavigate={onNavigate} />
+      </ScrollView>
     </View>
   );
 }
@@ -31,12 +45,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bgCreamy,
   },
-  mainLayout: {
+  scrollView: {
     flex: 1,
-    paddingBottom: 90, // Positioned snugly above the floating bottom navigation bar
   },
-  contentBlock: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'flex-end',
+    paddingTop: 120, // Space below persistent green header
+    paddingBottom: 106, // Snug spacing above fixed bottom navbar
+    paddingHorizontal: 20,
   }
 });
