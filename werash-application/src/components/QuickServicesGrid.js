@@ -27,11 +27,12 @@ export default function QuickServicesGrid({ onNavigate }) {
       bgWatermark: 'people-outline',
     },
     {
-      id: 'profile',
-      title: 'Account Profile',
-      subtitle: 'Guest User',
-      icon: 'person-outline',
-      bgWatermark: 'person-circle-outline',
+      id: 'tow',
+      title: 'Get Help',
+      subtitle: 'Emergency Service',
+      icon: 'warning-outline',
+      bgWatermark: 'alert-circle-outline',
+      color: COLORS.accentRed,
     }
   ];
 
@@ -52,15 +53,17 @@ export default function QuickServicesGrid({ onNavigate }) {
                 onNavigate && onNavigate('garage');
               } else if (service.id === 'community') {
                 onNavigate && onNavigate('community');
+              } else if (service.id === 'tow') {
+                onNavigate && onNavigate('tow');
               }
             }}
           >
             {/* Top Row with Service Icon and Chevron */}
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>
-                <Ionicons name={service.icon} size={20} color={COLORS.bgBrand} />
+                <Ionicons name={service.icon} size={20} color={service.color || COLORS.bgBrand} />
               </View>
-              <Ionicons name="chevron-forward-outline" size={14} color={COLORS.bgBrand} />
+              <Ionicons name="chevron-forward-outline" size={14} color={service.color || COLORS.bgBrand} />
             </View>
 
             {/* Labels Section */}
@@ -69,7 +72,7 @@ export default function QuickServicesGrid({ onNavigate }) {
 
             {/* Background Watermark Icon for Premium Aesthetic */}
             <View style={styles.watermarkWrapper}>
-              <Ionicons name={service.bgWatermark} size={48} color={COLORS.bgBrand} style={styles.watermarkIcon} />
+              <Ionicons name={service.bgWatermark} size={48} color={service.color || COLORS.bgBrand} style={styles.watermarkIcon} />
             </View>
           </TouchableOpacity>
         ))}

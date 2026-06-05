@@ -9,7 +9,7 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
     { id: 'garage', label: 'My Warsha', icon: 'car-outline', activeIcon: 'car-sharp' },
     { id: 'mechanics', label: 'Mechanics', icon: 'construct-outline', activeIcon: 'construct-sharp' },
     { id: 'community', label: 'Community', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles-sharp' },
-    { id: 'tow', label: 'Tow', icon: 'warning-outline', activeIcon: 'warning-sharp' },
+    { id: 'tow', label: 'Get Help', icon: 'warning-outline', activeIcon: 'warning-sharp' },
   ];
 
   return (
@@ -17,6 +17,7 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
       <View style={styles.navContainer}>
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab;
+          const isTow = tab.id === 'tow';
           return (
             <TouchableOpacity 
               key={tab.id} 
@@ -27,9 +28,12 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
               <Ionicons 
                 name={isActive ? tab.activeIcon : tab.icon} 
                 size={22} 
-                color={isActive ? COLORS.bgBrand : COLORS.textMuted} 
+                color={isTow ? COLORS.accentRed : (isActive ? COLORS.bgBrand : COLORS.textMuted)} 
               />
-              <Text style={[styles.navLabel, isActive && styles.activeLabel]}>
+              <Text style={[
+                styles.navLabel, 
+                isTow ? styles.towLabel : (isActive && styles.activeLabel)
+              ]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -45,27 +49,24 @@ const { width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   navWrapper: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
     zIndex: 100,
   },
   navContainer: {
     flexDirection: 'row',
     width: '100%',
     backgroundColor: '#FAF8F4',
-    borderWidth: 1.5,
-    borderColor: 'rgba(77, 110, 79, 0.06)',
-    borderRadius: 36,
-    paddingVertical: 12,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(77, 110, 79, 0.08)',
+    paddingTop: 10,
+    paddingBottom: 22, // Space for device home indicators
     paddingHorizontal: 10,
     shadowColor: COLORS.bgBrand,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 8,
     justifyContent: 'space-around',
     alignItems: 'center',
@@ -83,5 +84,9 @@ const styles = StyleSheet.create({
   },
   activeLabel: {
     color: COLORS.bgBrand,
-  }
+  },
+  towLabel: {
+    color: COLORS.accentRed,
+    fontWeight: '700',
+  },
 });

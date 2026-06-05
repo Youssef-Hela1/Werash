@@ -3,17 +3,21 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'rea
 import { COLORS } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 import SignInScreen from '../screens/SignInScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 export default function Header() {
   const [signInVisible, setSignInVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   return (
-    <View style={styles.headerContainer}>
+    <View pointerEvents="box-none" style={styles.headerContainer}>
       <SignInScreen visible={signInVisible} onClose={() => setSignInVisible(false)} />
+      <SettingsScreen visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
       {/* Absolute Background Image */}
       <Image 
+        pointerEvents="none"
         source={require('../../assets/skid_mark.png')} 
         style={styles.backgroundImage} 
         resizeMode="cover" 
@@ -39,7 +43,11 @@ export default function Header() {
           </TouchableOpacity>
 
           {/* Settings Button */}
-          <TouchableOpacity style={styles.settingsButton} activeOpacity={0.8}>
+          <TouchableOpacity 
+            style={styles.settingsButton} 
+            activeOpacity={0.8}
+            onPress={() => setSettingsVisible(true)}
+          >
             <Ionicons name="settings-outline" size={18} color={COLORS.textCream} />
           </TouchableOpacity>
         </View>

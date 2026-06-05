@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import HomeScreen from './src/screens/HomeScreen';
 import MechanicsScreen from './src/screens/MechanicsScreen';
+import CommunityScreen from './src/screens/CommunityScreen';
 import Header from './src/components/Header';
 import BottomNavBar from './src/components/BottomNavBar';
 import { COLORS } from './src/styles/theme';
@@ -43,6 +44,8 @@ export default function App() {
             onClearInitialExpanded={() => setExpandedSpecialistId(null)} 
           />
         );
+      case 'community':
+        return <CommunityScreen />;
       default:
         return (
           <View style={styles.placeholderContent}>
