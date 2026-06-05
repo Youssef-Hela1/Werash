@@ -1706,7 +1706,8 @@
             <!-- Main Content Panel (4/5ths or 80% width) -->
             <section class="main-content-panel">
                 <!-- Home Dashboard View (Active by Default) -->
-                <div id="homeView" class="view-container" style="display: flex; opacity: 1; flex-direction: column; overflow-y: auto;">
+                <div id="homeView" class="view-container" style="display: flex; opacity: 1; flex-direction: column; overflow-y: auto; position: relative; user-select: none; -webkit-user-select: none;">
+                    <div id="homeDragWrapper" style="display: flex; flex-direction: column; width: 100%; will-change: transform;">
                     <!-- Hero Welcome Banner -->
                     <div class="content-welcome-banner" style="background: linear-gradient(135deg, rgba(77,110,79,0.08) 0%, rgba(77,110,79,0.02) 100%); border-bottom: 1px solid rgba(77,110,79,0.08); position: relative; overflow: hidden;">
                         <!-- Absolute backdrop gradient glow -->
@@ -1869,6 +1870,7 @@
 
                     </div>
                 </div>
+            </div>
 
                 <!-- Profile Settings Setup View (Initially Hidden) -->
                 <div id="profileView" class="view-container" style="display: none; opacity: 0;">
@@ -3829,6 +3831,165 @@
             expertsView.style.transition = 'opacity 0.3s ease';
             communityView.style.transition = 'opacity 0.3s ease';
             roadsideView.style.transition = 'opacity 0.3s ease';
+
+            // Premium Elastic Drag and Snapback Behavior for homeView
+            const homeDragWrapper = document.getElementById('homeDragWrapper');
+            
+            if (homeView && homeDragWrapper) {
+                let startY = 0;
+                let startX = 0;
+                let isDraggingActive = false;
+                let isPointerDown = false;
+                let startScrollTop = 0;
+                let translateY = 0;
+                let preventClick = false;
+
+                const maxDrag = 150; // Max displacement in pixels
+
+                // Physics formula for rubber-band stretch (iOS style asymptotic curve)
+                const getRubberBandValue = (delta) => {
+                    const sign = Math.sign(delta);
+                    const absDelta = Math.abs(delta);
+                    return sign * (1 - (1 / ((absDelta * 0.4 / maxDrag) + 1))) * maxDrag;
+                };
+
+                const startDrag = (clientY, clientX) => {
+                    isPointerDown = true;
+                    startY = clientY;
+                    startX = clientX;
+                    startScrollTop = homeView.scrollTop;
+                    homeDragWrapper.style.transition = 'none'; // Instant response
+                };
+
+                const moveDrag = (clientY, clientX, preventDefaultFn) => {
+                    if (!isPointerDown) return;
+                    
+                    const deltaY = clientY - startY;
+                    const deltaX = clientX - startX;
+
+                    if (!isDraggingActive) {
+                        // Threshold of 6px vertical movement to trigger drag
+                        if (Math.abs(deltaY) > 6 && Math.abs(deltaY) > Math.abs(deltaX)) {
+                            const isScrollable = homeView.scrollHeight > homeView.clientHeight;
+                            let shouldDrag = false;
+                            
+                            if (!isScrollable) {
+                                shouldDrag = true;
+                            } else {
+                                const isAtTop = startScrollTop <= 0;
+                                const isAtBottom = startScrollTop + homeView.clientHeight >= homeView.scrollHeight - 2;
+                                if (deltaY > 0 && isAtTop) {
+                                    shouldDrag = true;
+                                } else if (deltaY < 0 && isAtBottom) {
+                                    shouldDrag = true;
+                                }
+                            }
+
+                            if (shouldDrag) {
+                                isDraggingActive = true;
+                                // Reset startY to align with threshold activation point
+                                startY = clientY;
+                            }
+                        }
+                    }
+
+                    if (isDraggingActive) {
+                        const activeDeltaY = clientY - startY;
+                        translateY = getRubberBandValue(activeDeltaY);
+                        homeDragWrapper.style.transform = `translateY(${translateY}px)`;
+                        
+                        if (typeof preventDefaultFn === 'function') {
+                            preventDefaultFn();
+                        }
+                    }
+                };
+
+                const endDrag = () => {
+                    if (!isPointerDown) return;
+                    isPointerDown = false;
+                    
+                    if (isDraggingActive) {
+                        isDraggingActive = false;
+                        // Snap back with elegant spring ease-out-back curve
+                        homeDragWrapper.style.transition = 'transform 0.5s cubic-bezier(0.25, 1.25, 0.5, 1.0)';
+                        homeDragWrapper.style.transform = 'translateY(0px)';
+                        translateY = 0;
+
+                        // Prevent immediate click event from routing/navigating
+                        preventClick = true;
+                        setTimeout(() => {
+                            preventClick = false;
+                        }, 50);
+                    }
+                };
+
+                // Prevent native browser image/link/content dragging
+                homeView.addEventListener('dragstart', (e) => {
+                    e.preventDefault();
+                });
+
+                // Intercept clicks on child elements if a drag occurred
+                homeView.addEventListener('click', (e) => {
+                    if (preventClick) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                }, true); // Use capture phase to intercept before target listeners run
+
+                // --- Touch Event Listeners (Mobile) ---
+                homeView.addEventListener('touchstart', (e) => {
+                    const target = e.target;
+                    if (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('select') || target.closest('textarea') || target.closest('.slider-nav-btn')) {
+                        return;
+                    }
+                    if (e.touches.length === 1) {
+                        startDrag(e.touches[0].clientY, e.touches[0].clientX);
+                    }
+                }, { passive: true });
+
+                homeView.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 1) {
+                        moveDrag(e.touches[0].clientY, e.touches[0].clientX, () => {
+                            if (e.cancelable) e.preventDefault();
+                        });
+                    }
+                }, { passive: false });
+
+                homeView.addEventListener('touchend', endDrag);
+                homeView.addEventListener('touchcancel', endDrag);
+
+                // --- Mouse Event Listeners (Desktop) ---
+                homeView.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return;
+                    
+                    // Ignore clicks on vertical scrollbar
+                    const rect = homeView.getBoundingClientRect();
+                    if (e.clientX - rect.left > homeView.clientWidth) {
+                        return;
+                    }
+
+                    const target = e.target;
+                    if (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('select') || target.closest('textarea') || target.closest('.slider-nav-btn')) {
+                        return;
+                    }
+                    startDrag(e.clientY, e.clientX);
+                    
+                    const onMouseMove = (moveEvent) => {
+                        moveDrag(moveEvent.clientY, moveEvent.clientX, () => {
+                            moveEvent.preventDefault();
+                        });
+                    };
+                    
+                    const onMouseUp = () => {
+                        endDrag();
+                        window.removeEventListener('mousemove', onMouseMove);
+                        window.removeEventListener('mouseup', onMouseUp);
+                    };
+                    
+                    window.addEventListener('mousemove', onMouseMove);
+                    window.addEventListener('mouseup', onMouseUp);
+                });
+            }
 
             // Certified Advisors Slider Arrow Navigation Setup
             const homeExpertsRow = document.getElementById('homeSlideableExpertsRow');
