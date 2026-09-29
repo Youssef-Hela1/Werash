@@ -1,0 +1,2337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Werash - Car Brand Data Portal</title>
+  <!-- Google Fonts: Inter and Outfit -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- JSZip CDN for in-browser zipping -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Supabase CDN JS Client SDK (for optional cloud sync) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Optional Seed Data Script -->
+  <script src="seedData.js" onerror="console.log('External seedData.js not present, using default inline models.')"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --card-border: rgba(255, 255, 255, 0.07);
+      --card-bg-hover: rgba(255, 255, 255, 0.06);
+      --primary: #00A86B;
+      --primary-glow: rgba(0, 168, 107, 0.35);
+      --text-white: #ffffff;
+      --text-muted: #94a3b8;
+      --text-dimmed: #64748b;
+      --border-radius: 16px;
+      --font-outfit: 'Outfit', sans-serif;
+      --font-inter: 'Inter', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-white);
+      font-family: var(--font-inter);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Glowing decorative backgrounds */
+    .glow-blob-1 {
+      position: absolute;
+      top: -200px;
+      left: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, rgba(11,15,25,0) 70%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .glow-blob-2 {
+      position: absolute;
+      bottom: -200px;
+      right: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(11,15,25,0) 70%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Layout Header */
+    header {
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      background-color: rgba(11, 15, 25, 0.85);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-logo h1 {
+      font-family: var(--font-outfit);
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, #ffffff 30%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-badge {
+      background-color: var(--primary);
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #000;
+      font-family: var(--font-outfit);
+      font-size: 18px;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .header-status {
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 7px 16px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+
+    .status-dot.cloud {
+      background-color: #3b82f6;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+    }
+
+    .status-dot.offline {
+      background-color: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+
+    .status-dot.warning {
+      background-color: #eab308;
+      box-shadow: 0 0 8px rgba(234, 179, 8, 0.6);
+    }
+
+    /* Main Container */
+    .app-container {
+      flex: 1;
+      display: flex;
+      position: relative;
+      z-index: 10;
+      height: calc(100vh - 63px);
+      overflow: hidden;
+    }
+
+    /* Sidebar - Brands */
+    .sidebar {
+      width: 330px;
+      border-right: 1px solid var(--card-border);
+      background-color: rgba(11, 15, 25, 0.6);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      height: 100%;
+    }
+
+    .search-wrapper {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .search-bar {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: var(--text-white);
+      font-family: var(--font-inter);
+      font-size: 13.5px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .search-bar:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(0, 168, 107, 0.2);
+    }
+
+    .brand-list {
+      flex: 1;
+      padding: 12px 16px 20px;
+      overflow-y: auto;
+    }
+
+    .brand-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .brand-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+    }
+
+    .brand-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 6px;
+      background-color: transparent;
+      border: 1px solid transparent;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .brand-item:hover {
+      background-color: var(--card-bg-hover);
+      border-color: var(--card-border);
+    }
+
+    .brand-item.active {
+      background: linear-gradient(135deg, rgba(0, 168, 107, 0.18) 0%, rgba(0, 168, 107, 0.05) 100%);
+      border-color: rgba(0, 168, 107, 0.5);
+    }
+
+    .brand-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-avatar-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+
+    .brand-logo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .brand-avatar-fallback {
+      width: 100%;
+      height: 100%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-family: var(--font-outfit);
+      color: var(--primary);
+      font-size: 15px;
+    }
+
+    .brand-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-count-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dimmed);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 3px 8px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      flex-shrink: 0;
+    }
+
+    .brand-item.active .brand-count-badge {
+      color: var(--primary);
+      background: rgba(0, 168, 107, 0.15);
+      border-color: rgba(0, 168, 107, 0.3);
+    }
+
+    .sidebar-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-dimmed);
+      background: rgba(11, 15, 25, 0.4);
+    }
+
+    /* Workspace */
+    .workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      height: 100%;
+      background: radial-gradient(circle at 50% 10%, rgba(0, 168, 107, 0.03) 0%, transparent 60%);
+    }
+
+    .workspace::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .workspace::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+
+    .empty-workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-illustration {
+      width: 72px;
+      height: 72px;
+      margin-bottom: 20px;
+      color: var(--text-dimmed);
+      opacity: 0.6;
+    }
+
+    .empty-workspace h3 {
+      font-family: var(--font-outfit);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-white);
+      margin-bottom: 8px;
+    }
+
+    .empty-workspace p {
+      max-width: 480px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .workspace-header {
+      padding: 24px 36px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(11, 15, 25, 0.4);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .workspace-title-box {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .active-brand-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      flex-shrink: 0;
+    }
+
+    .active-brand-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .workspace-title h2 {
+      font-family: var(--font-outfit);
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .workspace-title p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-family: var(--font-inter);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.25s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00C67F 0%, #00A86B 100%);
+      color: #05140b;
+      box-shadow: 0 4px 14px rgba(0, 168, 107, 0.35);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(0, 168, 107, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-white);
+      border: 1px solid var(--card-border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.12);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* Models Grid */
+    .models-grid {
+      padding: 28px 36px 60px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .model-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .model-card:hover {
+      background: var(--card-bg-hover);
+      border-color: rgba(0, 168, 107, 0.35);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .model-card-image-box {
+      width: 100%;
+      height: 160px;
+      background: radial-gradient(circle, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.2) 100%);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      position: relative;
+    }
+
+    .model-card-image {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+    }
+
+    .no-image-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dimmed);
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .model-card-info {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .model-name-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .model-card-name {
+      font-family: var(--font-outfit);
+      font-size: 16px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .model-card-years {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .model-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-white);
+    }
+
+    .icon-btn-danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 10, 18, 0.75);
+      backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-card {
+      background: #111624;
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 540px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      max-height: 90vh;
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      font-family: var(--font-outfit);
+      font-size: 19px;
+      font-weight: 700;
+    }
+
+    .modal-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .form-group label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+    }
+
+    .form-input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      color: var(--text-white);
+      font-family: var(--font-inter);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(0, 168, 107, 0.2);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .upload-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.01);
+      transition: all 0.2s ease;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(0, 168, 107, 0.05);
+      color: var(--text-white);
+    }
+
+    .upload-preview-box {
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--card-border);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: 140px;
+    }
+
+    .upload-preview-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .remove-upload-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(239, 68, 68, 0.85);
+      color: #fff;
+      border: none;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .sql-code-container {
+      position: relative;
+      background: #080c14;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 14px;
+      overflow-x: auto;
+    }
+
+    .sql-code {
+      font-family: monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      line-height: 1.5;
+    }
+
+    .copy-sql-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .copy-sql-btn:hover {
+      background: var(--primary);
+      color: #000;
+    }
+
+    .alert-box {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .alert-box.info {
+      display: block;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+    }
+
+    .alert-box.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .alert-box.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    /* Extract All Brands Modal Styles */
+    .extract-brand-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-height: 130px;
+      overflow-y: auto;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+    }
+
+    .extract-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 5px 11px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-white);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .extract-chip-count {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .extract-options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .extract-option-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1.5px solid var(--card-border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .extract-option-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .extract-option-card.selected {
+      border-color: var(--primary);
+      background: rgba(0, 168, 107, 0.08);
+    }
+
+    .extract-radio {
+      margin-top: 3px;
+      accent-color: var(--primary);
+    }
+
+    .extract-option-text h4 {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-white);
+      margin-bottom: 2px;
+    }
+
+    .extract-option-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00C67F, #38bdf8);
+      transition: width 0.25s ease;
+    }
+
+    .progress-status-label {
+      font-size: 12.5px;
+      color: var(--primary);
+      font-weight: 500;
+      margin-top: 6px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-blob-1"></div>
+  <div class="glow-blob-2"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-logo">
+      <div class="logo-badge">W</div>
+      <h1>WERASH BRAND PORTAL</h1>
+    </div>
+    <div class="header-controls">
+      <!-- Extract All Brands Button -->
+      <button class="btn btn-primary" onclick="openExtractAllModal()" style="padding: 7px 14px; font-size: 13px;">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 011.414.586l4.414 4.414a1 1 0 01.586 1.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+        Extract All Brands (.ZIP)
+      </button>
+
+      <!-- Backup / Restore Button -->
+      <button class="btn btn-secondary" onclick="openBackupModal()" style="padding: 7px 14px; font-size: 13px;">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+        Backup / Restore
+      </button>
+
+      <!-- Database Sync Settings Button -->
+      <button class="btn btn-secondary" onclick="openDatabaseModal()" style="padding: 7px 14px; font-size: 13px;">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4m0 5c0 2.21-3.58 4-8 4s-8-1.79-8-4"></path></svg>
+        Database Sync
+      </button>
+
+      <div class="header-status">
+        <div class="status-dot" id="statusIndicatorDot"></div>
+        <span id="statusIndicatorText">IndexedDB Active (Offline Ready)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- App Wrapper -->
+  <div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="search-wrapper">
+        <input 
+          type="text" 
+          id="brandSearchInput" 
+          class="search-bar" 
+          placeholder="Filter brands (59 available)..." 
+          oninput="filterBrands()"
+        />
+      </div>
+      <div class="brand-list" id="brandListContainer">
+        <!-- Rendered dynamically -->
+      </div>
+      <div class="sidebar-footer">
+        <span>59 Automotive Brands</span>
+        <span id="sidebarTotalModels">0 total models</span>
+      </div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="workspace">
+      <!-- Empty Workspace State -->
+      <div class="empty-workspace" id="emptyWorkspaceState">
+        <svg class="empty-illustration" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+        </svg>
+        <h3>No Brand Selected</h3>
+        <p>Choose one of the 59 car brands from the sidebar to manage models, production spans, and high-resolution images.</p>
+        <div style="display: flex; gap: 10px; margin-top: 18px;">
+          <button class="btn btn-primary" onclick="openExtractAllModal()">
+            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 011.414.586l4.414 4.414a1 1 0 01.586 1.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+            Extract All Brands (.ZIP)
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Workspace State -->
+      <div id="activeWorkspaceState" style="display: none; flex-direction: column; flex: 1;">
+        <div class="workspace-header">
+          <div class="workspace-title-box">
+            <div class="active-brand-icon" id="activeBrandIcon"></div>
+            <div class="workspace-title">
+              <h2 id="activeBrandTitle">[Brand Name] Workspace</h2>
+              <p id="activeBrandSubtitle">Manage catalog, production spans, and PNG side-profiles.</p>
+            </div>
+          </div>
+          <div class="action-group">
+            <button class="btn btn-secondary" onclick="openModelModal()">
+              <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+              Add Car Model
+            </button>
+            <input type="file" id="importZipFileInput" accept=".zip" style="display: none;" onchange="handleZipImport(event)" />
+            <button class="btn btn-secondary" onclick="document.getElementById('importZipFileInput').click()">
+              <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+              Import (.ZIP)
+            </button>
+            <button class="btn btn-secondary" onclick="exportBrandDataZIP()">
+              <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              Extract Brand (.ZIP)
+            </button>
+            <button class="btn btn-primary" onclick="openExtractAllModal()">
+              <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 011.414.586l4.414 4.414a1 1 0 01.586 1.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+              Extract All Brands (.ZIP)
+            </button>
+          </div>
+        </div>
+
+        <div class="models-grid" id="modelsGridContainer">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Extract All Brands Modal -->
+  <div class="modal-overlay" id="extractAllModalOverlay">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3>Extract All Brands (.ZIP)</h3>
+        <button class="icon-btn" onclick="closeExtractAllModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+          Extract complete catalog packages for all brands with models at once, without having to visit and download each brand individually.
+        </p>
+
+        <!-- Brands Preview -->
+        <div class="form-group">
+          <label id="extractBrandsLabel">BRANDS READY FOR EXTRACTION</label>
+          <div class="extract-brand-chips" id="extractBrandsList">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Extraction Format Options -->
+        <div class="form-group">
+          <label>EXTRACTION FORMAT</label>
+          <div class="extract-options-list">
+            <!-- Option 1: Master Archive of Individual Brand ZIPs -->
+            <div class="extract-option-card selected" id="optBundle" onclick="selectExtractMode('bundle')">
+              <input type="radio" name="extractMode" value="bundle" class="extract-radio" checked />
+              <div class="extract-option-text">
+                <h4>Master ZIP of Brand .ZIPs (Recommended)</h4>
+                <p>Downloads a single archive containing each brand's standalone ZIP file (<code style="color: var(--primary);">Hyundai_Data.zip</code>, <code style="color: var(--primary);">Nissan_Data.zip</code>, etc.).</p>
+              </div>
+            </div>
+
+            <!-- Option 2: Direct Individual Downloads -->
+            <div class="extract-option-card" id="optSeparate" onclick="selectExtractMode('separate')">
+              <input type="radio" name="extractMode" value="separate" class="extract-radio" />
+              <div class="extract-option-text">
+                <h4>Download Each Brand ZIP Directly</h4>
+                <p>Automatically triggers separate downloads of every brand's ZIP directly into your browser's Downloads folder.</p>
+              </div>
+            </div>
+
+            <!-- Option 3: Combined Folders Archive -->
+            <div class="extract-option-card" id="optFolders" onclick="selectExtractMode('folders')">
+              <input type="radio" name="extractMode" value="folders" class="extract-radio" />
+              <div class="extract-option-text">
+                <h4>Unpacked Brand Folders (.ZIP)</h4>
+                <p>Single archive organized by brand directories (<code style="color: #38bdf8;">Brand/Model/info.json</code>) ready to drop into projects.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar-container" id="extractProgressBar">
+          <div class="progress-bar-fill" id="extractProgressFill"></div>
+        </div>
+        <div class="progress-status-label" id="extractProgressLabel">Preparing extraction...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeExtractAllModal()" id="btnCancelExtract">Cancel</button>
+        <button class="btn btn-primary" onclick="runExtractAll()" id="btnStartExtract">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          Start Extraction
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Database Settings Modal -->
+  <div class="modal-overlay" id="dbModalOverlay">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3>Supabase Database Settings</h3>
+        <button class="icon-btn" onclick="closeDatabaseModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+          Connect your own Supabase project for real-time team collaboration. If disconnected, Werash automatically saves all data securely in <strong>IndexedDB</strong> on your computer (unlimited capacity, offline-ready).
+        </p>
+        <div id="dbModalAlert" class="alert-box"></div>
+        <div class="form-group">
+          <label for="sbUrlInput">SUPABASE PROJECT URL</label>
+          <input type="text" id="sbUrlInput" class="form-input" placeholder="https://your-project.supabase.co" />
+        </div>
+        <div class="form-group">
+          <label for="sbKeyInput">SUPABASE PUBLIC ANON KEY</label>
+          <input type="password" id="sbKeyInput" class="form-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX..." />
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 6px;">
+          <button class="btn btn-secondary" onclick="pushToSupabase()" style="flex: 1; font-size: 12.5px;">
+            Push Local Data to Supabase
+          </button>
+          <button class="btn btn-secondary" onclick="pullFromSupabase()" style="flex: 1; font-size: 12.5px;">
+            Pull Cloud Data to Local
+          </button>
+        </div>
+
+        <div class="form-group" style="margin-top: 10px;">
+          <label>SQL DATABASE SETUP SCHEMA</label>
+          <div class="sql-code-container">
+            <button class="copy-sql-btn" onclick="copySQLScript()">Copy SQL</button>
+            <pre class="sql-code" id="sqlScriptBlock">create table if not exists car_models (
+  id bigint generated always as identity primary key,
+  brand text not null,
+  model_name text not null,
+  start_year integer not null,
+  end_year integer not null,
+  image_base64 text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table car_models enable row level security;
+create policy "Allow select" on car_models for select using (true);
+create policy "Allow insert" on car_models for insert with check (true);
+create policy "Allow update" on car_models for update using (true);
+create policy "Allow delete" on car_models for delete using (true);</pre>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDatabaseModal()">Close</button>
+        <button class="btn btn-danger" onclick="disconnectDatabase()" id="btnDisconnectDb" style="display: none;">Disconnect Cloud</button>
+        <button class="btn btn-primary" onclick="connectDatabase()">Connect Cloud</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup & Restore Modal -->
+  <div class="modal-overlay" id="backupModalOverlay">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>Full Backup & Restore</h3>
+        <button class="icon-btn" onclick="closeBackupModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+          Export all car models and images across all 59 brands into a single portable backup file, or restore a previously saved backup.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+          <button class="btn btn-primary" onclick="exportFullBackupJSON()" style="justify-content: center;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Export Complete Backup (.JSON)
+          </button>
+          
+          <input type="file" id="importJsonFileInput" accept=".json" style="display: none;" onchange="importFullBackupJSON(event)" />
+          <button class="btn btn-secondary" onclick="document.getElementById('importJsonFileInput').click()" style="justify-content: center;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            Restore Backup From File (.JSON)
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeBackupModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Entry Modal -->
+  <div class="modal-overlay" id="modelModalOverlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalHeading">Add Car Model</h3>
+        <button class="icon-btn" onclick="closeModelModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="modelNameInput">MODEL NAME</label>
+          <input type="text" id="modelNameInput" class="form-input" placeholder="e.g. Corolla, Elantra, C200..." />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="startYearInput">PRODUCTION START YEAR</label>
+            <select id="startYearInput" class="form-input"></select>
+          </div>
+          <div class="form-group">
+            <label for="endYearInput">PRODUCTION END YEAR</label>
+            <select id="endYearInput" class="form-input"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>MODEL IMAGE (PNG / JPEG)</label>
+          <div class="upload-zone" id="uploadZone" onclick="triggerFileInput()">
+            <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <p>Click, Drag photo here, or Paste (Ctrl+V)</p>
+          </div>
+          <input type="file" id="modelImageFile" accept="image/png, image/jpeg, image/webp" style="display: none;" onchange="handleImageUpload(event)" />
+          <div class="upload-preview-box" id="uploadPreviewBox" style="display: none;">
+            <img src="" id="uploadPreviewImage" class="upload-preview-img" alt="Preview" />
+            <button class="remove-upload-btn" onclick="removeUploadedImage(event)" title="Remove image">✕</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModelModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveModelData()">Save Model</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const brands = [
+      'Acura', 'Alfa Romeo', 'Audi', 'Baic', 'BMW', 'BYD', 'Cadillac', 'Changan', 'Chery', 'Chevrolet',
+      'Citroen', 'Cupra', 'Daewoo', 'Daihatsu', 'Datsun', 'Dayun', 'Dodge', 'Dongfeng', 'DS', 'Fiat',
+      'Ford', 'Forthing', 'GAC', 'Geely', 'GMC', 'Haval', 'Honda', 'Hummer', 'Hyundai', 'Infiniti',
+      'Isuzu', 'Jac', 'Jaguar', 'Jeep', 'Jetour', 'Kia', 'Lada', 'Land Rover', 'Maserati', 'Mazda',
+      'Mercedes-Benz', 'MG', 'Mini Cooper', 'Mitsubishi', 'Nissan', 'Opel', 'Peugeot', 'Porsche',
+      'Proton', 'Renault', 'Seat', 'Skoda', 'Subaru', 'Suzuki', 'Tata', 'Tesla', 'Toyota', 'Volkswagen',
+      'Volvo'
+    ];
+
+    let portalData = {};
+    let activeBrand = null;
+    let editModelIndex = null;
+    let uploadedImageBase64 = null;
+    let supabaseClient = null;
+    let isCloudMode = false;
+    let currentExtractMode = 'bundle';
+
+    // Helper to get brand logo file name
+    function getBrandLogoFilename(brand) {
+      if (brand === 'Mercedes-Benz') return 'Mercedes.png';
+      return `${brand}.png`;
+    }
+
+    // ==========================================
+    // 1. INDEXEDDB ENGINE (Unlimited Storage)
+    // ==========================================
+    const DB_NAME = 'WerashBrandPortalDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'brand_models';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          return reject(new Error('IndexedDB not supported'));
+        }
+        const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'brand' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function getBrandFromDB(brand) {
+      try {
+        const db = await openDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction(STORE_NAME, 'readonly');
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.get(brand);
+          req.onsuccess = () => resolve(req.result ? req.result.models : null);
+          req.onerror = () => resolve(null);
+        });
+      } catch(e) {
+        return null;
+      }
+    }
+
+    async function saveBrandToDB(brand, models) {
+      try {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.put({ brand, models, updatedAt: Date.now() });
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error);
+        });
+      } catch(e) {
+        console.warn('DB Write failed, falling back to localStorage:', e);
+        try {
+          localStorage.setItem('werash_brand_' + brand, JSON.stringify(models));
+          return true;
+        } catch(lsErr) {
+          return false;
+        }
+      }
+    }
+
+    async function getAllBrandsFromDB() {
+      try {
+        const db = await openDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction(STORE_NAME, 'readonly');
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.getAll();
+          req.onsuccess = () => {
+            const map = {};
+            (req.result || []).forEach(item => {
+              map[item.brand] = item.models || [];
+            });
+            resolve(map);
+          };
+          req.onerror = () => resolve({});
+        });
+      } catch(e) {
+        return {};
+      }
+    }
+
+    async function ensureAllBrandsLoaded() {
+      const dbData = await getAllBrandsFromDB();
+      for (const b of brands) {
+        if ((!portalData[b] || portalData[b].length === 0) && dbData[b] && dbData[b].length > 0) {
+          portalData[b] = dbData[b];
+        }
+      }
+    }
+
+    // ==========================================
+    // 2. INITIALIZATION & SEEDING
+    // ==========================================
+    async function initData() {
+      populateYearDropdowns();
+      setupPasteAndDrop();
+
+      // Initialize all brand arrays
+      brands.forEach(b => {
+        portalData[b] = [];
+      });
+
+      // 1. Try to load from IndexedDB
+      let dbData = await getAllBrandsFromDB();
+      let hasData = Object.keys(dbData).length > 0 && Object.values(dbData).some(arr => arr.length > 0);
+
+      // 2. If IndexedDB empty, check localStorage
+      if (!hasData) {
+        let foundLocalStorage = false;
+        for (const b of brands) {
+          const saved = localStorage.getItem('werash_brand_' + b);
+          if (saved) {
+            try {
+              const list = JSON.parse(saved);
+              if (Array.isArray(list) && list.length > 0) {
+                portalData[b] = list;
+                await saveBrandToDB(b, list);
+                foundLocalStorage = true;
+              }
+            } catch(e) {}
+          }
+        }
+        hasData = foundLocalStorage;
+      } else {
+        // Merge IndexedDB data into portalData
+        for (const b in dbData) {
+          if (portalData[b] !== undefined) {
+            portalData[b] = dbData[b];
+          }
+        }
+      }
+
+      // 3. If STILL empty, seed from default workspace dataset (Nissan, Mercedes, Hyundai)
+      if (!hasData && window.WERASH_SEED_DATA) {
+        console.log('Seeding portal with workspace automotive catalog...');
+        for (const b in window.WERASH_SEED_DATA) {
+          if (portalData[b] !== undefined) {
+            portalData[b] = window.WERASH_SEED_DATA[b];
+            await saveBrandToDB(b, portalData[b]);
+          }
+        }
+      }
+
+      // 4. Check for User Supabase Config (non-blocking)
+      const userSbUrl = localStorage.getItem('werash_supabase_url');
+      const userSbKey = localStorage.getItem('werash_supabase_key');
+      const isDisconnected = localStorage.getItem('werash_supabase_disconnected') === 'true';
+
+      if (!isDisconnected && userSbUrl && userSbKey && window.supabase) {
+        try {
+          const client = window.supabase.createClient(userSbUrl, userSbKey);
+          const { error } = await client.from('car_models').select('id').limit(1);
+          if (!error) {
+            supabaseClient = client;
+            isCloudMode = true;
+            document.getElementById('sbUrlInput').value = userSbUrl;
+            document.getElementById('sbKeyInput').value = userSbKey;
+            document.getElementById('btnDisconnectDb').style.display = 'block';
+            updateStatusUI(true, 'Cloud Sync Active', 'cloud');
+          } else {
+            updateStatusUI(true, 'IndexedDB Active (Offline Ready)', 'offline');
+          }
+        } catch(e) {
+          updateStatusUI(true, 'IndexedDB Active (Offline Ready)', 'offline');
+        }
+      } else {
+        updateStatusUI(true, 'IndexedDB Active (Offline Ready)', 'offline');
+      }
+
+      renderBrandList();
+
+      // Automatically select first brand with data or Hyundai
+      const firstActive = brands.find(b => portalData[b] && portalData[b].length > 0) || 'Hyundai';
+      selectBrand(firstActive);
+    }
+
+    // UI Status indicator
+    function updateStatusUI(connected, text, type = 'offline') {
+      const dot = document.getElementById('statusIndicatorDot');
+      const label = document.getElementById('statusIndicatorText');
+      label.innerText = text;
+      dot.className = 'status-dot ' + type;
+    }
+
+    // Dropdown options from 1950 to 2030
+    function populateYearDropdowns() {
+      const startSelect = document.getElementById('startYearInput');
+      const endSelect = document.getElementById('endYearInput');
+      startSelect.innerHTML = '';
+      endSelect.innerHTML = '';
+
+      for (let y = 1950; y <= 2030; y++) {
+        startSelect.add(new Option(y, y));
+        endSelect.add(new Option(y, y));
+      }
+      startSelect.value = 1995;
+      endSelect.value = 2026;
+    }
+
+    // ==========================================
+    // 3. BRAND SELECTION & MODELS RENDERING
+    // ==========================================
+    function renderBrandList(filterQuery = '') {
+      const container = document.getElementById('brandListContainer');
+      container.innerHTML = '';
+      let totalModels = 0;
+
+      brands.forEach(brandName => {
+        const count = portalData[brandName] ? portalData[brandName].length : 0;
+        totalModels += count;
+
+        if (filterQuery && !brandName.toLowerCase().includes(filterQuery.toLowerCase())) return;
+
+        const isActive = activeBrand === brandName;
+        const firstLetter = brandName.charAt(0);
+        const logoFilename = getBrandLogoFilename(brandName);
+        const logoSrc = `Car Brands/${logoFilename}`;
+
+        const brandItem = document.createElement('div');
+        brandItem.className = `brand-item ${isActive ? 'active' : ''}`;
+        brandItem.onclick = () => selectBrand(brandName);
+
+        brandItem.innerHTML = `
+          <div class="brand-info">
+            <div class="brand-avatar-box">
+              <img 
+                src="${logoSrc}" 
+                class="brand-logo-img" 
+                alt="${brandName}" 
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+              />
+              <div class="brand-avatar-fallback">${firstLetter}</div>
+            </div>
+            <span class="brand-name">${brandName}</span>
+          </div>
+          <span class="brand-count-badge">${count} models</span>
+        `;
+        container.appendChild(brandItem);
+      });
+
+      document.getElementById('sidebarTotalModels').innerText = `${totalModels} total models`;
+    }
+
+    function filterBrands() {
+      const query = document.getElementById('brandSearchInput').value;
+      renderBrandList(query);
+    }
+
+    async function selectBrand(brandName) {
+      activeBrand = brandName;
+      document.getElementById('emptyWorkspaceState').style.display = 'none';
+      document.getElementById('activeWorkspaceState').style.display = 'flex';
+      document.getElementById('activeBrandTitle').innerText = `${brandName} Catalog`;
+
+      // Set active brand icon
+      const iconBox = document.getElementById('activeBrandIcon');
+      const logoFilename = getBrandLogoFilename(brandName);
+      iconBox.innerHTML = `
+        <img 
+          src="Car Brands/${logoFilename}" 
+          alt="${brandName}" 
+          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+        />
+        <div class="brand-avatar-fallback" style="display:none; font-size: 20px;">${brandName.charAt(0)}</div>
+      `;
+
+      // Ensure data loaded from DB if not in memory
+      if (!portalData[brandName] || portalData[brandName].length === 0) {
+        const fromDB = await getBrandFromDB(brandName);
+        if (fromDB) {
+          portalData[brandName] = fromDB;
+        }
+      }
+
+      const count = portalData[brandName] ? portalData[brandName].length : 0;
+      document.getElementById('activeBrandSubtitle').innerText = `${count} models recorded with side-profiles & production spans.`;
+
+      renderBrandList(document.getElementById('brandSearchInput').value);
+      renderModels();
+    }
+
+    function renderModels() {
+      const container = document.getElementById('modelsGridContainer');
+      container.innerHTML = '';
+      const modelsList = portalData[activeBrand] || [];
+
+      if (modelsList.length === 0) {
+        container.innerHTML = `
+          <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--text-muted); gap: 12px;">
+            <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span style="font-size: 15px; font-weight: 600; color: var(--text-white);">No models added for ${activeBrand} yet.</span>
+            <span style="font-size: 13px;">Click "Add Car Model" above or "Import (.ZIP)" to load entries.</span>
+          </div>
+        `;
+        return;
+      }
+
+      modelsList.forEach((model, index) => {
+        const card = document.createElement('div');
+        card.className = 'model-card';
+
+        const imageHTML = model.imageBase64 
+          ? `<img src="${model.imageBase64}" class="model-card-image" alt="${model.name}"/>` 
+          : `<div class="no-image-placeholder">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              <span>No Image Uploaded</span>
+             </div>`;
+
+        card.innerHTML = `
+          <div class="model-card-image-box">
+            ${imageHTML}
+          </div>
+          <div class="model-card-info">
+            <div class="model-name-row">
+              <span class="model-card-name" title="${model.name}">${model.name}</span>
+              <span class="model-card-years">${model.startYear} - ${model.endYear}</span>
+            </div>
+            <div class="model-card-actions">
+              <button class="icon-btn" onclick="editModel(${index})" title="Edit Model">
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+              </button>
+              <button class="icon-btn icon-btn-danger" onclick="deleteModel(${index})" title="Delete Model">
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // ==========================================
+    // 4. MODEL MODAL & IMAGE COMPRESSION
+    // ==========================================
+    function openModelModal() {
+      editModelIndex = null;
+      uploadedImageBase64 = null;
+      document.getElementById('modalHeading').innerText = `Add ${activeBrand} Model`;
+      document.getElementById('modelNameInput').value = '';
+      document.getElementById('startYearInput').value = 1995;
+      document.getElementById('endYearInput').value = 2026;
+      document.getElementById('uploadZone').style.display = 'flex';
+      document.getElementById('uploadPreviewBox').style.display = 'none';
+      document.getElementById('modelModalOverlay').classList.add('active');
+      setTimeout(() => document.getElementById('modelNameInput').focus(), 50);
+    }
+
+    function closeModelModal() {
+      document.getElementById('modelModalOverlay').classList.remove('active');
+    }
+
+    function triggerFileInput() {
+      document.getElementById('modelImageFile').click();
+    }
+
+    function compressAndSetImage(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const maxDim = 600;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          uploadedImageBase64 = canvas.toDataURL('image/png');
+
+          document.getElementById('uploadPreviewImage').src = uploadedImageBase64;
+          document.getElementById('uploadZone').style.display = 'none';
+          document.getElementById('uploadPreviewBox').style.display = 'flex';
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (file) compressAndSetImage(file);
+    }
+
+    function removeUploadedImage(event) {
+      event.stopPropagation();
+      uploadedImageBase64 = null;
+      document.getElementById('modelImageFile').value = '';
+      document.getElementById('uploadZone').style.display = 'flex';
+      document.getElementById('uploadPreviewBox').style.display = 'none';
+    }
+
+    function setupPasteAndDrop() {
+      const zone = document.getElementById('uploadZone');
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          compressAndSetImage(e.dataTransfer.files[0]);
+        }
+      });
+
+      document.addEventListener('paste', (e) => {
+        if (!document.getElementById('modelModalOverlay').classList.contains('active')) return;
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (const item of items) {
+          if (item.type.indexOf('image') !== -1) {
+            const file = item.getAsFile();
+            compressAndSetImage(file);
+            break;
+          }
+        }
+      });
+    }
+
+    // Save Model
+    async function saveModelData() {
+      const name = document.getElementById('modelNameInput').value.trim();
+      const startYear = parseInt(document.getElementById('startYearInput').value);
+      const endYear = parseInt(document.getElementById('endYearInput').value);
+
+      if (!name) {
+        alert('Please specify a model name.');
+        return;
+      }
+      if (startYear > endYear) {
+        alert('Production start year cannot exceed end year.');
+        return;
+      }
+
+      if (!portalData[activeBrand]) {
+        portalData[activeBrand] = [];
+      }
+
+      const modelEntry = {
+        id: (editModelIndex !== null && portalData[activeBrand][editModelIndex]?.id) 
+              ? portalData[activeBrand][editModelIndex].id 
+              : 'm_' + Date.now(),
+        name: name,
+        startYear: startYear,
+        endYear: endYear,
+        imageBase64: uploadedImageBase64,
+        imagesLoaded: true
+      };
+
+      if (editModelIndex !== null) {
+        portalData[activeBrand][editModelIndex] = modelEntry;
+      } else {
+        portalData[activeBrand].push(modelEntry);
+      }
+
+      // Save to IndexedDB
+      await saveBrandToDB(activeBrand, portalData[activeBrand]);
+
+      // If Cloud Sync is active, sync to Supabase
+      if (isCloudMode && supabaseClient) {
+        try {
+          if (editModelIndex !== null) {
+            await supabaseClient
+              .from('car_models')
+              .update({
+                model_name: name,
+                start_year: startYear,
+                end_year: endYear,
+                image_base64: uploadedImageBase64
+              })
+              .eq('id', modelEntry.id);
+          } else {
+            await supabaseClient
+              .from('car_models')
+              .insert({
+                brand: activeBrand,
+                model_name: name,
+                start_year: startYear,
+                end_year: endYear,
+                image_base64: uploadedImageBase64
+              });
+          }
+        } catch(e) {
+          console.warn('Cloud sync error on save:', e);
+        }
+      }
+
+      renderModels();
+      renderBrandList(document.getElementById('brandSearchInput').value);
+      const count = portalData[activeBrand].length;
+      document.getElementById('activeBrandSubtitle').innerText = `${count} models recorded with side-profiles & production spans.`;
+      closeModelModal();
+    }
+
+    function editModel(index) {
+      editModelIndex = index;
+      const model = portalData[activeBrand][index];
+      document.getElementById('modalHeading').innerText = `Edit ${model.name}`;
+      document.getElementById('modelNameInput').value = model.name;
+      document.getElementById('startYearInput').value = model.startYear;
+      document.getElementById('endYearInput').value = model.endYear;
+
+      if (model.imageBase64) {
+        uploadedImageBase64 = model.imageBase64;
+        document.getElementById('uploadPreviewImage').src = uploadedImageBase64;
+        document.getElementById('uploadZone').style.display = 'none';
+        document.getElementById('uploadPreviewBox').style.display = 'flex';
+      } else {
+        uploadedImageBase64 = null;
+        document.getElementById('uploadZone').style.display = 'flex';
+        document.getElementById('uploadPreviewBox').style.display = 'none';
+      }
+
+      document.getElementById('modelModalOverlay').classList.add('active');
+    }
+
+    async function deleteModel(index) {
+      const model = portalData[activeBrand][index];
+      if (!confirm(`Are you sure you want to delete "${model.name}"?`)) return;
+
+      portalData[activeBrand].splice(index, 1);
+      await saveBrandToDB(activeBrand, portalData[activeBrand]);
+
+      if (isCloudMode && supabaseClient && model.id) {
+        try {
+          await supabaseClient.from('car_models').delete().eq('id', model.id);
+        } catch(e) {}
+      }
+
+      renderModels();
+      renderBrandList(document.getElementById('brandSearchInput').value);
+      const count = portalData[activeBrand].length;
+      document.getElementById('activeBrandSubtitle').innerText = `${count} models recorded with side-profiles & production spans.`;
+    }
+
+    // ==========================================
+    // 5. ZIP IMPORT & EXPORT ENGINE
+    // ==========================================
+    function dataURLtoBlob(dataurl) {
+      const arr = dataurl.split(',');
+      const mime = arr[0].match(/:(.*?);/)[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while(n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new Blob([u8arr], {type:mime});
+    }
+
+    // Creates a standalone JSZip instance for a single brand
+    async function createBrandZipBlob(brandName, modelsList) {
+      const zip = new JSZip();
+      modelsList.forEach(model => {
+        const safeModelName = model.name.replace(/[\/\\?%*:|"<>\s]+/g, '_');
+        const modelFolder = zip.folder(safeModelName);
+        
+        const infoContent = {
+          brand: brandName,
+          modelName: model.name,
+          productionStartYear: model.startYear,
+          productionEndYear: model.endYear,
+          imageName: `${safeModelName.toLowerCase()}.png`
+        };
+
+        modelFolder.file('info.json', JSON.stringify(infoContent, null, 2));
+
+        if (model.imageBase64) {
+          try {
+            const blob = dataURLtoBlob(model.imageBase64);
+            modelFolder.file(`${safeModelName.toLowerCase()}.png`, blob);
+          } catch (e) {
+            console.error('Failed to bundle image for model:', model.name, e);
+          }
+        }
+      });
+
+      return await zip.generateAsync({ type: 'blob' });
+    }
+
+    // Export single active brand
+    async function exportBrandDataZIP() {
+      const modelsList = portalData[activeBrand] || [];
+      if (modelsList.length === 0) {
+        alert('This brand has no models to export. Please add at least one model.');
+        return;
+      }
+
+      const blob = await createBrandZipBlob(activeBrand, modelsList);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${activeBrand.replace(/\s+/g, '_')}_Data.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // ==========================================
+    // 6. EXTRACT ALL BRANDS (.ZIP) ENGINE
+    // ==========================================
+    function selectExtractMode(mode) {
+      currentExtractMode = mode;
+      document.getElementById('optBundle').classList.toggle('selected', mode === 'bundle');
+      document.getElementById('optSeparate').classList.toggle('selected', mode === 'separate');
+      document.getElementById('optFolders').classList.toggle('selected', mode === 'folders');
+
+      document.querySelector('input[value="bundle"]').checked = (mode === 'bundle');
+      document.querySelector('input[value="separate"]').checked = (mode === 'separate');
+      document.querySelector('input[value="folders"]').checked = (mode === 'folders');
+    }
+
+    async function openExtractAllModal() {
+      await ensureAllBrandsLoaded();
+
+      const container = document.getElementById('extractBrandsList');
+      container.innerHTML = '';
+
+      const activeBrandsList = brands.filter(b => portalData[b] && portalData[b].length > 0);
+      let totalAllModels = 0;
+
+      activeBrandsList.forEach(b => {
+        const count = portalData[b].length;
+        totalAllModels += count;
+        const chip = document.createElement('div');
+        chip.className = 'extract-chip';
+        chip.innerHTML = `
+          <span>${b}</span>
+          <span class="extract-chip-count">(${count})</span>
+        `;
+        container.appendChild(chip);
+      });
+
+      document.getElementById('extractBrandsLabel').innerText = 
+        `BRANDS READY FOR EXTRACTION (${activeBrandsList.length} BRANDS • ${totalAllModels} MODELS)`;
+
+      // Reset progress
+      document.getElementById('extractProgressBar').style.display = 'none';
+      document.getElementById('extractProgressFill').style.width = '0%';
+      document.getElementById('extractProgressLabel').style.display = 'none';
+      document.getElementById('btnStartExtract').disabled = false;
+      document.getElementById('btnStartExtract').innerText = 'Start Extraction';
+
+      document.getElementById('extractAllModalOverlay').classList.add('active');
+    }
+
+    function closeExtractAllModal() {
+      document.getElementById('extractAllModalOverlay').classList.remove('active');
+    }
+
+    async function runExtractAll() {
+      await ensureAllBrandsLoaded();
+      const activeBrandsList = brands.filter(b => portalData[b] && portalData[b].length > 0);
+
+      if (activeBrandsList.length === 0) {
+        alert('No car models found in any brand. Please add or import models first.');
+        return;
+      }
+
+      const pBar = document.getElementById('extractProgressBar');
+      const pFill = document.getElementById('extractProgressFill');
+      const pLabel = document.getElementById('extractProgressLabel');
+      const startBtn = document.getElementById('btnStartExtract');
+      const cancelBtn = document.getElementById('btnCancelExtract');
+
+      pBar.style.display = 'block';
+      pLabel.style.display = 'block';
+      startBtn.disabled = true;
+      cancelBtn.disabled = true;
+
+      const setProgress = (pct, text) => {
+        pFill.style.width = pct + '%';
+        pLabel.innerText = text;
+      };
+
+      try {
+        if (currentExtractMode === 'bundle') {
+          // Mode 1: Master ZIP containing individual Brand .ZIPs
+          const masterZip = new JSZip();
+
+          for (let i = 0; i < activeBrandsList.length; i++) {
+            const b = activeBrandsList[i];
+            const pct = Math.round(((i) / activeBrandsList.length) * 80);
+            setProgress(pct, `Packaging ${b}_Data.zip (${i + 1}/${activeBrandsList.length})...`);
+            
+            const brandBlob = await createBrandZipBlob(b, portalData[b]);
+            const safeName = b.replace(/[\/\\?%*:|"<>\s]+/g, '_');
+            masterZip.file(`${safeName}_Data.zip`, brandBlob);
+          }
+
+          setProgress(85, 'Compressing master archive (this may take a moment)...');
+
+          const masterBlob = await masterZip.generateAsync({ type: 'blob' }, (metadata) => {
+            const pct = 85 + Math.round(metadata.percent * 0.15);
+            setProgress(pct, `Building Master ZIP (${metadata.percent.toFixed(0)}%)...`);
+          });
+
+          setProgress(100, 'Download starting...');
+
+          const dateStr = new Date().toISOString().split('T')[0];
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(masterBlob);
+          link.download = `Werash_All_Brands_ZIPs_${dateStr}.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          startBtn.innerText = 'Completed!';
+          setTimeout(() => closeExtractAllModal(), 1200);
+
+        } else if (currentExtractMode === 'separate') {
+          // Mode 2: Trigger direct downloads for each brand ZIP
+          for (let i = 0; i < activeBrandsList.length; i++) {
+            const b = activeBrandsList[i];
+            const pct = Math.round(((i + 1) / activeBrandsList.length) * 100);
+            setProgress(pct, `Downloading ${b}_Data.zip (${i + 1}/${activeBrandsList.length})...`);
+
+            const blob = await createBrandZipBlob(b, portalData[b]);
+            const safeName = b.replace(/[\/\\?%*:|"<>\s]+/g, '_');
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${safeName}_Data.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Small delay so browser handles downloads smoothly
+            await new Promise(r => setTimeout(r, 600));
+          }
+
+          setProgress(100, `Downloaded all ${activeBrandsList.length} brand ZIP files!`);
+          startBtn.innerText = 'All Downloaded!';
+          setTimeout(() => closeExtractAllModal(), 1500);
+
+        } else if (currentExtractMode === 'folders') {
+          // Mode 3: Combined folders Brand/Model/info.json
+          const masterZip = new JSZip();
+
+          for (let i = 0; i < activeBrandsList.length; i++) {
+            const b = activeBrandsList[i];
+            const pct = Math.round(((i) / activeBrandsList.length) * 80);
+            setProgress(pct, `Organizing ${b} folders (${i + 1}/${activeBrandsList.length})...`);
+
+            const safeBrand = b.replace(/[\/\\?%*:|"<>\s]+/g, '_');
+            const brandFolder = masterZip.folder(safeBrand);
+
+            portalData[b].forEach(model => {
+              const safeModel = model.name.replace(/[\/\\?%*:|"<>\s]+/g, '_');
+              const modelFolder = brandFolder.folder(safeModel);
+
+              const infoContent = {
+                brand: b,
+                modelName: model.name,
+                productionStartYear: model.startYear,
+                productionEndYear: model.endYear,
+                imageName: `${safeModel.toLowerCase()}.png`
+              };
+              modelFolder.file('info.json', JSON.stringify(infoContent, null, 2));
+
+              if (model.imageBase64) {
+                try {
+                  const blob = dataURLtoBlob(model.imageBase64);
+                  modelFolder.file(`${safeModel.toLowerCase()}.png`, blob);
+                } catch(e) {}
+              }
+            });
+          }
+
+          setProgress(85, 'Compressing combined catalog archive...');
+          const masterBlob = await masterZip.generateAsync({ type: 'blob' }, (meta) => {
+            const pct = 85 + Math.round(meta.percent * 0.15);
+            setProgress(pct, `Building Master ZIP (${meta.percent.toFixed(0)}%)...`);
+          });
+
+          setProgress(100, 'Download starting...');
+          const dateStr = new Date().toISOString().split('T')[0];
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(masterBlob);
+          link.download = `Werash_Catalog_Folders_${dateStr}.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          startBtn.innerText = 'Completed!';
+          setTimeout(() => closeExtractAllModal(), 1200);
+        }
+      } catch(err) {
+        alert('Extraction failed: ' + err.message);
+        setProgress(0, 'Error during extraction');
+      } finally {
+        startBtn.disabled = false;
+        cancelBtn.disabled = false;
+      }
+    }
+
+    // Handle single brand zip import
+    async function handleZipImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const zip = new JSZip();
+        const loadedZip = await zip.loadAsync(file);
+        const importedModels = [];
+
+        // Find all info.json files
+        const infoFiles = Object.keys(loadedZip.files).filter(f => f.endsWith('info.json'));
+
+        for (const infoPath of infoFiles) {
+          const infoStr = await loadedZip.files[infoPath].async('string');
+          let info;
+          try {
+            info = JSON.parse(infoStr);
+          } catch(e) { continue; }
+
+          const dir = infoPath.substring(0, infoPath.lastIndexOf('/') + 1);
+          let imageBase64 = null;
+
+          // Look for image in folder
+          const imageFileName = info.imageName || (info.modelName ? `${info.modelName.toLowerCase().replace(/[\/\\?%*:|"<>\s]+/g, '_')}.png` : null);
+          const possibleImagePaths = [
+            dir + imageFileName,
+            dir + `${info.modelName}.png`,
+            dir + `${info.modelName?.toLowerCase()}.png`
+          ];
+
+          for (const imgPath of possibleImagePaths) {
+            if (imgPath && loadedZip.files[imgPath]) {
+              const imgData = await loadedZip.files[imgPath].async('base64');
+              imageBase64 = 'data:image/png;base64,' + imgData;
+              break;
+            }
+          }
+
+          importedModels.push({
+            id: 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            name: info.modelName || 'Unnamed',
+            startYear: info.productionStartYear || 1995,
+            endYear: info.productionEndYear || 2026,
+            imageBase64: imageBase64,
+            imagesLoaded: true
+          });
+        }
+
+        if (importedModels.length === 0) {
+          alert('No valid car models with info.json found in this ZIP archive.');
+          return;
+        }
+
+        // Merge or replace in active brand
+        if (!portalData[activeBrand]) portalData[activeBrand] = [];
+        
+        let addedCount = 0;
+        importedModels.forEach(m => {
+          const existingIdx = portalData[activeBrand].findIndex(x => x.name.toLowerCase() === m.name.toLowerCase());
+          if (existingIdx >= 0) {
+            portalData[activeBrand][existingIdx] = m;
+          } else {
+            portalData[activeBrand].push(m);
+            addedCount++;
+          }
+        });
+
+        await saveBrandToDB(activeBrand, portalData[activeBrand]);
+        renderModels();
+        renderBrandList(document.getElementById('brandSearchInput').value);
+        alert(`Successfully imported ${importedModels.length} models into ${activeBrand}!`);
+      } catch(err) {
+        alert('Failed to read ZIP archive: ' + err.message);
+      } finally {
+        event.target.value = '';
+      }
+    }
+
+    // ==========================================
+    // 7. BACKUP & RESTORE (FULL JSON)
+    // ==========================================
+    function openBackupModal() {
+      document.getElementById('backupModalOverlay').classList.add('active');
+    }
+
+    function closeBackupModal() {
+      document.getElementById('backupModalOverlay').classList.remove('active');
+    }
+
+    async function exportFullBackupJSON() {
+      const allData = await getAllBrandsFromDB();
+      // Ensure in-memory data is included
+      brands.forEach(b => {
+        if (portalData[b] && portalData[b].length > 0) {
+          allData[b] = portalData[b];
+        }
+      });
+
+      const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Werash_Catalog_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    async function importFullBackupJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          let count = 0;
+          for (const b of brands) {
+            if (Array.isArray(data[b])) {
+              portalData[b] = data[b];
+              await saveBrandToDB(b, data[b]);
+              count += data[b].length;
+            }
+          }
+          renderBrandList();
+          if (activeBrand) renderModels();
+          alert(`Successfully restored backup! Total ${count} car models loaded across brands.`);
+          closeBackupModal();
+        } catch(err) {
+          alert('Invalid backup JSON file: ' + err.message);
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ==========================================
+    // 8. SUPABASE CLOUD SYNC
+    // ==========================================
+    function openDatabaseModal() {
+      document.getElementById('dbModalOverlay').classList.add('active');
+    }
+
+    function closeDatabaseModal() {
+      document.getElementById('dbModalOverlay').classList.remove('active');
+      document.getElementById('dbModalAlert').className = 'alert-box';
+    }
+
+    function showDbAlert(msg, type = 'info') {
+      const box = document.getElementById('dbModalAlert');
+      box.className = 'alert-box ' + type;
+      box.innerText = msg;
+    }
+
+    async function connectDatabase() {
+      const url = document.getElementById('sbUrlInput').value.trim();
+      const key = document.getElementById('sbKeyInput').value.trim();
+
+      if (!url || !key) {
+        showDbAlert('Please enter both the Supabase URL and Anon Key.', 'error');
+        return;
+      }
+
+      showDbAlert('Testing connection to Supabase...', 'info');
+
+      try {
+        if (!window.supabase) {
+          throw new Error('Supabase client SDK is still loading or blocked.');
+        }
+        const client = window.supabase.createClient(url, key);
+        const { error } = await client.from('car_models').select('id').limit(1);
+        if (error) throw error;
+
+        localStorage.setItem('werash_supabase_url', url);
+        localStorage.setItem('werash_supabase_key', key);
+        localStorage.removeItem('werash_supabase_disconnected');
+
+        supabaseClient = client;
+        isCloudMode = true;
+        updateStatusUI(true, 'Cloud Sync Active', 'cloud');
+        document.getElementById('btnDisconnectDb').style.display = 'block';
+
+        showDbAlert('Connected to Supabase! You can now push or pull models.', 'success');
+      } catch(e) {
+        showDbAlert('Connection failed: ' + e.message + '\nEnsure the SQL table script has been run in your Supabase SQL Editor.', 'error');
+      }
+    }
+
+    function disconnectDatabase() {
+      localStorage.removeItem('werash_supabase_url');
+      localStorage.removeItem('werash_supabase_key');
+      localStorage.setItem('werash_supabase_disconnected', 'true');
+      supabaseClient = null;
+      isCloudMode = false;
+      document.getElementById('sbUrlInput').value = '';
+      document.getElementById('sbKeyInput').value = '';
+      document.getElementById('btnDisconnectDb').style.display = 'none';
+      updateStatusUI(true, 'IndexedDB Active (Offline Ready)', 'offline');
+      showDbAlert('Disconnected from Supabase Cloud. Operating in local IndexedDB mode.', 'info');
+    }
+
+    async function pushToSupabase() {
+      if (!supabaseClient) {
+        showDbAlert('Please connect to Supabase first before pushing data.', 'error');
+        return;
+      }
+      showDbAlert('Pushing all local models to Supabase...', 'info');
+
+      try {
+        let totalPushed = 0;
+        for (const b of brands) {
+          const list = portalData[b] || [];
+          for (const m of list) {
+            await supabaseClient.from('car_models').upsert({
+              brand: b,
+              model_name: m.name,
+              start_year: m.startYear,
+              end_year: m.endYear,
+              image_base64: m.imageBase64
+            }, { onConflict: 'brand, model_name' });
+            totalPushed++;
+          }
+        }
+        showDbAlert(`Successfully pushed ${totalPushed} models to Supabase!`, 'success');
+      } catch(e) {
+        showDbAlert('Push error: ' + e.message, 'error');
+      }
+    }
+
+    async function pullFromSupabase() {
+      if (!supabaseClient) {
+        showDbAlert('Please connect to Supabase first before pulling data.', 'error');
+        return;
+      }
+      showDbAlert('Pulling catalog from Supabase...', 'info');
+
+      try {
+        const { data, error } = await supabaseClient.from('car_models').select('*');
+        if (error) throw error;
+
+        let count = 0;
+        data.forEach(row => {
+          if (!portalData[row.brand]) portalData[row.brand] = [];
+          const existing = portalData[row.brand].find(m => m.name.toLowerCase() === row.model_name.toLowerCase());
+          if (!existing) {
+            portalData[row.brand].push({
+              id: 'm_' + (row.id || Date.now()),
+              name: row.model_name,
+              startYear: row.start_year,
+              endYear: row.end_year,
+              imageBase64: row.image_base64,
+              imagesLoaded: true
+            });
+            count++;
+          }
+        });
+
+        for (const b of brands) {
+          if (portalData[b]) {
+            await saveBrandToDB(b, portalData[b]);
+          }
+        }
+
+        renderBrandList();
+        if (activeBrand) renderModels();
+        showDbAlert(`Successfully pulled ${count} new models from Supabase!`, 'success');
+      } catch(e) {
+        showDbAlert('Pull error: ' + e.message, 'error');
+      }
+    }
+
+    function copySQLScript() {
+      const sqlText = document.getElementById('sqlScriptBlock').innerText;
+      navigator.clipboard.writeText(sqlText).then(() => {
+        alert('SQL setup script copied to clipboard!');
+      });
+    }
+
+    // Window load trigger
+    window.onload = initData;
+  </script>
+</body>
+</html>

@@ -1,3 +1,7 @@
 node_modules/
 .expo/
 *.log
+backup_werash_app*
+extracted_*
+*.zip
+.vercel

@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Image, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { StyleSheet, View, Text, Image, StatusBar, Animated, PanResponder } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import HomeScreen from './src/screens/HomeScreen';
 import MechanicsScreen from './src/screens/MechanicsScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import GarageScreen from './src/screens/GarageScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import Header from './src/components/Header';
 import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
+import AdDetailModal from './src/components/AdDetailModal';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 
 function AppContent() {
@@ -16,21 +18,80 @@ function AppContent() {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [expandedSpecialistId, setExpandedSpecialistId] = useState(null);
   const [currentUser, setCurrentUser] = useState({
-    id: 'mock-jane',
-    fullName: 'Jane Doe',
-    email: 'jane@example.com',
-    carBrand: 'Porsche',
-    carModel: '911 GT3',
-    carYear: '2023'
+    id: 'mock-youssef',
+    fullName: 'Youssef Helal',
+    email: 'youssef@example.com',
+    carBrand: 'Hyundai',
+    carModel: 'Coupe',
+    carYear: '2005',
+    plateNumber: '1873 RW',
+    plateNumberArabic: '١٨٧٣ ر و',
+    phone: '+20 123 456 7890',
+    avatar: null
   });
   const [signInVisible, setSignInVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
   const [activeSpecialist, setActiveSpecialist] = useState(null);
+  const [activeAd, setActiveAd] = useState(null);
   const [communityScrollTrigger, setCommunityScrollTrigger] = useState(0);
   const [splashFinished, setSplashFinished] = useState(false);
   
   // Shared Garage States
   const [userVehicles, setUserVehicles] = useState([]);
   const [activeVehicleId, setActiveVehicleId] = useState(null);
+
+  // Unified Home Screen Rubber-Band Bounce (Moves Header + Home Content together)
+  const [homeTranslateY] = useState(() => new Animated.Value(0));
+  const currentTabRef = useRef(currentTab);
+  const isHomeAtTopRef = useRef(true);
+  const maxDrag = 150;
+
+  useEffect(() => {
+    currentTabRef.current = currentTab;
+  }, [currentTab]);
+
+  const homePanResponder = useMemo(() => {
+    const getRubberBandValue = (dy) => {
+      const sign = Math.sign(dy);
+      const absVal = Math.abs(dy);
+      return sign * (1 - (1 / ((absVal * 0.45 / maxDrag) + 1))) * maxDrag;
+    };
+
+    // eslint-disable-next-line react-hooks/refs
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        if (currentTabRef.current !== 'home') return false;
+        return isHomeAtTopRef.current && Math.abs(gestureState.dy) > 7 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
+        if (currentTabRef.current !== 'home') return false;
+        return isHomeAtTopRef.current && Math.abs(gestureState.dy) > 7 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const rubberBandY = getRubberBandValue(gestureState.dy);
+        homeTranslateY.setValue(rubberBandY);
+      },
+      onPanResponderRelease: () => {
+        Animated.spring(homeTranslateY, {
+          toValue: 0,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(homeTranslateY, {
+          toValue: 0,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }).start();
+      },
+    });
+  }, [homeTranslateY]);
   
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -40,11 +101,15 @@ function AppContent() {
     'ZafranArabic-Bold': require('./assets/fonts/zafran-arabic-bold.otf'),
     'ZafranArabic-Regular': require('./assets/fonts/zafran-arabic-regular.otf'),
     'ZafranArabic-Black': require('./assets/fonts/zafran-arabic-black.otf'),
-    'AlkhalilArabic-Bold': require('./assets/fonts/alkhalil-arabic-classic-oblique-left.otf'),
+    'AlkhalilArabic-Bold': require('./assets/fonts/Janna LT Bold.ttf'),
     'Caveat-Regular': require('./assets/fonts/Caveat-Regular.ttf'),
     'ArefRuqaa-Regular': require('./assets/fonts/ArefRuqaa-Regular.ttf'),
     'Fastup-Regular': require('./assets/fonts/Fastup-Regular.ttf'),
     'Fastup-Bold': require('./assets/fonts/Fastup-Bold.ttf'),
+    'Airstrike-Regular': require('./assets/fonts/airstrike.ttf'),
+    'Airstrike-Bold': require('./assets/fonts/airstrikebold.ttf'),
+    'Janna-Bold': require('./assets/fonts/Janna LT Bold.ttf'),
+    'OriginalBurger': require('./assets/fonts/Original Burger.otf'),
   });
 
   useEffect(() => {
@@ -60,32 +125,32 @@ function AppContent() {
       // Seed mockup vehicles if the user has no registered vehicles
       const mockVehicles = [
         {
-          id: 'mock-porsche',
-          brand: 'Porsche',
-          model: '911 Carrera',
-          year: '2024',
-          plateNumber: '9865 QYR',
-          plateNumberArabic: '٩٨٦٥ ق ي ر',
-          cc: '3000 CC',
-          odometer: 12450,
+          id: 'mock-coupe',
+          brand: 'Hyundai',
+          model: 'Coupe',
+          year: '2005',
+          plateNumber: '1873 RW',
+          plateNumberArabic: '١٨٧٣ ر و',
+          cc: '2000 CC',
+          odometer: 284000,
           isManual: false,
           is4WD: false,
-          hasHydraulicPS: false,
-          hasTimingBelt: false,
+          hasHydraulicPS: true,
+          hasTimingBelt: true,
           services: {
-            engineOil: { lastService: 10000, lifespan: 10000 },
-            oilFilter: { lastService: 10000, lifespan: 10000 },
-            airFilter: { lastService: 10000, lifespan: 20000 },
-            cabinAirFilter: { lastService: 10000, lifespan: 20000 },
-            sparkPlugs: { lastService: 10000, lifespan: 40000 },
-            transmissionFluid: { lastService: 10000, lifespan: 60000 },
-            coolant: { lastService: 10000, lifespan: 40000 },
-            brakeFluid: { lastService: 10000, lifespan: 30000 },
-            brakePads: { lastService: 10000, lifespan: 30000 },
-            tires: { lastService: 10000, lifespan: 50000 }
+            engineOil: { lastService: 274350, lifespan: 10000 },
+            oilFilter: { lastService: 274350, lifespan: 10000 },
+            airFilter: { lastService: 270000, lifespan: 20000 },
+            cabinAirFilter: { lastService: 270000, lifespan: 20000 },
+            sparkPlugs: { lastService: 260000, lifespan: 40000 },
+            transmissionFluid: { lastService: 240000, lifespan: 60000 },
+            coolant: { lastService: 260000, lifespan: 40000 },
+            brakeFluid: { lastService: 270000, lifespan: 30000 },
+            brakePads: { lastService: 270000, lifespan: 30000 },
+            tires: { lastService: 250000, lifespan: 50000 }
           },
           notes: 'Welcome to Werash Notes! 📝\nمرحباً بك في ملاحظات وِرَش!\n\n• Use the arrows (◀/▶) above to flip pages.\n• استخدم الأسهم (◀/▶) في الأعلى للتنقل.\n\n• Tap the Date Chip to set a log date.\n• اضغط على شريحة التاريخ لتحديد يوم.\n• Add photos (🖼️) to attach sticky notes.\n• أضف صوراً (🖼️) لتظهر كملصقات على الورقة.\n• Text auto-wraps around the sticky notes!\n• يلتف النص تلقائياً حول الملصقات اللاصقة!',
-          noteDate: '2026-06-11',
+          noteDate: '2026-07-10',
           noteImages: [
             'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=500&auto=format&fit=crop',
             'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=500&auto=format&fit=crop'
@@ -201,6 +266,7 @@ function AppContent() {
         }
       ];
       
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserVehicles(prev => prev.length > 0 ? prev : mockVehicles);
       setActiveVehicleId(prev => prev || mockVehicles[0].id);
     } else {
@@ -210,6 +276,8 @@ function AppContent() {
   }, [currentUser]);
 
   const handleNavigate = (tab, targetSpecialistId = null) => {
+    homeTranslateY.setValue(0);
+    isHomeAtTopRef.current = true;
     setCurrentTab(tab);
     if (targetSpecialistId) {
       setExpandedSpecialistId(targetSpecialistId);
@@ -249,6 +317,11 @@ function AppContent() {
             selectedLanguage={selectedLanguage}
             userVehicles={userVehicles}
             activeVehicleId={activeVehicleId}
+            onSelectAd={setActiveAd}
+            onSelectProfile={() => setProfileVisible(true)}
+            onScrollPositionChange={(isAtTop) => {
+              isHomeAtTopRef.current = isAtTop;
+            }}
           />
         );
       case 'garage':
@@ -269,10 +342,13 @@ function AppContent() {
             initialExpandedCardId={expandedSpecialistId} 
             onClearInitialExpanded={() => setExpandedSpecialistId(null)} 
             onSelectSpecialist={setActiveSpecialist}
+            activeVehicleId={activeVehicleId}
+            userVehicles={userVehicles}
+            selectedLanguage={selectedLanguage}
           />
         );
       case 'community':
-        return <CommunityScreen currentUser={currentUser} scrollToTopTrigger={communityScrollTrigger} />;
+        return <CommunityScreen currentUser={currentUser} scrollToTopTrigger={communityScrollTrigger} selectedLanguage={selectedLanguage} />;
       default:
         return (
           <View style={styles.placeholderContent}>
@@ -286,27 +362,48 @@ function AppContent() {
 
   return (
     <View style={styles.appContainer}>
-      {/* Global Persistent Header (Stays mounted, prevents reload animations) */}
-      <Header 
-        currentUser={currentUser} 
-        onSetCurrentUser={setCurrentUser} 
-        signInVisible={signInVisible}
-        onSetSignInVisible={setSignInVisible}
-        selectedLanguage={selectedLanguage}
-        onSelectLanguage={setSelectedLanguage}
-      />
+      {/* Animated Main Content Container (Moves Header + Home Content together on bounce) */}
+      <Animated.View 
+        style={[
+          styles.mainContentContainer,
+          currentTab === 'home' && { transform: [{ translateY: homeTranslateY }] }
+        ]}
+        {...(currentTab === 'home' ? homePanResponder.panHandlers : {})}
+      >
+        {/* Global Persistent Header (Stays mounted, prevents reload animations) */}
+        <Header 
+          currentTab={currentTab}
+          currentUser={currentUser} 
+          onSetCurrentUser={setCurrentUser} 
+          signInVisible={signInVisible}
+          onSetSignInVisible={setSignInVisible}
+          selectedLanguage={selectedLanguage}
+          onSelectLanguage={setSelectedLanguage}
+          settingsVisible={settingsVisible}
+          onSetSettingsVisible={setSettingsVisible}
+          onEditProfile={() => {
+            setSettingsVisible(false);
+            setProfileVisible(true);
+          }}
+        />
 
-      {/* Core Page Layout switches underneath */}
-      {renderScreen()}
+        {/* Core Page Layout switches underneath */}
+        {renderScreen()}
+      </Animated.View>
 
       {/* Custom Floating Bottom Navigation Bar */}
-      {!activeSpecialist && (
+      {!activeSpecialist && !activeAd && (
         <BottomNavBar 
-          activeTab={currentTab} 
+          activeTab={settingsVisible ? 'more' : currentTab} 
           onTabPress={(tab) => {
+            if (tab === 'more') {
+              setSettingsVisible(true);
+              return;
+            }
             if (tab === 'community' && currentTab === 'community') {
               setCommunityScrollTrigger(prev => prev + 1);
             }
+            homeTranslateY.setValue(0);
             setCurrentTab(tab);
             setExpandedSpecialistId(null);
           }} 
@@ -318,8 +415,27 @@ function AppContent() {
         <SpecialistDetailModal 
           specialist={activeSpecialist} 
           onClose={() => setActiveSpecialist(null)} 
+          selectedLanguage={selectedLanguage}
         />
       )}
+
+      {/* Ad Detail Modal */}
+      {activeAd && (
+        <AdDetailModal 
+          ad={activeAd} 
+          onClose={() => setActiveAd(null)} 
+          selectedLanguage={selectedLanguage}
+        />
+      )}
+      {/* Profile Edit Screen/Modal */}
+      <ProfileScreen 
+        visible={profileVisible} 
+        onClose={() => setProfileVisible(false)} 
+        currentUser={currentUser} 
+        onSaveProfile={setCurrentUser} 
+        onOpenSignIn={() => setSignInVisible(true)} 
+        selectedLanguage={selectedLanguage}
+      />
     </View>
   );
 }
@@ -338,6 +454,9 @@ const createStyles = (colors) => StyleSheet.create({
   appContainer: {
     flex: 1,
     backgroundColor: colors.bgCreamy,
+  },
+  mainContentContainer: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,

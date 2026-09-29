@@ -17,7 +17,8 @@ export default function SettingsScreen({
   currentUser, 
   onLogOut,
   selectedLanguage: propSelectedLanguage,
-  onSelectLanguage
+  onSelectLanguage,
+  onEditProfile
 }) {
   const slideAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const { colors, isDarkMode, toggleDarkMode } = useTheme();
@@ -66,7 +67,7 @@ export default function SettingsScreen({
     >
       <View style={styles.menuItemLeft}>
         <Ionicons name={icon} size={20} color={colors.bgBrand} style={styles.menuIcon} />
-        <Text style={styles.menuLabel}>{label}</Text>
+        <Text style={[styles.menuLabel, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15 }]}>{label}</Text>
       </View>
       {rightElement ? rightElement : (
         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
@@ -95,7 +96,7 @@ export default function SettingsScreen({
           { transform: [{ translateX: slideAnim }] }
         ]}>
           <View style={styles.drawerHeader}>
-            <Text style={styles.drawerTitle}>{selectedLanguage === 'Arabic' ? 'الإعدادات' : 'Settings'}</Text>
+            <Text style={[styles.drawerTitle, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 20 }]}>{selectedLanguage === 'Arabic' ? 'الإعدادات' : 'Settings'}</Text>
             <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
               <Ionicons name="close" size={22} color={colors.textDark} />
             </TouchableOpacity>
@@ -104,19 +105,23 @@ export default function SettingsScreen({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {/* Account Info Section */}
             <View style={styles.profileCard}>
-              <View style={styles.profileAvatar}>
-                <Ionicons name="person" size={24} color={colors.bgCreamy} />
-              </View>
+              {currentUser && currentUser.avatar ? (
+                <Image source={{ uri: currentUser.avatar }} style={styles.profileAvatarImage} />
+              ) : (
+                <View style={styles.profileAvatar}>
+                  <Ionicons name="person" size={24} color={colors.bgCreamy} />
+                </View>
+              )}
               <View style={styles.profileDetails}>
-                <Text style={styles.profileName}>{currentUser ? currentUser.fullName : (selectedLanguage === 'Arabic' ? 'مطلب زائر' : 'Guest User')}</Text>
+                <Text style={[styles.profileName, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 16 }]}>{currentUser ? currentUser.fullName : (selectedLanguage === 'Arabic' ? 'حساب زائر' : 'Guest User')}</Text>
                 <Text style={styles.profileEmail}>{currentUser ? currentUser.email : 'guest@werash.com'}</Text>
               </View>
             </View>
 
             {/* Account Settings group */}
-            <Text style={styles.sectionHeader}>{selectedLanguage === 'Arabic' ? 'الحساب' : 'ACCOUNT'}</Text>
+            <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12 }]}>{selectedLanguage === 'Arabic' ? 'الحساب' : 'ACCOUNT'}</Text>
             <View style={styles.menuGroup}>
-              {renderMenuItem('person-outline', selectedLanguage === 'Arabic' ? 'تعديل الحساب' : 'Edit Profile', () => console.log('Profile'))}
+              {renderMenuItem('person-outline', selectedLanguage === 'Arabic' ? 'تعديل الحساب' : 'Edit Profile', onEditProfile)}
               {renderMenuItem(
                 'globe-outline',
                 selectedLanguage === 'Arabic' ? 'اللغة' : 'Language',
@@ -131,7 +136,7 @@ export default function SettingsScreen({
             </View>
 
             {/* Preferences settings group */}
-            <Text style={styles.sectionHeader}>{selectedLanguage === 'Arabic' ? 'التفضيلات' : 'PREFERENCES'}</Text>
+            <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12 }]}>{selectedLanguage === 'Arabic' ? 'التفضيلات' : 'PREFERENCES'}</Text>
             <View style={styles.flatMenuGroup}>
               {renderMenuItem(
                 'notifications-outline',
@@ -160,7 +165,7 @@ export default function SettingsScreen({
             </View>
 
             {/* Support settings group */}
-            <Text style={styles.sectionHeader}>{selectedLanguage === 'Arabic' ? 'الدعم' : 'SUPPORT'}</Text>
+            <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12 }]}>{selectedLanguage === 'Arabic' ? 'الدعم' : 'SUPPORT'}</Text>
             <View style={styles.menuGroup}>
               {renderMenuItem('help-circle-outline', selectedLanguage === 'Arabic' ? 'مركز المساعدة' : 'Help Center', () => console.log('Help'))}
               {renderMenuItem('document-text-outline', selectedLanguage === 'Arabic' ? 'شروط الخدمة' : 'Terms of Service', () => console.log('Terms'))}
@@ -193,7 +198,7 @@ export default function SettingsScreen({
                 }}
               >
                 <Ionicons name="log-out-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.logoutText}>{selectedLanguage === 'Arabic' ? 'تسجيل الخروج' : 'Log Out'}</Text>
+                <Text style={[styles.logoutText, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15 }]}>{selectedLanguage === 'Arabic' ? 'تسجيل الخروج' : 'Log Out'}</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -221,10 +226,10 @@ export default function SettingsScreen({
                 <View style={styles.alertIconBadge}>
                   <Ionicons name="globe-outline" size={24} color={colors.bgBrand} />
                 </View>
-                <Text style={styles.alertTitle}>
+                <Text style={[styles.alertTitle, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 19 }]}>
                   {selectedLanguage === 'English' ? 'App Language' : 'لغة التطبيق'}
                 </Text>
-                <Text style={styles.alertDesc}>
+                <Text style={[styles.alertDesc, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13 }]}>
                   {selectedLanguage === 'English' ? 'Choose your interface language' : 'اختر لغة واجهة التطبيق'}
                 </Text>
               </View>
@@ -258,7 +263,7 @@ export default function SettingsScreen({
                       style={styles.flagImageCompact} 
                       resizeMode="cover"
                     />
-                    <Text style={styles.langToggleLabelArabic}>العربية</Text>
+                    <Text style={[styles.langToggleLabelArabic, { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15 }]}>العربية</Text>
                   </View>
                   <Switch
                     value={selectedLanguage === 'Arabic'}
@@ -337,6 +342,13 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.bgBrand,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  profileAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
   },
   profileDetails: {
     marginLeft: 12,

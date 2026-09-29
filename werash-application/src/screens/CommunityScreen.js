@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
-  KeyboardAvoidingView, Platform, Dimensions, Alert
+  KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -247,10 +247,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SEGMENTED_CONTROL_WIDTH = SCREEN_WIDTH - 40; // 20px horizontal margin on each side
 const TAB_WIDTH = (SEGMENTED_CONTROL_WIDTH - 8) / 3; // 4px padding on each side of track
 
-export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
+export default function CommunityScreen({ currentUser, scrollToTopTrigger, selectedLanguage }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const COLORS = colors; // Keep JSX compatibility with dynamic themes
+  const isRtl = selectedLanguage === 'Arabic';
   const [feedPosts, setFeedPosts] = useState(initialPosts);
   const [statusText, setStatusText] = useState('');
   const [selectedFeed, setSelectedFeed] = useState('overall'); // 'overall', 'active', 'marketplace'
@@ -264,6 +265,10 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
   const [listingLocation, setListingLocation] = useState('');
   const [listingDesc, setListingDesc] = useState('');
   const [marketSearch, setMarketSearch] = useState('');
+
+  // Facebook post composer states
+  const [createPostModalVisible, setCreatePostModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
@@ -394,8 +399,27 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
     }
   };
 
+  const pickPostImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+        isRtl ? 'نحتاج إلى إذن للوصول إلى الصور لإرفاقها بالمنشور.' : 'We need permission to access your gallery to attach photos.'
+      );
+      return;
+    }
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setSelectedImage(result.assets[0].uri);
+    }
+  };
+
   const handleCreatePost = () => {
-    if (!statusText.trim()) return;
+    if (!statusText.trim() && !selectedImage) return;
     const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
     const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
     const currentVehicle = currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel}` : 'Hyundai Coupe';
@@ -410,7 +434,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
       likes: 0,
       comments: 0,
       liked: false,
-      postImage: null,
+      postImage: selectedImage,
       vehicle: currentVehicle,
       isMarketplace: selectedFeed === 'marketplace',
       price: selectedFeed === 'marketplace' ? 'Ask Price' : null,
@@ -418,6 +442,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
     };
     setFeedPosts([newPost, ...feedPosts]);
     setStatusText('');
+    setSelectedImage(null);
+    setCreatePostModalVisible(false);
   };
 
   const handlePublishListing = () => {
@@ -517,7 +543,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
   const renderGradientOverlay = () => {
     const lines = [];
     
-    // 1. Solid off-white block covering the top region behind the persistent header (y = 0 to y = 65)
+    // 1. Solid off-white block covering the top region behind the persistent header (y = 0 to y = 20)
     lines.push(
       <View
         key="top-solid-block"
@@ -527,17 +553,17 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
           top: 0,
           left: 0,
           right: 0,
-          height: 65, // Shifted up
+          height: 20, // Shifted up
           backgroundColor: COLORS.bgCreamy,
           zIndex: 3,
         }}
       />
     );
 
-    // 2. 20 thin overlapping gradient lines from y = 65 to y = 75
+    // 2. 20 thin overlapping gradient lines from y = 20 to y = 30
     const numLines = 20;
-    const startY = 65; // Shifted up
-    const endY = 75; // Shifted up
+    const startY = 20; // Shifted up
+    const endY = 30; // Shifted up
     const step = (endY - startY) / numLines; // 0.5px steps
     
     for (let i = 0; i < numLines; i++) {
@@ -579,7 +605,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: showProfile ? 100 : 212 }
+              { paddingTop: showProfile ? 75 : 187 }
             ]}
             scrollEventThrottle={16}
             onScroll={Animated.event(
@@ -695,6 +721,12 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
               // Standard Post list (Feed or Profile Mode)
               filteredPosts.map((post) => (
                 <View key={post.id} style={styles.postCard}>
+                  <BlurView
+                    intensity={65}
+                    tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+                    style={StyleSheet.absoluteFill}
+                  />
+
                   {/* Author Info */}
                   <View style={styles.authorRow}>
                     <View style={styles.authorLeft}>
@@ -777,6 +809,16 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
                       </View>
                     )}
                   </View>
+
+                  {/* 3D Glossy Bevel Highlight Overlay */}
+                  <View style={{
+                    ...StyleSheet.absoluteFillObject,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderColor: 'transparent',
+                    borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                    borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                  }} pointerEvents="none" />
                 </View>
               ))
             )}
@@ -993,54 +1035,229 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger }) {
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <View style={styles.composerContainer}>
-                    <View style={styles.composerRow}>
-                      <TouchableOpacity 
-                        activeOpacity={0.8}
-                        onPress={() => handleShowProfile(true)}
-                        style={styles.composerAvatar}
-                      >
-                        <Ionicons name="person" size={18} color="#FFFFFF" />
-                      </TouchableOpacity>
-                      <View style={styles.postComposer}>
-                        {/* Top Part: Input Area */}
-                        <View style={styles.composerTopRow}>
-                          <TextInput
-                            style={styles.composerInput}
-                            placeholder="Share your latest car update..."
-                            placeholderTextColor="#ADADAD"
-                            value={statusText}
-                            onChangeText={setStatusText}
-                            maxLength={280}
-                            multiline={true}
+                  <View style={{ width: '100%' }}>
+                    <View style={styles.composerContainer}>
+                      <View style={[styles.composerRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <TouchableOpacity 
+                          activeOpacity={0.8}
+                          onPress={() => handleShowProfile(true)}
+                          style={styles.composerAvatar}
+                        >
+                          <Ionicons name="person" size={18} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <View style={styles.postComposer}>
+                          <BlurView
+                            intensity={65}
+                            tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+                            style={StyleSheet.absoluteFill}
                           />
-                        </View>
-                        
-                        {/* Bottom Part: Media attachments & POST button */}
-                        <View style={styles.composerBottomRow}>
-                          {/* Attachment Icons */}
-                          <View style={styles.composerIconsRow}>
-                            <TouchableOpacity style={styles.composerIconButton} activeOpacity={0.7}>
-                              <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.composerIconButton} activeOpacity={0.7}>
-                              <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.composerIconButton} activeOpacity={0.7}>
-                              <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.composerIconButton} activeOpacity={0.7}>
-                              <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
+                          {/* Top Part: Input Area wrapped in Touchable to open Modal */}
+                          <View style={[styles.composerTopRow, { position: 'relative' }]}>
+                            <TextInput
+                              style={[styles.composerInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                              placeholder={isRtl ? "شارك تحديث سيارتك الجديد..." : "Share your latest car update..."}
+                              placeholderTextColor="#ADADAD"
+                              value=""
+                              editable={false}
+                              multiline={true}
+                            />
+                            <TouchableOpacity 
+                              activeOpacity={0.9}
+                              onPress={() => setCreatePostModalVisible(true)}
+                              style={StyleSheet.absoluteFill}
+                            />
+                          </View>
+                          
+                          {/* Bottom Part: Media attachments & POST button */}
+                          <View style={[styles.composerBottomRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            {/* Attachment Icons */}
+                            <View style={[styles.composerIconsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                              <TouchableOpacity 
+                                style={styles.composerIconButton} 
+                                activeOpacity={0.7}
+                                onPress={() => setCreatePostModalVisible(true)}
+                              >
+                                <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
+                              </TouchableOpacity>
+                              <TouchableOpacity 
+                                style={styles.composerIconButton} 
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  setCreatePostModalVisible(true);
+                                  pickPostImage();
+                                }}
+                              >
+                                <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                              </TouchableOpacity>
+                              <TouchableOpacity 
+                                style={styles.composerIconButton} 
+                                activeOpacity={0.7}
+                                onPress={() => setCreatePostModalVisible(true)}
+                              >
+                                <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
+                              </TouchableOpacity>
+                              <TouchableOpacity 
+                                style={styles.composerIconButton} 
+                                activeOpacity={0.7}
+                                onPress={() => setCreatePostModalVisible(true)}
+                              >
+                                <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
+                              </TouchableOpacity>
+                            </View>
+
+                            {/* Post Action */}
+                            <TouchableOpacity 
+                              style={styles.postButton} 
+                              onPress={() => setCreatePostModalVisible(true)} 
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.postButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                                {isRtl ? 'نشر' : 'POST'}
+                              </Text>
                             </TouchableOpacity>
                           </View>
 
-                          {/* Post Action */}
-                          <TouchableOpacity style={styles.postButton} onPress={handleCreatePost} activeOpacity={0.8}>
-                            <Text style={styles.postButtonText}>POST</Text>
-                          </TouchableOpacity>
+                          {/* 3D Glossy Bevel Highlight Overlay */}
+                          <View style={{
+                            ...StyleSheet.absoluteFillObject,
+                            borderRadius: 16,
+                            borderWidth: 1.5,
+                            borderColor: 'transparent',
+                            borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                            borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                          }} pointerEvents="none" />
                         </View>
                       </View>
                     </View>
+
+                    {/* Facebook-style Create Post Modal */}
+                    <Modal
+                      visible={createPostModalVisible}
+                      animationType="slide"
+                      transparent={false}
+                      onRequestClose={() => {
+                        setCreatePostModalVisible(false);
+                        setSelectedImage(null);
+                        setStatusText('');
+                      }}
+                    >
+                      <SafeAreaView style={[styles.fbModalContainer, { backgroundColor: COLORS.white }]}>
+                        <KeyboardAvoidingView
+                          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                          style={{ flex: 1 }}
+                        >
+                          {/* Header */}
+                          <View style={[styles.fbModalHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <TouchableOpacity
+                              onPress={() => {
+                                setCreatePostModalVisible(false);
+                                setSelectedImage(null);
+                                setStatusText('');
+                              }}
+                              style={styles.fbModalCloseBtn}
+                            >
+                              <Ionicons name="close" size={24} color={COLORS.bgBrand} />
+                            </TouchableOpacity>
+                            <Text style={[styles.fbModalTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                              {isRtl ? 'إنشاء منشور' : 'Create Post'}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={handleCreatePost}
+                              disabled={!statusText.trim() && !selectedImage}
+                              style={[
+                                styles.fbModalPostBtn,
+                                (!statusText.trim() && !selectedImage) && { backgroundColor: '#E0E0E0' }
+                              ]}
+                            >
+                              <Text style={[
+                                styles.fbModalPostBtnText,
+                                (!statusText.trim() && !selectedImage) && { color: '#ADADAD' },
+                                isRtl && { fontFamily: 'AlkhalilArabic-Bold' }
+                              ]}>
+                                {isRtl ? 'نشر' : 'Post'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* User Profile Info */}
+                          <View style={[styles.fbModalUserInfoRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <View style={styles.fbComposerAvatarLarge}>
+                              <Ionicons name="person" size={24} color="#FFFFFF" />
+                            </View>
+                            <View style={[styles.fbModalUserMeta, isRtl ? { alignItems: 'flex-end', marginRight: 12 } : { alignItems: 'flex-start', marginLeft: 12 }]}>
+                              <Text style={[styles.fbModalUserName, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                                {currentUser ? currentUser.fullName : (isRtl ? 'مستخدم زائر' : 'Guest User')}
+                              </Text>
+                              <View style={[styles.fbModalPrivacyBadge, isRtl && { flexDirection: 'row-reverse' }]}>
+                                <Ionicons name="globe-outline" size={11} color={COLORS.textMuted} />
+                                <Text style={[styles.fbModalPrivacyText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', marginLeft: 0, marginRight: 4 }]}>
+                                  {isRtl ? 'عام' : 'Public'}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* Input Box */}
+                          <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+                            <TextInput
+                              style={[
+                                styles.fbModalInput,
+                                isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 17 }
+                              ]}
+                              placeholder={isRtl ? 'ماذا يدور في ذهنك؟' : "What's on your mind?"}
+                              placeholderTextColor="#ADADAD"
+                              value={statusText}
+                              onChangeText={setStatusText}
+                              multiline={true}
+                              autoFocus={true}
+                            />
+
+                            {/* Preview Attached Image */}
+                            {selectedImage && (
+                              <View style={styles.fbImagePreviewContainer}>
+                                <Image source={{ uri: selectedImage }} style={styles.fbImagePreview} />
+                                <TouchableOpacity
+                                  onPress={() => setSelectedImage(null)}
+                                  style={styles.fbImagePreviewRemove}
+                                >
+                                  <Ionicons name="close-circle" size={26} color="#FF3B30" />
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </ScrollView>
+
+                          {/* Bottom Actions Row */}
+                          <View style={[styles.fbModalBottomBar, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <Text style={[styles.fbAddPostText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                              {isRtl ? 'إضافة إلى منشورك' : 'Add to your post'}
+                            </Text>
+                            <View style={[styles.fbModalToolbarIcons, isRtl && { flexDirection: 'row-reverse' }]}>
+                              <TouchableOpacity
+                                onPress={pickPostImage}
+                                style={styles.fbToolbarIconButton}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons name="image" size={24} color="#4CAF50" />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.fbToolbarIconButton}
+                                activeOpacity={0.7}
+                                onPress={() => Alert.alert(isRtl ? 'الموقع' : 'Location', isRtl ? 'ميزة تحديد الموقع ستتوفر قريباً!' : 'Location tagging coming soon!')}
+                              >
+                                <Ionicons name="location" size={24} color="#FF5722" />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.fbToolbarIconButton}
+                                activeOpacity={0.7}
+                                onPress={() => Alert.alert(isRtl ? 'إشارة' : 'Tag', isRtl ? 'ميزة الإشارة إلى الأصدقاء ستتوفر قريباً!' : 'Friend tagging coming soon!')}
+                              >
+                                <Ionicons name="person-add" size={24} color="#1877F2" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        </KeyboardAvoidingView>
+                      </SafeAreaView>
+                    </Modal>
                   </View>
                 )}
               </Animated.View>
@@ -1258,7 +1475,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   collapsibleHeader: {
     position: 'absolute',
-    top: 50,
+    top: 25,
     left: 0,
     right: 0,
     height: 245,
@@ -1374,19 +1591,20 @@ const createStyles = (colors) => StyleSheet.create({
   },
   postComposer: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderWidth: 1.5,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     height: 88,
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 4, height: 12 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.25,
+    shadowRadius: 16,
+    elevation: 4,
+    overflow: 'hidden',
   },
   composerTopRow: {
     flex: 1,
@@ -1433,7 +1651,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingTop: 212,
+    paddingTop: 187,
     paddingHorizontal: 20,
     paddingBottom: 110,
   },
@@ -1523,17 +1741,19 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.borderGreen,
   },
   postCard: {
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
+    borderWidth: 1.5,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 2,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 4, height: 12 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.25,
+    shadowRadius: 16,
+    elevation: 4,
   },
   authorRow: {
     flexDirection: 'row',
@@ -2161,5 +2381,172 @@ const createStyles = (colors) => StyleSheet.create({
     width: 1.2,
     height: '100%',
     backgroundColor: colors.borderGreen,
+  },
+  fbComposerContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 12,
+  },
+  fbComposerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fbComposerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fbFakeInput: {
+    flex: 1,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.bgBrandLight,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  fbFakeInputText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  fbPhotoIconWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 32,
+    height: 32,
+  },
+  fbModalContainer: {
+    flex: 1,
+  },
+  fbModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGreen,
+  },
+  fbModalCloseBtn: {
+    padding: 4,
+  },
+  fbModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.bgBrand,
+  },
+  fbModalPostBtn: {
+    backgroundColor: colors.bgBrand,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  fbModalPostBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  fbModalUserInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  fbComposerAvatarLarge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fbModalUserMeta: {
+    marginLeft: 12,
+  },
+  fbModalUserName: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: colors.bgBrand,
+  },
+  fbModalPrivacyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgBrandLight,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    marginTop: 3,
+    borderWidth: 0.5,
+    borderColor: colors.borderGreen,
+  },
+  fbModalPrivacyText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textMuted,
+    marginLeft: 4,
+  },
+  fbModalInput: {
+    fontSize: 16.5,
+    fontWeight: '500',
+    color: colors.bgBrand,
+    lineHeight: 24,
+    marginTop: 10,
+    textAlignVertical: 'top',
+  },
+  fbImagePreviewContainer: {
+    marginTop: 16,
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  fbImagePreview: {
+    width: '100%',
+    height: 200,
+    resizeMode: 'cover',
+  },
+  fbImagePreviewRemove: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 1,
+  },
+  fbModalBottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGreen,
+    backgroundColor: colors.bgBrandLight,
+  },
+  fbAddPostText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.bgBrand,
+  },
+  fbModalToolbarIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fbToolbarIconButton: {
+    padding: 6,
+    marginLeft: 12,
   },
 });

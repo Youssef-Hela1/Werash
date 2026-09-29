@@ -24,13 +24,15 @@ const API_URL = Platform.select({
 // Local in-memory database fallback for offline testing or Expo Go connection issues
 const localUsersDb = [
   {
-    id: 'mock-jane',
-    fullName: 'Jane Doe',
-    email: 'jane@example.com',
+    id: 'mock-youssef',
+    fullName: 'Youssef Helal',
+    email: 'youssef@example.com',
     password: 'password123',
-    carBrand: 'Porsche',
-    carModel: '911 GT3',
-    carYear: '2023'
+    carBrand: 'Hyundai',
+    carModel: 'Coupe',
+    carYear: '2005',
+    plateNumber: '1873 RW',
+    plateNumberArabic: '١٨٧٣ ر و'
   }
 ];
 
@@ -276,7 +278,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
       } else {
         Alert.alert(
           'Login Failed (Offline Mode)',
-          'Invalid credentials. Either register a new account or sign in with the default test credentials:\n\nEmail: jane@example.com\nPassword: password123'
+          'Invalid credentials. Either register a new account or sign in with the default test credentials:\n\nEmail: youssef@example.com\nPassword: password123'
         );
       }
     }

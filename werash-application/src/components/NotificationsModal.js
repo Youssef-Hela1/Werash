@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { 
   StyleSheet, View, Text, TouchableOpacity, 
-  Modal, ScrollView, Animated, Dimensions, Easing 
+  Modal, ScrollView, Animated, Dimensions, Easing,
+  PanResponder
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,33 @@ export default function NotificationsModal({
   const styles = useThemeStyles(createStyles);
   
   const slideAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only trigger drag if swiping rightwards (close direction)
+        return gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (gestureState.dx > 0) {
+          slideAnim.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 100 || gestureState.vx > 0.5) {
+          handleClose();
+        } else {
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            tension: 65,
+            friction: 11,
+            useNativeDriver: true,
+          }).start();
+        }
+      }
+    })
+  ).current;
 
   useEffect(() => {
     if (visible) {
@@ -88,10 +116,13 @@ export default function NotificationsModal({
         </BlurView>
 
         {/* Sliding settings drawer */}
-        <Animated.View style={[
-          styles.drawerContainer,
-          { transform: [{ translateX: slideAnim }] }
-        ]}>
+        <Animated.View 
+          style={[
+            styles.drawerContainer,
+            { transform: [{ translateX: slideAnim }] }
+          ]}
+          {...panResponder.panHandlers}
+        >
           {/* Drawer Header */}
           <View style={[styles.drawerHeader, isRTL && { flexDirection: 'row-reverse' }]}>
             <View style={[styles.headerTitleRow, isRTL && { flexDirection: 'row-reverse' }]}>

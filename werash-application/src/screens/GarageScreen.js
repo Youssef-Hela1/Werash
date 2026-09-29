@@ -20,6 +20,8 @@ import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import ActiveVehicleCard from '../components/ActiveVehicleCard';
+import { CAR_BRANDS_AND_MODELS } from '../data/carModels';
+import { BRAND_LOGOS } from '../data/brandLogos';
 
 // Helper to render text with system font for digits and Alkhalil font for words
 const renderTextWithSystemNumbers = (text, isRtl, baseStyle, rtlFontSize) => {
@@ -61,6 +63,11 @@ const splitPlate = (plateStr) => {
     numbers: digits.join(''),
     letters: lettersOnly
   };
+};
+
+const hasArabicCharacters = (text) => {
+  const arabicRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  return arabicRegex.test(text || '');
 };
 
 const getFormattedDate = () => {
@@ -300,7 +307,7 @@ export default function GarageScreen({
     if (!car) return { odoNum: 0, odoStr: '0 km', servicesList: [] };
     
     const isArabic = selectedLanguage === 'Arabic';
-    const odoNum = car.odometer !== undefined && !isNaN(parseInt(car.odometer)) ? parseInt(car.odometer) : 12450;
+    const odoNum = car.odometer !== undefined && !isNaN(parseInt(car.odometer)) ? parseInt(car.odometer) : 284000;
     
     const odoStr = isArabic 
       ? `${odoNum.toLocaleString('ar-EG')} كم` 
@@ -389,7 +396,28 @@ export default function GarageScreen({
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
+  const [plateNumbers, setPlateNumbers] = useState('');
+  const [plateLetters, setPlateLetters] = useState('');
   const [cc, setCc] = useState('');
+  const [wizardStep, setWizardStep] = useState(1);
+  const [isManualCar, setIsManualCar] = useState(false);
+  const [modelSearchQuery, setModelSearchQuery] = useState('');
+  const [brandSearchQuery, setBrandSearchQuery] = useState('');
+
+  const handleWizardBack = () => {
+    if (wizardStep === 2) {
+      setBrand('');
+      setModel('');
+      setBrandSearchQuery('');
+    } else if (wizardStep === 3) {
+      setModel('');
+      setYear('');
+      setModelSearchQuery('');
+    } else if (wizardStep === 4) {
+      setYear('');
+    }
+    setWizardStep(wizardStep - 1);
+  };
 
   // Edit service status card state
   const [isEditingStatus, setIsEditingStatus] = useState(false);
@@ -941,15 +969,28 @@ export default function GarageScreen({
   };
 
   const handleSaveCar = () => {
-    if (!brand.trim() || !model.trim() || !year.trim()) {
+    if (!brand.trim()) {
       Alert.alert(
         selectedLanguage === 'Arabic' ? 'تنبيه' : 'Validation Error',
-        selectedLanguage === 'Arabic' 
-          ? 'يرجى ملء حقول الماركة والموديل وسنة الصنع.' 
-          : 'Please fill in Brand, Model, and Year fields.'
+        selectedLanguage === 'Arabic' ? 'يرجى تحديد ماركة السيارة.' : 'Please select a car brand.'
       );
       return;
     }
+    if (!model.trim()) {
+      Alert.alert(
+        selectedLanguage === 'Arabic' ? 'تنبيه' : 'Validation Error',
+        selectedLanguage === 'Arabic' ? 'يرجى إدخال موديل السيارة.' : 'Please enter a car model.'
+      );
+      return;
+    }
+    if (!year.trim()) {
+      Alert.alert(
+        selectedLanguage === 'Arabic' ? 'تنبيه' : 'Validation Error',
+        selectedLanguage === 'Arabic' ? 'يرجى إدخال سنة الصنع.' : 'Please enter the manufacturing year.'
+      );
+      return;
+    }
+
 
     // Generate default services mapping
     const defaultCarServices = {};
@@ -979,12 +1020,12 @@ export default function GarageScreen({
       id: Date.now().toString(),
       brand: brand.trim(),
       model: model.trim(),
-      year: year.trim(),
-      plateNumber: plateNumber.trim() || 'NEW-CAR',
-      plateNumberArabic: plateNumber.trim() || 'سيارة جديدة',
+      year: year.trim() || new Date().getFullYear().toString(),
+      plateNumber: plateNumber.trim(),
+      plateNumberArabic: plateNumber.trim(),
       cc: cc.trim() || '1600 CC',
       odometer: odoVal,
-      isManual: false,
+      isManual: isManualCar,
       is4WD: false,
       hasHydraulicPS: false,
       hasTimingBelt: false,
@@ -998,13 +1039,17 @@ export default function GarageScreen({
     setUserVehicles(updated);
     setActiveVehicleId(newCar.id);
     setShowAddForm(false);
+    setWizardStep(1);
     
     // Clear inputs
     setBrand('');
     setModel('');
     setYear('');
     setPlateNumber('');
+    setPlateNumbers('');
+    setPlateLetters('');
     setCc('');
+    setIsManualCar(false);
 
     Alert.alert(
       selectedLanguage === 'Arabic' ? 'نجاح' : 'Success',
@@ -1036,7 +1081,7 @@ export default function GarageScreen({
   const renderGradientOverlay = () => {
     const lines = [];
     
-    // 1. Solid off-white block covering the top region behind the persistent header (y = 0 to y = 55)
+    // 1. Solid off-white block covering the top region behind the persistent header (y = 0 to y = 10)
     lines.push(
       <View
         key="top-solid-block"
@@ -1045,7 +1090,7 @@ export default function GarageScreen({
           top: 0,
           left: 0,
           right: 0,
-          height: 55,
+          height: 10,
           backgroundColor: colors.bgCreamy,
           zIndex: 3,
           pointerEvents: 'none',
@@ -1053,10 +1098,10 @@ export default function GarageScreen({
       />
     );
 
-    // 2. 20 thin overlapping gradient lines from y = 55 to y = 65
+    // 2. 20 thin overlapping gradient lines from y = 10 to y = 20
     const numLines = 20;
-    const startY = 55;
-    const endY = 65;
+    const startY = 10;
+    const endY = 20;
     const step = (endY - startY) / numLines;
     
     for (let i = 0; i < numLines; i++) {
@@ -1486,12 +1531,12 @@ export default function GarageScreen({
                       minHeight: undefined,
                       lineHeight: 26,
                     },
-                    isRtl 
+                    hasArabicCharacters(notePages[currentPage]) 
                       ? { 
                           textAlign: 'right', 
                           writingDirection: 'rtl', 
                           fontFamily: 'ArefRuqaa-Regular', 
-                          fontSize: 10,
+                          fontSize: 14.5,
                           paddingLeft: 14,
                           paddingRight: 14
                         } 
@@ -1520,8 +1565,8 @@ export default function GarageScreen({
                 {paperWidth > 0 && (
                   <Text
                     style={[
-                      isRtl 
-                        ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 10 } 
+                      hasArabicCharacters(notePages[currentPage]) 
+                        ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 14.5 } 
                         : { fontFamily: 'Caveat-Regular', fontSize: 16 },
                       { 
                         lineHeight: 26, 
@@ -1809,6 +1854,11 @@ export default function GarageScreen({
             const data = getVehicleServiceData(activeVehicle);
             return (
               <View style={styles.statusCard}>
+                <BlurView
+                  intensity={65}
+                  tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+                  style={StyleSheet.absoluteFill}
+                />
                 {/* Header */}
                 <View style={[styles.statusCardHeader, isRtl && { flexDirection: 'row-reverse' }, { justifyContent: 'space-between', alignItems: 'center' }]}>
                   {/* Left Side: Title */}
@@ -1819,7 +1869,7 @@ export default function GarageScreen({
                       color={colors.bgBrand} 
                       style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} 
                     />
-                    <Text style={[styles.statusCardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0, lineHeight: 17 }]}>
+                    <Text style={[styles.statusCardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0, lineHeight: 19 }]}>
                       {cardMode === 'services' 
                         ? (selectedLanguage === 'Arabic' ? "إحصائيات وحالة\nالصيانة" : "Service & Mileage\nStatus")
                         : (selectedLanguage === 'Arabic' ? "ملاحظاتي" : "My Notes")}
@@ -1860,7 +1910,7 @@ export default function GarageScreen({
                     {/* Main Readout: Odometer & Edit Button */}
                     <View style={[styles.mainReadoutContainer, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
                       <View style={[isRtl && { alignItems: 'flex-end' }]}>
-                        <Text style={[styles.readoutLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 9.5, lineHeight: 13 }, isRtl && { textAlign: 'right' }]}>{t.odometer}</Text>
+                        <Text style={[styles.readoutLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, lineHeight: 15 }, isRtl && { textAlign: 'right' }]}>{t.odometer}</Text>
                         {renderTextWithSystemNumbers(data.odoStr, isRtl, styles.readoutValue, 20.0)}
                       </View>
                       
@@ -1870,7 +1920,7 @@ export default function GarageScreen({
                         activeOpacity={0.7}
                       >
                         <Ionicons name="create-outline" size={15} color={colors.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                        <Text style={[styles.statusEditButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0, lineHeight: 15 }]}>{selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}</Text>
+                        <Text style={[styles.statusEditButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0, lineHeight: 17 }]}>{selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}</Text>
                       </TouchableOpacity>
                     </View>
 
@@ -1887,7 +1937,7 @@ export default function GarageScreen({
                               <View style={[styles.serviceCardIconWrap, { backgroundColor: item.statusColor + '12' }]}>
                                 <Ionicons name={item.icon} size={15} color={item.statusColor} />
                               </View>
-                              <Text style={[styles.serviceCardTitleText, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.2, lineHeight: 16 }]}>
+                              <Text style={[styles.serviceCardTitleText, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.2, lineHeight: 18 }]}>
                                 {item.label}
                               </Text>
                             </View>
@@ -1903,7 +1953,7 @@ export default function GarageScreen({
                             <View style={[styles.serviceCardStatsGrid, isRtl && { flexDirection: 'row-reverse' }]}>
                               {/* Last Service Box */}
                               <View style={[styles.serviceStatBox, styles.serviceStatBoxLeft, isRtl && { alignItems: 'flex-end' }]}>
-                                <Text style={[styles.serviceStatBoxLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 8.0, lineHeight: 11 }, isRtl && { textAlign: 'right' }]}>
+                                <Text style={[styles.serviceStatBoxLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'right' }]}>
                                   {isRtl ? 'آخر صيانة' : 'LAST SERVICE'}
                                 </Text>
                                 {renderTextWithSystemNumbers(item.lastServiceStr, isRtl, styles.serviceStatBoxValue, 13.0)}
@@ -1916,7 +1966,7 @@ export default function GarageScreen({
                                 { backgroundColor: item.statusColor + '08', borderColor: item.statusColor + '18' },
                                 isRtl ? { alignItems: 'flex-start' } : { alignItems: 'flex-end' }
                               ]}>
-                                <Text style={[styles.serviceStatBoxLabel, { color: item.statusColor }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 8.0, lineHeight: 11 }, isRtl && { textAlign: 'left' }]}>
+                                <Text style={[styles.serviceStatBoxLabel, { color: item.statusColor }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'left' }]}>
                                   {isRtl ? 'مستحق عند' : 'DUE AT'}
                                 </Text>
                                 {renderTextWithSystemNumbers(
@@ -2066,8 +2116,8 @@ export default function GarageScreen({
                         {paperWidth > 0 && !isEditing && (noteImages[currentPage] || []).length > 0 && (
                           <Text
                             style={[
-                              isRtl 
-                                ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 11 } 
+                              hasArabicCharacters(notePages[currentPage]) 
+                                ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
                                 : { fontFamily: 'Caveat-Regular', fontSize: 19 },
                               { 
                                 lineHeight: 32,
@@ -2094,8 +2144,8 @@ export default function GarageScreen({
                         {paperWidth > 0 && !isEditing && (noteImages[currentPage] || []).length > 0 && remainingText.length > 0 && (
                           <Text
                             style={[
-                              isRtl 
-                                ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 11 } 
+                              hasArabicCharacters(remainingText) 
+                                ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
                                 : { fontFamily: 'Caveat-Regular', fontSize: 19 },
                               { 
                                 lineHeight: 32,
@@ -2142,8 +2192,8 @@ export default function GarageScreen({
                         {paperWidth > 0 && !isEditing && (noteImages[currentPage] || []).length === 0 && (
                           <Text
                             style={[
-                              isRtl 
-                                ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 11 } 
+                              hasArabicCharacters(notePages[currentPage]) 
+                                ? { fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
                                 : { fontFamily: 'Caveat-Regular', fontSize: 19 },
                               { 
                                 lineHeight: 32,
@@ -2197,8 +2247,8 @@ export default function GarageScreen({
                               }}>
                                 <Text
                                   style={[
-                                    isRtl 
-                                      ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 11 } 
+                                    hasArabicCharacters(textTop) 
+                                      ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
                                       : { fontFamily: 'Caveat-Regular', fontSize: 19 },
                                     { 
                                       lineHeight: 32, 
@@ -2224,8 +2274,8 @@ export default function GarageScreen({
                               {textBottom ? (
                                 <Text
                                   style={[
-                                    isRtl 
-                                      ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 11 } 
+                                    hasArabicCharacters(textBottom) 
+                                      ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
                                       : { fontFamily: 'Caveat-Regular', fontSize: 19 },
                                     { 
                                       lineHeight: 32, 
@@ -2244,8 +2294,8 @@ export default function GarageScreen({
                             // No images, or layout not calculated yet: render full-width
                             <Text
                               style={[
-                                isRtl 
-                                  ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 11 } 
+                                hasArabicCharacters(notePages[currentPage]) 
+                                  ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
                                   : { fontFamily: 'Caveat-Regular', fontSize: 19 },
                                 { 
                                   lineHeight: 32, 
@@ -2295,90 +2345,645 @@ export default function GarageScreen({
                     />
                   </TouchableOpacity>
                 )}
+                {/* 3D Glossy Bevel Highlight Overlay */}
+                <View style={{
+                  ...StyleSheet.absoluteFillObject,
+                  borderRadius: 24,
+                  borderWidth: 1.5,
+                  borderColor: 'transparent',
+                  borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                  borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                }} pointerEvents="none" />
               </View>
             );
           })()
         )}
 
-        {/* Add New Car Collapsible Form (below actions row) */}
-        {showAddForm && (
-          <View style={[styles.formContainer, { marginTop: 10, marginBottom: 5 }]}>
-            <Text style={[styles.formHeader, isRtl && { textAlign: 'right' }]}>{t.addNewCarHeader}</Text>
+        {/* Add New Car Fullscreen Wizard Modal */}
+        <Modal
+          visible={showAddForm}
+          animationType="slide"
+          onRequestClose={() => {
+            setShowAddForm(false);
+            setWizardStep(1);
+          }}
+        >
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.wizardModalContainer, { backgroundColor: colors.bgCreamy }]}
+          >
+            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={colors.bgCreamy} />
             
-            <View style={styles.formGroup}>
-              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>{t.brandLabel}</Text>
-              <TextInput 
-                style={[styles.input, isRtl && { textAlign: 'right' }]}
-                placeholder={selectedLanguage === 'Arabic' ? 'مثال: بورشه' : 'e.g. Porsche'}
-                placeholderTextColor={colors.textMuted}
-                value={brand}
-                onChangeText={setBrand}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>{t.modelLabel}</Text>
-              <TextInput 
-                style={[styles.input, isRtl && { textAlign: 'right' }]}
-                placeholder={selectedLanguage === 'Arabic' ? 'مثال: ٩١١ كاريرا' : 'e.g. 911 Carrera'}
-                placeholderTextColor={colors.textMuted}
-                value={model}
-                onChangeText={setModel}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>{t.yearLabel}</Text>
-              <TextInput 
-                style={[styles.input, isRtl && { textAlign: 'right' }]}
-                placeholder="e.g. 2024"
-                placeholderTextColor={colors.textMuted}
-                value={year}
-                onChangeText={setYear}
-                keyboardType="number-pad"
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>{t.plateLabel}</Text>
-              <TextInput 
-                style={[styles.input, isRtl && { textAlign: 'right' }]}
-                placeholder={selectedLanguage === 'Arabic' ? 'مثال: ١٢٣٤ أ ب ج' : 'e.g. 9865 QYR'}
-                placeholderTextColor={colors.textMuted}
-                value={plateNumber}
-                onChangeText={setPlateNumber}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>{t.ccLabel}</Text>
-              <TextInput 
-                style={[styles.input, isRtl && { textAlign: 'right' }]}
-                placeholder={selectedLanguage === 'Arabic' ? 'مثال: ٣٠٠٠ سي سي' : 'e.g. 3000 CC'}
-                placeholderTextColor={colors.textMuted}
-                value={cc}
-                onChangeText={setCc}
-              />
-            </View>
-
-            <View style={[styles.formActions, isRtl && { flexDirection: 'row-reverse' }]}>
+            {/* Wizard Header */}
+            <View style={[styles.wizardHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+              {wizardStep > 1 ? (
+                <TouchableOpacity 
+                  style={styles.wizardBackButton}
+                  activeOpacity={0.7}
+                  onPress={handleWizardBack}
+                >
+                  <Ionicons name={isRtl ? "chevron-forward" : "chevron-back"} size={24} color={colors.textDark} />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 40 }} />
+              )}
+              <Text style={styles.wizardHeaderTitle}>{t.addNewCarHeader}</Text>
               <TouchableOpacity 
-                style={styles.submitBtn}
-                activeOpacity={0.8}
-                onPress={handleSaveCar}
+                style={styles.wizardCloseButton}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowAddForm(false);
+                  setWizardStep(1);
+                  setBrand('');
+                  setModel('');
+                  setYear('');
+                  setPlateNumber('');
+                  setPlateNumbers('');
+                  setPlateLetters('');
+                  setCc('');
+                  setIsManualCar(false);
+                }}
               >
-                <Text style={styles.submitBtnText}>{t.saveBtn}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.cancelBtn}
-                activeOpacity={0.8}
-                onPress={() => setShowAddForm(false)}
-              >
-                <Text style={styles.cancelBtnText}>{t.cancelBtn}</Text>
+                <Ionicons name="close" size={24} color={colors.textDark} />
               </TouchableOpacity>
             </View>
-          </View>
-        )}
+
+            {/* Stepper Progress Bar */}
+            <View style={styles.stepperContainer}>
+              <View style={[styles.stepperLabels, isRtl && { flexDirection: 'row-reverse' }]}>
+                {[1, 2, 3, 4].map((step) => {
+                  const isActive = wizardStep === step;
+                  const isDone = wizardStep > step;
+                  return (
+                    <View key={step} style={styles.stepperDotContainer}>
+                      <View style={[
+                        styles.stepperDot,
+                        isActive && styles.stepperDotActive,
+                        isDone && styles.stepperDotDone
+                      ]}>
+                        {isDone ? (
+                          <Ionicons name="checkmark" size={10} color={colors.white} />
+                        ) : (
+                          <Text style={[
+                            styles.stepperDotText,
+                            isActive && styles.stepperDotTextActive
+                          ]}>
+                            {step}
+                          </Text>
+                        )}
+                      </View>
+                      <Text style={[
+                        styles.stepperLabelText,
+                        isActive && styles.stepperLabelTextActive
+                      ]}>
+                        {step === 1 ? (selectedLanguage === 'Arabic' ? 'الماركة' : 'Brand') :
+                         step === 2 ? (selectedLanguage === 'Arabic' ? 'الموديل' : 'Model') :
+                         step === 3 ? (selectedLanguage === 'Arabic' ? 'السنة' : 'Year') :
+                                      (selectedLanguage === 'Arabic' ? 'التفاصيل' : 'Details')}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Step Content */}
+            <ScrollView 
+              contentContainerStyle={styles.wizardScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* STEP 1: SELECT BRAND */}
+              {wizardStep === 1 && (() => {
+                const brandList = [
+                  { nameEn: 'Acura', nameAr: 'أكورا' },
+                  { nameEn: 'Alfa Romeo', nameAr: 'ألفا روميو' },
+                  { nameEn: 'Audi', nameAr: 'أودي' },
+                  { nameEn: 'Baic', nameAr: 'بايك' },
+                  { nameEn: 'BMW', nameAr: 'بي إم دبليو' },
+                  { nameEn: 'BYD', nameAr: 'بي واي دي' },
+                  { nameEn: 'Cadillac', nameAr: 'كاديلاك' },
+                  { nameEn: 'Changan', nameAr: 'شانجان' },
+                  { nameEn: 'Chery', nameAr: 'شيري' },
+                  { nameEn: 'Chevrolet', nameAr: 'شيفروليه' },
+                  { nameEn: 'Citroen', nameAr: 'سيتروين' },
+                  { nameEn: 'Cupra', nameAr: 'كوبرا' },
+                  { nameEn: 'Daewoo', nameAr: 'دايو' },
+                  { nameEn: 'Daihatsu', nameAr: 'ديهاتسو' },
+                  { nameEn: 'Datsun', nameAr: 'داتسون' },
+                  { nameEn: 'Dayun', nameAr: 'دايون' },
+                  { nameEn: 'Dodge', nameAr: 'دودج' },
+                  { nameEn: 'Dongfeng', nameAr: 'دونغفينغ' },
+                  { nameEn: 'DS', nameAr: 'دي إس' },
+                  { nameEn: 'Fiat', nameAr: 'فيات' },
+                  { nameEn: 'Ford', nameAr: 'فورد' },
+                  { nameEn: 'Forthing', nameAr: 'فورثينج' },
+                  { nameEn: 'GAC', nameAr: 'جاك' },
+                  { nameEn: 'Geely', nameAr: 'جيلي' },
+                  { nameEn: 'GMC', nameAr: 'جي إم سي' },
+                  { nameEn: 'Haval', nameAr: 'هافال' },
+                  { nameEn: 'Honda', nameAr: 'هوندا' },
+                  { nameEn: 'Hummer', nameAr: 'همر' },
+                  { nameEn: 'Hyundai', nameAr: 'هيونداي' },
+                  { nameEn: 'Infiniti', nameAr: 'إنفينيتي' },
+                  { nameEn: 'Isuzu', nameAr: 'إيسوزو' },
+                  { nameEn: 'Jac', nameAr: 'جاك' },
+                  { nameEn: 'Jaguar', nameAr: 'جاغوار' },
+                  { nameEn: 'Jeep', nameAr: 'جيب' },
+                  { nameEn: 'Jetour', nameAr: 'جيتور' },
+                  { nameEn: 'Kia', nameAr: 'كيا' },
+                  { nameEn: 'Lada', nameAr: 'لادا' },
+                  { nameEn: 'Land Rover', nameAr: 'لاند روفر' },
+                  { nameEn: 'Maserati', nameAr: 'مازيراتي' },
+                  { nameEn: 'Mazda', nameAr: 'مازدا' },
+                  { nameEn: 'Mercedes-Benz', nameAr: 'مرسيدس' },
+                  { nameEn: 'MG', nameAr: 'إم جي' },
+                  { nameEn: 'Mini Cooper', nameAr: 'ميني كوبر' },
+                  { nameEn: 'Mitsubishi', nameAr: 'ميتسوبيشي' },
+                  { nameEn: 'Nissan', nameAr: 'نيسان' },
+                  { nameEn: 'Opel', nameAr: 'أوبل' },
+                  { nameEn: 'Peugeot', nameAr: 'بيجو' },
+                  { nameEn: 'Porsche', nameAr: 'بورشه' },
+                  { nameEn: 'Proton', nameAr: 'بروتون' },
+                  { nameEn: 'Renault', nameAr: 'رينو' },
+                  { nameEn: 'Seat', nameAr: 'سيات' },
+                  { nameEn: 'Skoda', nameAr: 'سكودا' },
+                  { nameEn: 'Subaru', nameAr: 'سوبارو' },
+                  { nameEn: 'Suzuki', nameAr: 'سوزوكي' },
+                  { nameEn: 'Tata', nameAr: 'تاتا' },
+                  { nameEn: 'Tesla', nameAr: 'تسلا' },
+                  { nameEn: 'Toyota', nameAr: 'تويوتا' },
+                  { nameEn: 'Volkswagen', nameAr: 'فولكس فاجن' },
+                  { nameEn: 'Volvo', nameAr: 'فولفو' }
+                ];
+
+                const filteredBrands = brandList.filter(b =>
+                  b.nameEn.toLowerCase().includes(brandSearchQuery.toLowerCase()) ||
+                  b.nameAr.toLowerCase().includes(brandSearchQuery.toLowerCase())
+                );
+
+                return (
+                  <View style={styles.wizardStepView}>
+                    <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
+                      {selectedLanguage === 'Arabic' ? 'اختر ماركة السيارة' : 'Select Car Brand'}
+                    </Text>
+
+                    {/* Brand Search Bar at the Top */}
+                    <View style={styles.searchBarWrapper}>
+                      <Ionicons name="search" size={18} color={colors.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                      <TextInput 
+                        style={[styles.wizardSearchInput, isRtl && { textAlign: 'right' }]}
+                        placeholder={selectedLanguage === 'Arabic' ? 'ابحث عن ماركة...' : 'Search brand...'}
+                        placeholderTextColor={colors.textMuted}
+                        value={brandSearchQuery}
+                        onChangeText={setBrandSearchQuery}
+                      />
+                    </View>
+
+                    {/* Brands Selection Grid */}
+                    <View style={[styles.brandGrid, isRtl && { flexDirection: 'row-reverse' }]}>
+                      {filteredBrands.map((item) => {
+                        const brandName = selectedLanguage === 'Arabic' ? item.nameAr : item.nameEn;
+                        const isBrandSelected = brand.toLowerCase() === item.nameEn.toLowerCase();
+                        const logoSource = BRAND_LOGOS[item.nameEn.toLowerCase()];
+                        
+                        // Dynamically adjust scale to balance visual weights of padded vs unpadded images:
+                        const brandKey = item.nameEn.toLowerCase();
+                        let logoSize = 56; // Standard size (72 * 0.78)
+                        const paddedLogos = [
+                          'acura', 'changan', 'dongfeng', 'fiat', 'ds', 
+                          'hyundai', 'honda', 'lada', 'mg', 'porsche', 
+                          'proton', 'volkswagen'
+                        ];
+                        if (paddedLogos.includes(brandKey)) {
+                          logoSize = 68; // Large size (72 * 0.94)
+                        }
+                        
+                        return (
+                          <TouchableOpacity
+                            key={item.nameEn}
+                            style={[
+                              styles.brandCard,
+                              isBrandSelected && styles.brandCardSelected
+                            ]}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                              setBrand(item.nameEn);
+                              setBrandSearchQuery('');
+                              setWizardStep(2);
+                            }}
+                          >
+                            {/* Emblem Badge */}
+                            <View style={[
+                              styles.brandEmblemBadge,
+                              isBrandSelected && styles.brandEmblemBadgeSelected
+                            ]}>
+                              {logoSource ? (
+                                <Image 
+                                  source={logoSource} 
+                                  style={[styles.brandLogoImage, { width: logoSize, height: logoSize }]} 
+                                  resizeMode="contain" 
+                                />
+                              ) : (
+                                <Text style={[
+                                  styles.brandEmblemLetter,
+                                  isBrandSelected && styles.brandEmblemLetterSelected
+                                ]}>
+                                  {item.nameEn.charAt(0)}
+                                </Text>
+                              )}
+                            </View>
+
+                            <Text style={[
+                              styles.brandCardText,
+                              isBrandSelected && styles.brandCardTextSelected
+                            ]}>
+                              {brandName}
+                            </Text>
+
+                            {/* Selection Indicator badge */}
+                            {isBrandSelected && (
+                              <View style={styles.brandSelectionIndicator}>
+                                <Ionicons name="checkmark-circle" size={16} color={colors.white} />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {filteredBrands.length === 0 && brandSearchQuery.trim().length === 0 && (
+                      <Text style={styles.emptySearchText}>
+                        {selectedLanguage === 'Arabic' ? 'لا توجد ماركات متاحة.' : 'No brands available.'}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })()}
+
+              {/* STEP 2: SELECT MODEL */}
+              {wizardStep === 2 && (() => {
+                const brandModels = CAR_BRANDS_AND_MODELS[brand.toLowerCase()] || [];
+                const filteredModels = brandModels.filter(m => 
+                  m.name.toLowerCase().includes(modelSearchQuery.toLowerCase())
+                );
+                
+                return (
+                  <View style={styles.wizardStepView}>
+                    <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
+                      {selectedLanguage === 'Arabic' 
+                        ? `اختر موديل سيارتك الـ ${brand}` 
+                        : `Select the model of your ${brand}`}
+                    </Text>
+
+                    {/* Search Input */}
+                    <View style={styles.searchBarWrapper}>
+                      <Ionicons name="search" size={18} color={colors.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                      <TextInput 
+                        style={[styles.wizardSearchInput, isRtl && { textAlign: 'right' }]}
+                        placeholder={selectedLanguage === 'Arabic' ? 'ابحث عن الموديل أو اكتب مخصصاً...' : 'Search model or type custom...'}
+                        placeholderTextColor={colors.textMuted}
+                        value={modelSearchQuery}
+                        onChangeText={setModelSearchQuery}
+                      />
+                    </View>
+
+                    {/* Selection List */}
+                    <View style={styles.modelListContainer}>
+                      <ScrollView 
+                        style={styles.modelScrollList} 
+                        nestedScrollEnabled={true}
+                        showsVerticalScrollIndicator={true}
+                      >
+                        {/* Custom Option based on Search Query */}
+                        {modelSearchQuery.trim().length > 0 && !brandModels.some(m => m.name.toLowerCase() === modelSearchQuery.toLowerCase()) && (
+                          <TouchableOpacity
+                            style={[styles.customModelOptionCard, isRtl && { flexDirection: 'row-reverse' }]}
+                            onPress={() => {
+                              setModel(modelSearchQuery.trim());
+                              setModelSearchQuery('');
+                              setWizardStep(3);
+                            }}
+                          >
+                            <Ionicons name="add-circle-outline" size={20} color={colors.bgBrand} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                            <Text style={styles.customModelOptionText}>
+                              {selectedLanguage === 'Arabic' 
+                                ? `استخدم الموديل المخصص: "${modelSearchQuery}"` 
+                                : `Use custom model: "${modelSearchQuery}"`}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {filteredModels.map((item) => {
+                          const isSelected = model === item.name;
+                          return (
+                            <TouchableOpacity
+                              key={item.name}
+                              style={[
+                                styles.modelListItem,
+                                isRtl && { flexDirection: 'row-reverse' },
+                                isSelected && styles.modelListItemSelected
+                              ]}
+                              onPress={() => {
+                                setModel(item.name);
+                                setModelSearchQuery('');
+                                setWizardStep(3);
+                              }}
+                            >
+                              <View style={[styles.modelListItemTextContainer, isRtl && { alignItems: 'flex-end' }]}>
+                                <Text style={[
+                                  styles.modelListItemText,
+                                  isSelected && styles.modelListItemTextSelected
+                                ]}>
+                                  {item.name}
+                                </Text>
+                                <Text style={[
+                                  styles.modelListItemSubtext,
+                                  isSelected && styles.modelListItemSubtextSelected
+                                ]}>
+                                  {selectedLanguage === 'Arabic' 
+                                    ? `سنوات الإنتاج: ${item.startYear} - ${item.endYear}` 
+                                    : `Years: ${item.startYear} - ${item.endYear}`}
+                                </Text>
+                              </View>
+                              
+                              {isSelected && (
+                                <View style={styles.modelListCheckmarkCircle}>
+                                  <Ionicons name="checkmark" size={12} color={colors.bgBrand} />
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+
+                        {filteredModels.length === 0 && modelSearchQuery.trim().length === 0 && (
+                          brandModels.length > 0 ? (
+                            <Text style={styles.emptySearchText}>
+                              {selectedLanguage === 'Arabic' ? 'لا توجد نتائج مطابقة.' : 'No matching results found.'}
+                            </Text>
+                          ) : (
+                            <View style={{ marginTop: 10 }}>
+                              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
+                                {selectedLanguage === 'Arabic' ? 'اكتب موديل السيارة مخصصاً:' : 'Type custom model name:'}
+                              </Text>
+                              <View style={[styles.customInputRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                <TextInput 
+                                  style={[styles.wizardInput, { flex: 1 }, isRtl && { textAlign: 'right' }]}
+                                  placeholder={selectedLanguage === 'Arabic' ? 'مثال: كوبيه' : 'e.g. Coupe'}
+                                  placeholderTextColor={colors.textMuted}
+                                  value={model}
+                                  onChangeText={setModel}
+                                />
+                              </View>
+                            </View>
+                          )
+                        )}
+                      </ScrollView>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              {/* STEP 3: SELECT YEAR */}
+              {wizardStep === 3 && (() => {
+                const brandModels = CAR_BRANDS_AND_MODELS[brand.toLowerCase()] || [];
+                const matchedModelObj = brandModels.find(m => m.name.toLowerCase() === model.toLowerCase());
+                
+                let startY = 1980;
+                let endY = new Date().getFullYear();
+                if (matchedModelObj) {
+                  startY = matchedModelObj.startYear;
+                  endY = matchedModelObj.endYear;
+                }
+                
+                const yearsList = [];
+                for (let y = endY; y >= startY; y--) {
+                  yearsList.push(y.toString());
+                }
+
+                return (
+                  <View style={styles.wizardStepView}>
+                    <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
+                      {selectedLanguage === 'Arabic' 
+                        ? `اختر سنة صنع سيارتك الـ ${brand} ${model}` 
+                        : `Select the year of your ${brand} ${model}`}
+                    </Text>
+
+                    {/* Scrollable Year Grid */}
+                    <View style={styles.yearGridContainer}>
+                      <ScrollView 
+                        style={styles.yearScrollList}
+                        nestedScrollEnabled={true}
+                        showsVerticalScrollIndicator={true}
+                      >
+                        <View style={[styles.yearGrid, isRtl && { flexDirection: 'row-reverse' }]}>
+                          {yearsList.map((yrItem) => {
+                            const isSelected = year === yrItem;
+                            return (
+                              <TouchableOpacity
+                                key={yrItem}
+                                style={[
+                                  styles.yearCard,
+                                  isSelected && styles.yearCardSelected
+                                ]}
+                                onPress={() => {
+                                  setYear(yrItem);
+                                  setWizardStep(4);
+                                }}
+                              >
+                                {renderTextWithSystemNumbers(
+                                  yrItem,
+                                  isRtl,
+                                  isSelected ? styles.yearCardTextSelected : styles.yearCardText,
+                                  12
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              {/* STEP 4: DETAILS (TRANSMISSION & PLATE) */}
+              {wizardStep === 4 && (
+                <View style={styles.wizardStepView}>
+                  <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
+                    {selectedLanguage === 'Arabic' ? 'اختر ناقل الحركة ورقم اللوحة' : 'Transmission & Plate Number'}
+                  </Text>
+
+                  {/* Transmission Selection Cards */}
+                  <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
+                    {selectedLanguage === 'Arabic' ? 'ناقل الحركة:' : 'Transmission:'}
+                  </Text>
+                  <View style={[styles.transmissionRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <TouchableOpacity
+                      style={[
+                        styles.transmissionCard,
+                        !isManualCar && styles.transmissionCardSelected
+                      ]}
+                      onPress={() => setIsManualCar(false)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons 
+                        name="cog" 
+                        size={24} 
+                        color={!isManualCar ? colors.bgCreamy : colors.bgBrand} 
+                      />
+                      <Text style={[
+                        styles.transmissionCardText,
+                        !isManualCar && styles.transmissionCardTextSelected
+                      ]}>
+                        {selectedLanguage === 'Arabic' ? 'أوتوماتيك' : 'Automatic'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.transmissionCard,
+                        isManualCar && styles.transmissionCardSelected
+                      ]}
+                      onPress={() => setIsManualCar(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons 
+                        name="speedometer-outline" 
+                        size={24} 
+                        color={isManualCar ? colors.bgCreamy : colors.bgBrand} 
+                      />
+                      <Text style={[
+                        styles.transmissionCardText,
+                        isManualCar && styles.transmissionCardTextSelected
+                      ]}>
+                        {selectedLanguage === 'Arabic' ? 'مانيوال / عادي' : 'Manual'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.formGroup, { marginTop: 15 }]}>
+                    <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
+                      {selectedLanguage === 'Arabic' ? 'رقم لوحة السيارة (اختياري):' : 'Plate Number (Optional):'}
+                    </Text>
+                    <View style={styles.plateInputContainer}>
+                      <View style={styles.metalPlate}>
+                        {/* Left Screw Bolt */}
+                        <View style={[styles.plateScrew, { left: 10 }]} />
+                        
+                        {/* Right Screw Bolt */}
+                        <View style={[styles.plateScrew, { right: 10 }]} />
+
+                        {/* Top Blue Header Band */}
+                        <View style={[styles.plateHeaderBand, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Text style={styles.plateHeaderCountryEn}>EGYPT</Text>
+                          <Text style={styles.plateHeaderCountryAr}>مِصْر</Text>
+                        </View>
+
+                        {/* Split TextInputs inside the plate */}
+                        <View style={[styles.plateInputsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <TextInput 
+                            style={styles.wizardPlateInputHalf}
+                            placeholder={selectedLanguage === 'Arabic' ? '١٢٣٤' : '1234'}
+                            placeholderTextColor="rgba(30, 41, 59, 0.2)"
+                            value={plateNumbers}
+                            onChangeText={(val) => {
+                              const cleanVal = val.replace(/[^0-9\u0660-\u0669]/g, '');
+                              setPlateNumbers(cleanVal);
+                              setPlateNumber(cleanVal + ' ' + plateLetters);
+                            }}
+                            keyboardType="numeric"
+                            maxLength={4}
+                          />
+                          <View style={styles.plateInputDivider} />
+                          <TextInput 
+                            style={styles.wizardPlateInputHalf}
+                            placeholder={selectedLanguage === 'Arabic' ? 'أ ب ج' : 'A B C'}
+                            placeholderTextColor="rgba(30, 41, 59, 0.2)"
+                            value={plateLetters}
+                            onChangeText={(val) => {
+                              setPlateLetters(val);
+                              setPlateNumber(plateNumbers + ' ' + val);
+                            }}
+                            autoCapitalize="characters"
+                            maxLength={4}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Optional CC field */}
+                  <View style={[styles.formGroup, { marginTop: 5 }]}>
+                    <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
+                      {selectedLanguage === 'Arabic' ? 'سعة المحرك (اختياري):' : 'Engine CC (Optional):'}
+                    </Text>
+                    <TextInput 
+                      style={[styles.wizardInput, isRtl && { textAlign: 'right' }]}
+                      placeholder="e.g. 1600 CC"
+                      placeholderTextColor={colors.textMuted}
+                      value={cc}
+                      onChangeText={setCc}
+                    />
+                  </View>
+
+
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Sticky Grounded Premium Navigation Footer */}
+            {wizardStep > 1 && (
+              <View style={[styles.wizardFooter, isRtl && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity 
+                  style={styles.wizardFooterBackBtn}
+                  activeOpacity={0.8}
+                  onPress={handleWizardBack}
+                >
+                  <Ionicons name={isRtl ? "chevron-forward" : "chevron-back"} size={16} color={colors.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                  <Text style={styles.wizardFooterBackBtnText}>
+                    {selectedLanguage === 'Arabic' ? 'السابق' : 'Back'}
+                  </Text>
+                </TouchableOpacity>
+
+                {wizardStep === 2 && model.trim() ? (
+                  <TouchableOpacity 
+                    style={styles.wizardFooterNextBtn}
+                    activeOpacity={0.8}
+                    onPress={() => setWizardStep(3)}
+                  >
+                    <Text style={styles.wizardFooterNextBtnText}>
+                      {selectedLanguage === 'Arabic' ? 'التالي' : 'Next'}
+                    </Text>
+                    <Ionicons name={isRtl ? "chevron-back" : "chevron-forward"} size={16} color={colors.white} style={isRtl ? { marginRight: 4 } : { marginLeft: 4 }} />
+                  </TouchableOpacity>
+                ) : wizardStep === 3 && year.trim() ? (
+                  <TouchableOpacity 
+                    style={styles.wizardFooterNextBtn}
+                    activeOpacity={0.8}
+                    onPress={() => setWizardStep(4)}
+                  >
+                    <Text style={styles.wizardFooterNextBtnText}>
+                      {selectedLanguage === 'Arabic' ? 'التالي' : 'Next'}
+                    </Text>
+                    <Ionicons name={isRtl ? "chevron-back" : "chevron-forward"} size={16} color={colors.white} style={isRtl ? { marginRight: 4 } : { marginLeft: 4 }} />
+                  </TouchableOpacity>
+                ) : wizardStep === 4 ? (
+                  <TouchableOpacity 
+                    style={styles.wizardFooterSaveBtn}
+                    activeOpacity={0.8}
+                    onPress={handleSaveCar}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={18} color={colors.white} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                    <Text style={styles.wizardFooterSaveBtnText}>
+                      {t.saveBtn}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            )}
+          </KeyboardAvoidingView>
+        </Modal>
 
       {/* Switch Vehicle Modal */}
       <Modal
@@ -2432,44 +3037,64 @@ export default function GarageScreen({
                     }
                   }}
                 >
-                  <View style={[styles.cardHeaderRow, isRtl && { flexDirection: 'row-reverse' }, { justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 }]}>
-                    <View>
-                      <Text style={styles.cardCarBrand}>{car.brand} {car.model}</Text>
-                      <Text style={styles.cardCarYear}>
-                        {selectedLanguage === 'Arabic' ? `موديل ${car.year}` : `${car.year} Model`}
-                      </Text>
-                    </View>
-                    {isActive ? (
-                      <View style={[styles.activeIndicatorBadge, isRtl && { flexDirection: 'row-reverse' }]}>
-                        <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
-                        <Text style={styles.activeIndicatorBadgeText}>
-                          {selectedLanguage === 'Arabic' ? 'نشط' : 'Active'}
+                  <BlurView
+                    intensity={30}
+                    tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+                    style={StyleSheet.absoluteFill}
+                  />
+
+                  <View style={{ padding: 16, width: '100%' }}>
+                    <View style={[styles.cardHeaderRow, isRtl && { flexDirection: 'row-reverse' }, { justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 }]}>
+                      <View>
+                        <Text style={styles.cardCarBrand}>{car.brand} {car.model}</Text>
+                        <Text style={styles.cardCarYear}>
+                          {selectedLanguage === 'Arabic' ? `موديل ${car.year}` : `${car.year} Model`}
                         </Text>
                       </View>
-                    ) : (
-                      <TouchableOpacity 
-                        style={styles.deleteIconButton}
-                        onPress={() => handleRemoveCar(car.id, car.brand, car.model)}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#B54D4F" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                      {isActive ? (
+                        <View style={[styles.activeIndicatorBadge, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                          <Text style={styles.activeIndicatorBadgeText}>
+                            {selectedLanguage === 'Arabic' ? 'نشط' : 'Active'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity 
+                          style={styles.deleteIconButton}
+                          onPress={() => handleRemoveCar(car.id, car.brand, car.model)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#B54D4F" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
 
-                  <View style={[styles.cardFooterRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <View style={styles.selectCardPlateBadge}>
-                      <View style={styles.selectCardPlateHeader} />
-                      <View style={styles.selectCardPlateContent}>
-                        <Text style={styles.selectCardPlateNumbers}>{numbers}</Text>
-                        {letters ? (
-                          <>
-                            <View style={styles.selectCardPlateDivider} />
-                            <Text style={styles.selectCardPlateLetters}>{letters}</Text>
-                          </>
-                        ) : null}
-                      </View>
+                    <View style={[styles.cardFooterRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                      {(numbers || letters) ? (
+                        <View style={styles.selectCardPlateBadge}>
+                          <View style={styles.selectCardPlateHeader} />
+                          <View style={styles.selectCardPlateContent}>
+                            <Text style={styles.selectCardPlateNumbers}>{numbers}</Text>
+                            {letters ? (
+                              <>
+                                <View style={styles.selectCardPlateDivider} />
+                                <Text style={styles.selectCardPlateLetters}>{letters}</Text>
+                              </>
+                            ) : null}
+                          </View>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
+
+                  {/* 3D Glossy Bevel Highlight Overlay */}
+                  <View style={{
+                    ...StyleSheet.absoluteFillObject,
+                    borderRadius: 20,
+                    borderWidth: 1.5,
+                    borderColor: 'transparent',
+                    borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                    borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+                  }} pointerEvents="none" />
                 </TouchableOpacity>
               );
             })}
@@ -2557,7 +3182,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.bgBrand,
   },
   scrollContent: {
-    paddingTop: 64,
+    paddingTop: 24,
     paddingHorizontal: 20,
     paddingBottom: 110, // snug above floating bottom navbar
   },
@@ -2636,9 +3261,9 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 6,
   },
   formContainer: {
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.45)' : 'rgba(26, 29, 26, 0.65)',
     borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(93, 130, 96, 0.25)',
     borderRadius: 20,
     padding: 16,
     marginBottom: 15,
@@ -2729,23 +3354,24 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 50,
   },
   vehicleSelectCard: {
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.95)' : 'rgba(24, 30, 24, 0.96)',
     borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
     borderRadius: 20,
-    padding: 16,
     marginBottom: 14,
     flexDirection: 'column',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1.5,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 4, height: 12 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.25,
+    shadowRadius: 16,
+    elevation: 4,
   },
   activeSelectCard: {
     borderColor: colors.bgBrand,
-    borderWidth: 2,
-    backgroundColor: 'rgba(77, 110, 79, 0.03)',
+    borderWidth: 1.5,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(240, 245, 240, 0.95)' : 'rgba(34, 42, 34, 0.95)',
   },
   cardCarBrand: {
     fontSize: 16.5,
@@ -2898,12 +3524,19 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 2,
   },
   statusCard: {
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
     borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
     borderRadius: 24,
     padding: 20,
     marginTop: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 4, height: 12 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.25,
+    shadowRadius: 16,
+    elevation: 4,
   },
   statusCardHeader: {
     flexDirection: 'row',
@@ -2994,9 +3627,9 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   odoInfoCard: {
-    backgroundColor: 'rgba(77, 110, 79, 0.04)',
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(26, 29, 26, 0.4)',
     borderWidth: 1.2,
-    borderColor: colors.borderGreen,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(93, 130, 96, 0.2)',
     borderRadius: 14,
     padding: 12,
     flexDirection: 'row',
@@ -3131,15 +3764,15 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 10,
   },
   serviceItemCard: {
-    backgroundColor: colors.bgCardNested,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(60, 90, 62, 0.07)' : 'rgba(20, 32, 20, 0.55)',
+    borderWidth: 1.5,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(60, 90, 62, 0.15)' : 'rgba(93, 130, 96, 0.25)',
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
     shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.02 : 0.1,
     shadowRadius: 6,
     elevation: 1,
   },
@@ -3782,5 +4415,608 @@ const createStyles = (colors) => StyleSheet.create({
     bottom: 50,
     width: '100%',
     zIndex: 10,
+  },
+  wizardModalContainer: {
+    flex: 1,
+  },
+  wizardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 35,
+    paddingBottom: 15,
+    borderBottomWidth: 1.2,
+    borderBottomColor: colors.borderGreen,
+    backgroundColor: colors.white,
+  },
+  wizardBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  stepperContainer: {
+    padding: 20,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1.2,
+    borderBottomColor: colors.borderGreen,
+  },
+  stepperTrack: {
+    height: 6,
+    backgroundColor: colors.bgBrandLight,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  stepperFill: {
+    height: '100%',
+    backgroundColor: colors.bgBrand,
+  },
+  stepperLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  stepperStepText: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  stepperStepActive: {
+    color: colors.bgBrand,
+    fontWeight: '800',
+  },
+  wizardScrollContent: {
+    padding: 20,
+    flexGrow: 1,
+  },
+  wizardStepView: {
+    flex: 1,
+  },
+  wizardPrompt: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textDark,
+    marginBottom: 18,
+  },
+  brandGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  brandCard: {
+    width: '48%',
+    backgroundColor: colors.white,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen + '40',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    position: 'relative',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  brandCardSelected: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  brandEmblemBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  brandEmblemBadgeSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  brandEmblemLetter: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.bgBrand,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  brandEmblemLetterSelected: {
+    color: colors.bgCreamy,
+  },
+  brandSelectionIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  brandCardText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  brandCardTextSelected: {
+    color: colors.bgCreamy,
+  },
+  wizardDivider: {
+    height: 1.2,
+    backgroundColor: colors.borderGreen,
+    marginVertical: 18,
+  },
+  customInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  wizardInput: {
+    backgroundColor: colors.white,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    fontSize: 14,
+    color: colors.textDark,
+  },
+  wizardNextPill: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.bgBrand,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    gap: 12,
+  },
+  wizardBackBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.bgBrand,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardBackBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  wizardNextBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.bgBrand,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardNextBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  transmissionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    gap: 12,
+  },
+  transmissionCard: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  transmissionCardSelected: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+  },
+  transmissionCardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  transmissionCardTextSelected: {
+    color: colors.bgCreamy,
+  },
+  wizardSubmitBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.bgBrand,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wizardSubmitBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  modelListContainer: {
+    height: 380,
+    marginTop: 10,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+  },
+  modelScrollList: {
+    padding: 10,
+  },
+  modelListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modelListItemSelected: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+  },
+  modelListItemTextContainer: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  modelListItemText: {
+    fontSize: 13.5,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  modelListItemTextSelected: {
+    color: colors.bgCreamy,
+    fontWeight: '700',
+  },
+  modelListItemSubtext: {
+    fontSize: 10.5,
+    color: colors.textMuted,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  modelListItemSubtextSelected: {
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  modelListCheckmarkCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.bgCreamy,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1.5,
+    elevation: 1,
+  },
+  customModelOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.bgBrand + '30',
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  customModelOptionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  emptySearchText: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 13,
+    paddingVertical: 15,
+  },
+  yearGridContainer: {
+    height: 380,
+    marginTop: 10,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+  },
+  yearScrollList: {
+    padding: 10,
+  },
+  yearGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  yearCard: {
+    width: '22%',
+    marginHorizontal: '1.5%',
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  yearCardSelected: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+  },
+  yearCardText: {
+    fontSize: 13.5,
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  yearCardTextSelected: {
+    color: colors.bgCreamy,
+    fontWeight: '700',
+  },
+  stepperDotContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepperDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  stepperDotActive: {
+    backgroundColor: colors.bgCreamy,
+    borderColor: colors.bgBrand,
+    borderWidth: 2,
+  },
+  stepperDotDone: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+  },
+  stepperDotText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  stepperDotTextActive: {
+    color: colors.bgBrand,
+  },
+  stepperLabelText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  stepperLabelTextActive: {
+    color: colors.bgBrand,
+    fontWeight: '700',
+  },
+  searchBarWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+    marginBottom: 15,
+  },
+  wizardSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textDark,
+    height: '100%',
+  },
+  wizardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 14,
+    backgroundColor: colors.white,
+    borderTopWidth: 1.2,
+    borderTopColor: colors.borderGreen,
+  },
+  wizardFooterBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  wizardFooterCancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  wizardFooterBackBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  wizardFooterCancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  wizardFooterNextBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgBrand,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 100,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  wizardFooterSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgBrand,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 100,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  wizardFooterNextBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  wizardFooterSaveBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  plateInputContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  metalPlate: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3.5,
+    borderColor: '#1E293B',
+    borderRadius: 10,
+    width: '100%',
+    height: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  plateHeaderBand: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 22,
+    backgroundColor: '#0077C2',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 25,
+  },
+  plateHeaderCountryEn: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFF',
+    letterSpacing: 1.5,
+  },
+  plateHeaderCountryAr: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  plateScrew: {
+    position: 'absolute',
+    top: '42%',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#7F8C8D',
+    borderWidth: 1,
+    borderColor: '#BDC3C7',
+  },
+  wizardPlateInput: {
+    width: '80%',
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    textAlign: 'center',
+    letterSpacing: 2,
+    marginTop: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  plateInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '85%',
+    height: 50,
+    marginTop: 18,
+  },
+  wizardPlateInputHalf: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    textAlign: 'center',
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  plateInputDivider: {
+    width: 2,
+    height: '60%',
+    backgroundColor: 'rgba(30, 41, 59, 0.15)',
+    marginHorizontal: 15,
+  },
+  brandLogoImage: {
+    alignSelf: 'center',
   },
 });

@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 // Helper to render text with system font for digits and Alkhalil font for words
 const renderTextWithSystemNumbers = (text, isRtl, baseStyle, rtlFontSize) => {
@@ -58,24 +59,23 @@ export default function QuickServicesGrid({ onNavigate, selectedLanguage }) {
       bgWatermark: 'people-outline',
     },
     {
-      id: 'tow',
-      title: isRtl ? 'طلب المساعدة' : 'Get Help',
-      subtitle: isRtl ? 'خدمة الطوارئ' : 'Emergency Service',
-      icon: 'warning-outline',
-      bgWatermark: 'alert-circle-outline',
-      color: colors.accentRed,
+      id: 'profile',
+      title: isRtl ? 'الملف الشخصي' : 'My Profile',
+      subtitle: isRtl ? 'إعدادات الحساب' : 'Account Settings',
+      icon: 'person-circle-outline',
+      bgWatermark: 'person-outline',
     }
   ];
 
   return (
-    <View style={[styles.container, isRtl && { marginTop: 10 }]}>
-      <Text style={[styles.sectionHeader, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 9.5 }, isRtl && { textAlign: 'right' }]}>{sectionTitle}</Text>
+    <View style={[styles.container, isRtl && { marginTop: 0 }]}>
+      <Text style={[styles.sectionHeader, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }, isRtl && { textAlign: 'right' }]}>{sectionTitle}</Text>
       
       <View style={[styles.grid, isRtl && { flexDirection: 'row-reverse' }]}>
         {services.map((service) => (
           <TouchableOpacity 
             key={service.id} 
-            style={styles.gridCard} 
+            style={[styles.gridCard, isRtl && { height: 115 }]} 
             activeOpacity={0.7}
             onPress={() => {
               if (service.id === 'mechanics') {
@@ -84,12 +84,18 @@ export default function QuickServicesGrid({ onNavigate, selectedLanguage }) {
                 onNavigate && onNavigate('garage');
               } else if (service.id === 'community') {
                 onNavigate && onNavigate('community');
-              } else if (service.id === 'tow') {
-                onNavigate && onNavigate('tow');
+              } else if (service.id === 'profile') {
+                onNavigate && onNavigate('profile');
               }
             }}
           >
-            {/* Top Row with Service Icon and Chevron */}
+            <BlurView
+              intensity={65}
+              tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Bottom Row with Service Icon and Chevron */}
             <View style={[styles.cardHeader, isRtl && { flexDirection: 'row-reverse' }]}>
               <View style={styles.iconWrapper}>
                 <Ionicons name={service.icon} size={20} color={service.color || colors.bgBrand} />
@@ -102,13 +108,25 @@ export default function QuickServicesGrid({ onNavigate, selectedLanguage }) {
             </View>
 
             {/* Labels Section */}
-            <Text style={[styles.cardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0 }, isRtl && { textAlign: 'right' }]}>{service.title}</Text>
-            {renderTextWithSystemNumbers(service.subtitle, isRtl, styles.cardSubtitle, 9.0)}
+            <View style={{ marginTop: 2 }}>
+              <Text style={[styles.cardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }, isRtl && { textAlign: 'right' }]}>{service.title}</Text>
+              {renderTextWithSystemNumbers(service.subtitle, isRtl, styles.cardSubtitle, 11.0)}
+            </View>
 
             {/* Background Watermark Icon for Premium Aesthetic */}
             <View style={[styles.watermarkWrapper, isRtl ? { right: 'auto', left: -8 } : { right: -8 }]}>
               <Ionicons name={service.bgWatermark} size={48} color={service.color || colors.bgBrand} style={styles.watermarkIcon} />
             </View>
+
+            {/* 3D Glossy Bevel Highlight Overlay */}
+            <View style={{
+              ...StyleSheet.absoluteFillObject,
+              borderRadius: 14,
+              borderWidth: 1.5,
+              borderColor: 'transparent',
+              borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+              borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
+            }} pointerEvents="none" />
           </TouchableOpacity>
         ))}
       </View>
@@ -122,10 +140,9 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 16,
   },
   sectionHeader: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: 'bold',
     color: colors.bgBrand,
-    letterSpacing: 0.8,
     marginBottom: 10,
   },
   grid: {
@@ -135,14 +152,19 @@ const createStyles = (colors) => StyleSheet.create({
   },
   gridCard: {
     width: '48.5%',
-    backgroundColor: colors.bgBrandLight,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
+    borderWidth: 1.5,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
     borderRadius: 14,
     padding: 14,
     minHeight: 110,
     overflow: 'hidden',
     justifyContent: 'space-between',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 4, height: 16 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.3,
+    shadowRadius: 20,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
