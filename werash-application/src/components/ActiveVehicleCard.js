@@ -4,6 +4,7 @@ import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { BRAND_LOGOS } from '../data/brandLogos';
+import { CAR_BRANDS_AND_MODELS } from '../data/carModels';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Helper to split numbers (left) and letters (right) on license plates
@@ -56,15 +57,43 @@ export default function ActiveVehicleCard({
   const carYear = vehicle ? vehicle.year : '';
   const plateNumber = vehicle ? (vehicle.plateNumberArabic || vehicle.plateNumber) : '';
 
-  // Resolve brand logo image (emblem) as the source, fallback to default profile if not found
+  // Resolve vehicle image: first look for exact model/year profile image in CAR_BRANDS_AND_MODELS, then fallback to brand emblem, then default profile
   let carImageSource = require('../../assets/car_side_profile.png');
   let hasCustomImage = false;
+  let isModelProfileImage = false;
+
   if (carBrand) {
     const normalizedBrand = carBrand.trim().toLowerCase();
-    const brandLogo = BRAND_LOGOS[normalizedBrand];
-    if (brandLogo) {
-      carImageSource = brandLogo;
-      hasCustomImage = true;
+    const brandModels = CAR_BRANDS_AND_MODELS[normalizedBrand] || 
+                        (normalizedBrand === 'mercedes' ? CAR_BRANDS_AND_MODELS['mercedes-benz'] : []) || [];
+
+    if (carModel && brandModels.length > 0) {
+      const cleanCarModel = carModel.trim().toLowerCase();
+      const matchedModel = brandModels.find(m => m.name.toLowerCase() === cleanCarModel);
+      if (matchedModel) {
+        if (Array.isArray(matchedModel.images) && matchedModel.images.length > 0) {
+          const parsedYear = parseInt(carYear) || new Date().getFullYear();
+          const matchedGen = matchedModel.images.find(imgObj => parsedYear >= imgObj.startYear && parsedYear <= imgObj.endYear) || matchedModel.images[0];
+          if (matchedGen && matchedGen.image) {
+            carImageSource = matchedGen.image;
+            hasCustomImage = true;
+            isModelProfileImage = true;
+          }
+        } else if (matchedModel.image) {
+          carImageSource = matchedModel.image;
+          hasCustomImage = true;
+          isModelProfileImage = true;
+        }
+      }
+    }
+
+    // Fallback to brand emblem if no specific model profile image exists
+    if (!isModelProfileImage) {
+      const brandLogo = BRAND_LOGOS[normalizedBrand];
+      if (brandLogo) {
+        carImageSource = brandLogo;
+        hasCustomImage = true;
+      }
     }
   }
 
@@ -333,7 +362,9 @@ export default function ActiveVehicleCard({
               style={[
                 styles.carImage, 
                 isRtl && !hasCustomImage && { transform: [{ scaleX: -1 }] },
-                hasCustomImage ? { width: 90, height: 90, opacity: 1 } : { width: '100%', height: '100%' }
+                hasCustomImage 
+                  ? (isModelProfileImage ? { width: '100%', height: '100%', opacity: 1 } : { width: 85, height: 85, opacity: 1 }) 
+                  : { width: '100%', height: '100%' }
               ]} 
               resizeMode="contain" 
             />
