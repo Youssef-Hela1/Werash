@@ -1392,26 +1392,29 @@ create policy "Allow delete" on car_models for delete using (true);</pre>
         }
       }
 
-      // 4. Check for User Supabase Config (non-blocking)
-      const userSbUrl = localStorage.getItem('werash_supabase_url');
-      const userSbKey = localStorage.getItem('werash_supabase_key');
+      // 4. Connect to Supabase Cloud Database (Live 557 Models)
+      const DEFAULT_SB_URL = 'https://cckgtgxmxmvbmdegqrsk.supabase.co';
+      const DEFAULT_SB_KEY = 'sb_publishable_NEORuoKPpp1Xrjk5vp8Nfw_EGr_bJXq';
+      const userSbUrl = localStorage.getItem('werash_supabase_url') || DEFAULT_SB_URL;
+      const userSbKey = localStorage.getItem('werash_supabase_key') || DEFAULT_SB_KEY;
       const isDisconnected = localStorage.getItem('werash_supabase_disconnected') === 'true';
 
       if (!isDisconnected && userSbUrl && userSbKey && window.supabase) {
         try {
           const client = window.supabase.createClient(userSbUrl, userSbKey);
-          const { error } = await client.from('car_models').select('id').limit(1);
-          if (!error) {
-            supabaseClient = client;
-            isCloudMode = true;
-            document.getElementById('sbUrlInput').value = userSbUrl;
-            document.getElementById('sbKeyInput').value = userSbKey;
-            document.getElementById('btnDisconnectDb').style.display = 'block';
-            updateStatusUI(true, 'Cloud Sync Active', 'cloud');
-          } else {
-            updateStatusUI(true, 'IndexedDB Active (Offline Ready)', 'offline');
-          }
+          supabaseClient = client;
+          isCloudMode = true;
+          const urlInput = document.getElementById('sbUrlInput');
+          const keyInput = document.getElementById('sbKeyInput');
+          const discBtn = document.getElementById('btnDisconnectDb');
+          if (urlInput) urlInput.value = userSbUrl;
+          if (keyInput) keyInput.value = userSbKey;
+          if (discBtn) discBtn.style.display = 'block';
+
+          updateStatusUI(true, 'Syncing Supabase Cloud...', 'cloud');
+          await pullFromSupabase(false);
         } catch(e) {
+          console.warn('Supabase init failed, operating on IndexedDB cache:', e);
           updateStatusUI(true, 'IndexedDB Active (Offline Ready)', 'offline');
         }
       } else {
@@ -1420,8 +1423,8 @@ create policy "Allow delete" on car_models for delete using (true);</pre>
 
       renderBrandList();
 
-      // Automatically select first brand with data or Hyundai
-      const firstActive = brands.find(b => portalData[b] && portalData[b].length > 0) || 'Hyundai';
+      // Automatically select first brand with data or Mercedes-Benz
+      const firstActive = brands.find(b => portalData[b] && portalData[b].length > 0) || 'Mercedes-Benz';
       selectBrand(firstActive);
     }
 
@@ -2231,10 +2234,10 @@ create policy "Allow delete" on car_models for delete using (true);</pre>
 
         supabaseClient = client;
         isCloudMode = true;
-        updateStatusUI(true, 'Cloud Sync Active', 'cloud');
         document.getElementById('btnDisconnectDb').style.display = 'block';
 
-        showDbAlert('Connected to Supabase! You can now push or pull models.', 'success');
+        showDbAlert('Connected to Supabase! Synchronizing all car models...', 'info');
+        await pullFromSupabase(true);
       } catch(e) {
         showDbAlert('Connection failed: ' + e.message + '\nEnsure the SQL table script has been run in your Supabase SQL Editor.', 'error');
       }
@@ -2281,45 +2284,52 @@ create policy "Allow delete" on car_models for delete using (true);</pre>
       }
     }
 
-    async function pullFromSupabase() {
+    async function pullFromSupabase(isManual = true) {
       if (!supabaseClient) {
-        showDbAlert('Please connect to Supabase first before pulling data.', 'error');
+        if (isManual) showDbAlert('Please connect to Supabase first before pulling data.', 'error');
         return;
       }
-      showDbAlert('Pulling catalog from Supabase...', 'info');
+      if (isManual) showDbAlert('Pulling catalog from Supabase...', 'info');
 
       try {
-        const { data, error } = await supabaseClient.from('car_models').select('*');
+        const { data, error } = await supabaseClient
+          .from('car_models')
+          .select('id, brand, model_name, start_year, end_year, image_base64')
+          .order('model_name', { ascending: true });
+
         if (error) throw error;
 
-        let count = 0;
-        data.forEach(row => {
-          if (!portalData[row.brand]) portalData[row.brand] = [];
-          const existing = portalData[row.brand].find(m => m.name.toLowerCase() === row.model_name.toLowerCase());
-          if (!existing) {
-            portalData[row.brand].push({
-              id: 'm_' + (row.id || Date.now()),
-              name: row.model_name,
-              startYear: row.start_year,
-              endYear: row.end_year,
-              imageBase64: row.image_base64,
-              imagesLoaded: true
-            });
-            count++;
-          }
+        const totalCount = (data || []).length;
+        const cloudData = {};
+
+        (data || []).forEach(row => {
+          if (!cloudData[row.brand]) cloudData[row.brand] = [];
+          cloudData[row.brand].push({
+            id: row.id,
+            name: row.model_name,
+            startYear: row.start_year,
+            endYear: row.end_year,
+            imageBase64: row.image_base64 || null,
+            imagesLoaded: true
+          });
         });
 
+        // Merge into portalData and save to IndexedDB
         for (const b of brands) {
-          if (portalData[b]) {
-            await saveBrandToDB(b, portalData[b]);
+          if (cloudData[b] && cloudData[b].length > 0) {
+            portalData[b] = cloudData[b];
+            await saveBrandToDB(b, cloudData[b]);
           }
         }
 
         renderBrandList();
         if (activeBrand) renderModels();
-        showDbAlert(`Successfully pulled ${count} new models from Supabase!`, 'success');
+        updateStatusUI(true, `Supabase Live (${totalCount} Models)`, 'cloud');
+        if (isManual) showDbAlert(`Successfully synchronized ${totalCount} models from Supabase!`, 'success');
       } catch(e) {
-        showDbAlert('Pull error: ' + e.message, 'error');
+        console.warn('Pull error:', e);
+        if (isManual) showDbAlert('Pull error: ' + e.message, 'error');
+        updateStatusUI(true, 'IndexedDB Active (Cloud Offline)', 'offline');
       }
     }
 
