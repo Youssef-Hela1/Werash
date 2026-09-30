@@ -23,6 +23,120 @@ import ActiveVehicleCard from '../components/ActiveVehicleCard';
 import { CAR_BRANDS_AND_MODELS } from '../data/carModels';
 import { BRAND_LOGOS } from '../data/brandLogos';
 
+export const CAR_BRAND_LIST = [
+  { nameEn: 'Acura', nameAr: 'أكورا' },
+  { nameEn: 'Alfa Romeo', nameAr: 'ألفا روميو' },
+  { nameEn: 'Audi', nameAr: 'أودي' },
+  { nameEn: 'Baic', nameAr: 'بايك' },
+  { nameEn: 'BMW', nameAr: 'بي إم دبليو' },
+  { nameEn: 'BYD', nameAr: 'بي واي دي' },
+  { nameEn: 'Cadillac', nameAr: 'كاديلاك' },
+  { nameEn: 'Changan', nameAr: 'شانجان' },
+  { nameEn: 'Chery', nameAr: 'شيري' },
+  { nameEn: 'Chevrolet', nameAr: 'شيفروليه' },
+  { nameEn: 'Citroen', nameAr: 'سيتروين' },
+  { nameEn: 'Cupra', nameAr: 'كوبرا' },
+  { nameEn: 'Daewoo', nameAr: 'دايو' },
+  { nameEn: 'Daihatsu', nameAr: 'ديهاتسو' },
+  { nameEn: 'Datsun', nameAr: 'داتسون' },
+  { nameEn: 'Dayun', nameAr: 'دايون' },
+  { nameEn: 'Dodge', nameAr: 'دودج' },
+  { nameEn: 'Dongfeng', nameAr: 'دونغفينغ' },
+  { nameEn: 'DS', nameAr: 'دي إس' },
+  { nameEn: 'Fiat', nameAr: 'فيات' },
+  { nameEn: 'Ford', nameAr: 'فورد' },
+  { nameEn: 'Forthing', nameAr: 'فورثينج' },
+  { nameEn: 'GAC', nameAr: 'جاك' },
+  { nameEn: 'Geely', nameAr: 'جيلي' },
+  { nameEn: 'GMC', nameAr: 'جي إم سي' },
+  { nameEn: 'Haval', nameAr: 'هافال' },
+  { nameEn: 'Honda', nameAr: 'هوندا' },
+  { nameEn: 'Hummer', nameAr: 'همر' },
+  { nameEn: 'Hyundai', nameAr: 'هيونداي' },
+  { nameEn: 'Infiniti', nameAr: 'إنفينيتي' },
+  { nameEn: 'Isuzu', nameAr: 'إيسوزو' },
+  { nameEn: 'Jac', nameAr: 'جاك' },
+  { nameEn: 'Jaguar', nameAr: 'جاغوار' },
+  { nameEn: 'Jeep', nameAr: 'جيب' },
+  { nameEn: 'Jetour', nameAr: 'جيتور' },
+  { nameEn: 'Kia', nameAr: 'كيا' },
+  { nameEn: 'Lada', nameAr: 'لادا' },
+  { nameEn: 'Land Rover', nameAr: 'لاند روفر' },
+  { nameEn: 'Maserati', nameAr: 'مازيراتي' },
+  { nameEn: 'Mazda', nameAr: 'مازدا' },
+  { nameEn: 'Mercedes-Benz', nameAr: 'مرسيدس' },
+  { nameEn: 'MG', nameAr: 'إم جي' },
+  { nameEn: 'Mini Cooper', nameAr: 'ميني كوبر' },
+  { nameEn: 'Mitsubishi', nameAr: 'ميتسوبيشي' },
+  { nameEn: 'Nissan', nameAr: 'نيسان' },
+  { nameEn: 'Opel', nameAr: 'أوبل' },
+  { nameEn: 'Peugeot', nameAr: 'بيجو' },
+  { nameEn: 'Porsche', nameAr: 'بورشه' },
+  { nameEn: 'Proton', nameAr: 'بروتون' },
+  { nameEn: 'Renault', nameAr: 'رينو' },
+  { nameEn: 'Seat', nameAr: 'سيات' },
+  { nameEn: 'Skoda', nameAr: 'سكودا' },
+  { nameEn: 'Subaru', nameAr: 'سوبارو' },
+  { nameEn: 'Suzuki', nameAr: 'سوزوكي' },
+  { nameEn: 'Tata', nameAr: 'تاتا' },
+  { nameEn: 'Tesla', nameAr: 'تسلا' },
+  { nameEn: 'Toyota', nameAr: 'تويوتا' },
+  { nameEn: 'Volkswagen', nameAr: 'فولكس فاجن' },
+  { nameEn: 'Volvo', nameAr: 'فولفو' }
+];
+
+export const getBrandModels = (brandName) => {
+  if (!brandName) return [];
+  const clean = String(brandName).trim().toLowerCase();
+  
+  if (CAR_BRANDS_AND_MODELS[clean] && Array.isArray(CAR_BRANDS_AND_MODELS[clean])) {
+    return CAR_BRANDS_AND_MODELS[clean];
+  }
+  const withHyphen = clean.replace(/\s+/g, '-');
+  if (CAR_BRANDS_AND_MODELS[withHyphen] && Array.isArray(CAR_BRANDS_AND_MODELS[withHyphen])) {
+    return CAR_BRANDS_AND_MODELS[withHyphen];
+  }
+  const withSpace = clean.replace(/-/g, ' ');
+  if (CAR_BRANDS_AND_MODELS[withSpace] && Array.isArray(CAR_BRANDS_AND_MODELS[withSpace])) {
+    return CAR_BRANDS_AND_MODELS[withSpace];
+  }
+  if (clean === 'mercedes' || clean.includes('mercedes')) {
+    return CAR_BRANDS_AND_MODELS['mercedes-benz'] || [];
+  }
+  if (clean === 'mini' || clean.includes('mini')) {
+    return CAR_BRANDS_AND_MODELS['mini cooper'] || [];
+  }
+  if (clean.includes('rover')) {
+    return CAR_BRANDS_AND_MODELS['land rover'] || [];
+  }
+  if (clean.includes('alfa')) {
+    return CAR_BRANDS_AND_MODELS['alfa romeo'] || [];
+  }
+  const found = CAR_BRAND_LIST.find(b => 
+    b.nameEn.toLowerCase() === clean || 
+    b.nameAr === brandName ||
+    clean.includes(b.nameEn.toLowerCase())
+  );
+  if (found) {
+    const k = found.nameEn.toLowerCase();
+    if (CAR_BRANDS_AND_MODELS[k]) return CAR_BRANDS_AND_MODELS[k];
+    if (CAR_BRANDS_AND_MODELS[k.replace(/\s+/g, '-')]) return CAR_BRANDS_AND_MODELS[k.replace(/\s+/g, '-')];
+  }
+  return [];
+};
+
+export const getModelThumbnail = (brandName, modelItem) => {
+  if (!modelItem) return null;
+  if (Array.isArray(modelItem.images) && modelItem.images.length > 0 && modelItem.images[0].image) {
+    return modelItem.images[0].image;
+  }
+  if (modelItem.image) {
+    return modelItem.image;
+  }
+  const cleanBrand = String(brandName || '').trim().toLowerCase();
+  return BRAND_LOGOS[cleanBrand] || BRAND_LOGOS[cleanBrand.replace(/\s+/g, '-')] || null;
+};
+
 // Helper to render text with system font for digits and Alkhalil font for words
 const renderTextWithSystemNumbers = (text, isRtl, baseStyle, rtlFontSize) => {
   if (!text) return null;
@@ -1843,7 +1957,18 @@ export default function GarageScreen({
             setShowAddForm(false);
           }}
           onAddPress={() => {
-            setShowAddForm(prev => !prev);
+            setWizardStep(1);
+            setBrand('');
+            setModel('');
+            setYear('');
+            setPlateNumber('');
+            setPlateNumbers('');
+            setPlateLetters('');
+            setCc('');
+            setIsManualCar(false);
+            setBrandSearchQuery('');
+            setModelSearchQuery('');
+            setShowAddForm(true);
             setIsSwitchingVehicle(false);
           }}
         />
@@ -2447,83 +2572,22 @@ export default function GarageScreen({
               </View>
             </View>
 
-            {/* Step Content */}
-            <ScrollView 
-              contentContainerStyle={styles.wizardScrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
+            {/* Wizard Body Container */}
+            <View style={styles.wizardBodyContainer}>
               {/* STEP 1: SELECT BRAND */}
               {wizardStep === 1 && (() => {
-                const brandList = [
-                  { nameEn: 'Acura', nameAr: 'أكورا' },
-                  { nameEn: 'Alfa Romeo', nameAr: 'ألفا روميو' },
-                  { nameEn: 'Audi', nameAr: 'أودي' },
-                  { nameEn: 'Baic', nameAr: 'بايك' },
-                  { nameEn: 'BMW', nameAr: 'بي إم دبليو' },
-                  { nameEn: 'BYD', nameAr: 'بي واي دي' },
-                  { nameEn: 'Cadillac', nameAr: 'كاديلاك' },
-                  { nameEn: 'Changan', nameAr: 'شانجان' },
-                  { nameEn: 'Chery', nameAr: 'شيري' },
-                  { nameEn: 'Chevrolet', nameAr: 'شيفروليه' },
-                  { nameEn: 'Citroen', nameAr: 'سيتروين' },
-                  { nameEn: 'Cupra', nameAr: 'كوبرا' },
-                  { nameEn: 'Daewoo', nameAr: 'دايو' },
-                  { nameEn: 'Daihatsu', nameAr: 'ديهاتسو' },
-                  { nameEn: 'Datsun', nameAr: 'داتسون' },
-                  { nameEn: 'Dayun', nameAr: 'دايون' },
-                  { nameEn: 'Dodge', nameAr: 'دودج' },
-                  { nameEn: 'Dongfeng', nameAr: 'دونغفينغ' },
-                  { nameEn: 'DS', nameAr: 'دي إس' },
-                  { nameEn: 'Fiat', nameAr: 'فيات' },
-                  { nameEn: 'Ford', nameAr: 'فورد' },
-                  { nameEn: 'Forthing', nameAr: 'فورثينج' },
-                  { nameEn: 'GAC', nameAr: 'جاك' },
-                  { nameEn: 'Geely', nameAr: 'جيلي' },
-                  { nameEn: 'GMC', nameAr: 'جي إم سي' },
-                  { nameEn: 'Haval', nameAr: 'هافال' },
-                  { nameEn: 'Honda', nameAr: 'هوندا' },
-                  { nameEn: 'Hummer', nameAr: 'همر' },
-                  { nameEn: 'Hyundai', nameAr: 'هيونداي' },
-                  { nameEn: 'Infiniti', nameAr: 'إنفينيتي' },
-                  { nameEn: 'Isuzu', nameAr: 'إيسوزو' },
-                  { nameEn: 'Jac', nameAr: 'جاك' },
-                  { nameEn: 'Jaguar', nameAr: 'جاغوار' },
-                  { nameEn: 'Jeep', nameAr: 'جيب' },
-                  { nameEn: 'Jetour', nameAr: 'جيتور' },
-                  { nameEn: 'Kia', nameAr: 'كيا' },
-                  { nameEn: 'Lada', nameAr: 'لادا' },
-                  { nameEn: 'Land Rover', nameAr: 'لاند روفر' },
-                  { nameEn: 'Maserati', nameAr: 'مازيراتي' },
-                  { nameEn: 'Mazda', nameAr: 'مازدا' },
-                  { nameEn: 'Mercedes-Benz', nameAr: 'مرسيدس' },
-                  { nameEn: 'MG', nameAr: 'إم جي' },
-                  { nameEn: 'Mini Cooper', nameAr: 'ميني كوبر' },
-                  { nameEn: 'Mitsubishi', nameAr: 'ميتسوبيشي' },
-                  { nameEn: 'Nissan', nameAr: 'نيسان' },
-                  { nameEn: 'Opel', nameAr: 'أوبل' },
-                  { nameEn: 'Peugeot', nameAr: 'بيجو' },
-                  { nameEn: 'Porsche', nameAr: 'بورشه' },
-                  { nameEn: 'Proton', nameAr: 'بروتون' },
-                  { nameEn: 'Renault', nameAr: 'رينو' },
-                  { nameEn: 'Seat', nameAr: 'سيات' },
-                  { nameEn: 'Skoda', nameAr: 'سكودا' },
-                  { nameEn: 'Subaru', nameAr: 'سوبارو' },
-                  { nameEn: 'Suzuki', nameAr: 'سوزوكي' },
-                  { nameEn: 'Tata', nameAr: 'تاتا' },
-                  { nameEn: 'Tesla', nameAr: 'تسلا' },
-                  { nameEn: 'Toyota', nameAr: 'تويوتا' },
-                  { nameEn: 'Volkswagen', nameAr: 'فولكس فاجن' },
-                  { nameEn: 'Volvo', nameAr: 'فولفو' }
-                ];
-
-                const filteredBrands = brandList.filter(b =>
+                const filteredBrands = CAR_BRAND_LIST.filter(b =>
                   b.nameEn.toLowerCase().includes(brandSearchQuery.toLowerCase()) ||
                   b.nameAr.toLowerCase().includes(brandSearchQuery.toLowerCase())
                 );
 
                 return (
-                  <View style={styles.wizardStepView}>
+                  <ScrollView 
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.brandScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
                     <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
                       {selectedLanguage === 'Arabic' ? 'اختر ماركة السيارة' : 'Select Car Brand'}
                     </Text>
@@ -2538,6 +2602,11 @@ export default function GarageScreen({
                         value={brandSearchQuery}
                         onChangeText={setBrandSearchQuery}
                       />
+                      {brandSearchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setBrandSearchQuery('')} style={{ padding: 4 }}>
+                          <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                        </TouchableOpacity>
+                      )}
                     </View>
 
                     {/* Brands Selection Grid */}
@@ -2547,16 +2616,15 @@ export default function GarageScreen({
                         const isBrandSelected = brand.toLowerCase() === item.nameEn.toLowerCase();
                         const logoSource = BRAND_LOGOS[item.nameEn.toLowerCase()];
                         
-                        // Dynamically adjust scale to balance visual weights of padded vs unpadded images:
                         const brandKey = item.nameEn.toLowerCase();
-                        let logoSize = 56; // Standard size (72 * 0.78)
+                        let logoSize = 56;
                         const paddedLogos = [
                           'acura', 'changan', 'dongfeng', 'fiat', 'ds', 
                           'hyundai', 'honda', 'lada', 'mg', 'porsche', 
                           'proton', 'volkswagen'
                         ];
                         if (paddedLogos.includes(brandKey)) {
-                          logoSize = 68; // Large size (72 * 0.94)
+                          logoSize = 68;
                         }
                         
                         return (
@@ -2570,10 +2638,11 @@ export default function GarageScreen({
                             onPress={() => {
                               setBrand(item.nameEn);
                               setBrandSearchQuery('');
+                              setModel('');
+                              setModelSearchQuery('');
                               setWizardStep(2);
                             }}
                           >
-                            {/* Emblem Badge */}
                             <View style={[
                               styles.brandEmblemBadge,
                               isBrandSelected && styles.brandEmblemBadgeSelected
@@ -2601,7 +2670,6 @@ export default function GarageScreen({
                               {brandName}
                             </Text>
 
-                            {/* Selection Indicator badge */}
                             {isBrandSelected && (
                               <View style={styles.brandSelectionIndicator}>
                                 <Ionicons name="checkmark-circle" size={16} color={colors.white} />
@@ -2612,24 +2680,55 @@ export default function GarageScreen({
                       })}
                     </View>
 
-                    {filteredBrands.length === 0 && brandSearchQuery.trim().length === 0 && (
+                    {filteredBrands.length === 0 && (
                       <Text style={styles.emptySearchText}>
-                        {selectedLanguage === 'Arabic' ? 'لا توجد ماركات متاحة.' : 'No brands available.'}
+                        {selectedLanguage === 'Arabic' ? 'لا توجد ماركات مطابقة للبحث.' : 'No matching brands found.'}
                       </Text>
                     )}
-                  </View>
+                  </ScrollView>
                 );
               })()}
 
               {/* STEP 2: SELECT MODEL */}
               {wizardStep === 2 && (() => {
-                const brandModels = CAR_BRANDS_AND_MODELS[brand.toLowerCase()] || [];
+                const brandModels = getBrandModels(brand);
                 const filteredModels = brandModels.filter(m => 
                   m.name.toLowerCase().includes(modelSearchQuery.toLowerCase())
                 );
+                const brandEmblem = BRAND_LOGOS[brand.toLowerCase()] || BRAND_LOGOS[brand.toLowerCase().replace(/\s+/g, '-')];
                 
                 return (
-                  <View style={styles.wizardStepView}>
+                  <View style={styles.stepContainer}>
+                    {/* Selected Brand Context Card */}
+                    <View style={[styles.selectedBrandBanner, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={[styles.selectedBrandBannerLeft, isRtl && { flexDirection: 'row-reverse' }]}>
+                        {brandEmblem ? (
+                          <Image source={brandEmblem} style={styles.selectedBrandBannerLogo} resizeMode="contain" />
+                        ) : null}
+                        <View style={isRtl ? { marginRight: 8 } : { marginLeft: 8 }}>
+                          <Text style={[styles.selectedBrandBannerTitle, isRtl && { textAlign: 'right' }]}>{brand}</Text>
+                          <Text style={[styles.selectedBrandBannerSubtitle, isRtl && { textAlign: 'right' }]}>
+                            {brandModels.length > 0 
+                              ? (selectedLanguage === 'Arabic' ? `${brandModels.length} موديل متاح` : `${brandModels.length} models available`)
+                              : (selectedLanguage === 'Arabic' ? 'موديل مخصص' : 'Custom model')}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.changeBrandBtn} 
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setWizardStep(1);
+                          setModel('');
+                          setModelSearchQuery('');
+                        }}
+                      >
+                        <Text style={styles.changeBrandBtnText}>
+                          {selectedLanguage === 'Arabic' ? 'تغيير' : 'Change'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
                     <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
                       {selectedLanguage === 'Arabic' 
                         ? `اختر موديل سيارتك الـ ${brand}` 
@@ -2646,114 +2745,131 @@ export default function GarageScreen({
                         value={modelSearchQuery}
                         onChangeText={setModelSearchQuery}
                       />
+                      {modelSearchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setModelSearchQuery('')} style={{ padding: 4 }}>
+                          <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                        </TouchableOpacity>
+                      )}
                     </View>
 
-                    {/* Selection List */}
-                    <View style={styles.modelListContainer}>
-                      <ScrollView 
-                        style={styles.modelScrollList} 
-                        nestedScrollEnabled={true}
-                        showsVerticalScrollIndicator={true}
-                      >
-                        {/* Custom Option based on Search Query */}
-                        {modelSearchQuery.trim().length > 0 && !brandModels.some(m => m.name.toLowerCase() === modelSearchQuery.toLowerCase()) && (
+                    {/* Native Model List (No nested ScrollView - full flex: 1) */}
+                    <ScrollView 
+                      style={styles.modelListNativeScroll} 
+                      contentContainerStyle={styles.modelListNativeScrollContent}
+                      showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {/* Custom Option based on Search Query */}
+                      {modelSearchQuery.trim().length > 0 && !brandModels.some(m => m.name.toLowerCase() === modelSearchQuery.toLowerCase()) && (
+                        <TouchableOpacity
+                          style={[styles.customModelOptionCard, isRtl && { flexDirection: 'row-reverse' }]}
+                          onPress={() => {
+                            setModel(modelSearchQuery.trim());
+                            setModelSearchQuery('');
+                            setWizardStep(3);
+                          }}
+                        >
+                          <Ionicons name="add-circle-outline" size={20} color={colors.bgBrand} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                          <Text style={styles.customModelOptionText}>
+                            {selectedLanguage === 'Arabic' 
+                              ? `استخدم الموديل المخصص: "${modelSearchQuery}"` 
+                              : `Use custom model: "${modelSearchQuery}"`}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {filteredModels.map((item) => {
+                        const isSelected = model.toLowerCase() === item.name.toLowerCase();
+                        const modelThumb = getModelThumbnail(brand, item);
+                        
+                        return (
                           <TouchableOpacity
-                            style={[styles.customModelOptionCard, isRtl && { flexDirection: 'row-reverse' }]}
+                            key={item.name}
+                            style={[
+                              styles.modelListItem,
+                              isRtl && { flexDirection: 'row-reverse' },
+                              isSelected && styles.modelListItemSelected
+                            ]}
+                            activeOpacity={0.75}
                             onPress={() => {
-                              setModel(modelSearchQuery.trim());
+                              setModel(item.name);
                               setModelSearchQuery('');
                               setWizardStep(3);
                             }}
                           >
-                            <Ionicons name="add-circle-outline" size={20} color={colors.bgBrand} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-                            <Text style={styles.customModelOptionText}>
-                              {selectedLanguage === 'Arabic' 
-                                ? `استخدم الموديل المخصص: "${modelSearchQuery}"` 
-                                : `Use custom model: "${modelSearchQuery}"`}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-
-                        {filteredModels.map((item) => {
-                          const isSelected = model === item.name;
-                          return (
-                            <TouchableOpacity
-                              key={item.name}
-                              style={[
-                                styles.modelListItem,
-                                isRtl && { flexDirection: 'row-reverse' },
-                                isSelected && styles.modelListItemSelected
-                              ]}
-                              onPress={() => {
-                                setModel(item.name);
-                                setModelSearchQuery('');
-                                setWizardStep(3);
-                              }}
-                            >
-                              <View style={[styles.modelListItemTextContainer, isRtl && { alignItems: 'flex-end' }]}>
-                                <Text style={[
-                                  styles.modelListItemText,
-                                  isSelected && styles.modelListItemTextSelected
-                                ]}>
-                                  {item.name}
-                                </Text>
-                                <Text style={[
-                                  styles.modelListItemSubtext,
-                                  isSelected && styles.modelListItemSubtextSelected
-                                ]}>
-                                  {selectedLanguage === 'Arabic' 
-                                    ? `سنوات الإنتاج: ${item.startYear} - ${item.endYear}` 
-                                    : `Years: ${item.startYear} - ${item.endYear}`}
-                                </Text>
-                              </View>
-                              
-                              {isSelected && (
-                                <View style={styles.modelListCheckmarkCircle}>
-                                  <Ionicons name="checkmark" size={12} color={colors.bgBrand} />
-                                </View>
+                            {/* Model Thumbnail Preview */}
+                            <View style={[styles.modelListItemThumbnail, isSelected && styles.modelListItemThumbnailSelected]}>
+                              {modelThumb ? (
+                                <Image source={modelThumb} style={styles.modelListItemImage} resizeMode="contain" />
+                              ) : (
+                                <Ionicons name="car-outline" size={22} color={isSelected ? colors.white : colors.bgBrand} />
                               )}
-                            </TouchableOpacity>
-                          );
-                        })}
-
-                        {filteredModels.length === 0 && modelSearchQuery.trim().length === 0 && (
-                          brandModels.length > 0 ? (
-                            <Text style={styles.emptySearchText}>
-                              {selectedLanguage === 'Arabic' ? 'لا توجد نتائج مطابقة.' : 'No matching results found.'}
-                            </Text>
-                          ) : (
-                            <View style={{ marginTop: 10 }}>
-                              <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
-                                {selectedLanguage === 'Arabic' ? 'اكتب موديل السيارة مخصصاً:' : 'Type custom model name:'}
-                              </Text>
-                              <View style={[styles.customInputRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                                <TextInput 
-                                  style={[styles.wizardInput, { flex: 1 }, isRtl && { textAlign: 'right' }]}
-                                  placeholder={selectedLanguage === 'Arabic' ? 'مثال: كوبيه' : 'e.g. Coupe'}
-                                  placeholderTextColor={colors.textMuted}
-                                  value={model}
-                                  onChangeText={setModel}
-                                />
-                              </View>
                             </View>
-                          )
-                        )}
-                      </ScrollView>
-                    </View>
+
+                            <View style={[styles.modelListItemTextContainer, isRtl && { alignItems: 'flex-end' }]}>
+                              <Text style={[
+                                styles.modelListItemText,
+                                isSelected && styles.modelListItemTextSelected
+                              ]}>
+                                {item.name}
+                              </Text>
+                              <Text style={[
+                                styles.modelListItemSubtext,
+                                isSelected && styles.modelListItemSubtextSelected
+                              ]}>
+                                {selectedLanguage === 'Arabic' 
+                                  ? `سنوات الإنتاج: ${item.startYear} - ${item.endYear}` 
+                                  : `Years: ${item.startYear} - ${item.endYear}`}
+                              </Text>
+                            </View>
+                            
+                            <View style={[styles.modelListCheckmarkCircle, isSelected && styles.modelListCheckmarkCircleActive]}>
+                              {isSelected ? (
+                                <Ionicons name="checkmark" size={12} color={colors.white} />
+                              ) : null}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+
+                      {filteredModels.length === 0 && modelSearchQuery.trim().length === 0 && (
+                        brandModels.length > 0 ? (
+                          <Text style={styles.emptySearchText}>
+                            {selectedLanguage === 'Arabic' ? 'لا توجد نتائج مطابقة.' : 'No matching results found.'}
+                          </Text>
+                        ) : (
+                          <View style={{ marginTop: 10 }}>
+                            <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
+                              {selectedLanguage === 'Arabic' ? 'اكتب موديل السيارة مخصصاً:' : 'Type custom model name:'}
+                            </Text>
+                            <View style={[styles.customInputRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                              <TextInput 
+                                style={[styles.wizardInput, { flex: 1 }, isRtl && { textAlign: 'right' }]}
+                                placeholder={selectedLanguage === 'Arabic' ? 'مثال: كوبيه' : 'e.g. Coupe'}
+                                placeholderTextColor={colors.textMuted}
+                                value={model}
+                                onChangeText={setModel}
+                              />
+                            </View>
+                          </View>
+                        )
+                      )}
+                    </ScrollView>
                   </View>
                 );
               })()}
 
               {/* STEP 3: SELECT YEAR */}
               {wizardStep === 3 && (() => {
-                const brandModels = CAR_BRANDS_AND_MODELS[brand.toLowerCase()] || [];
+                const brandModels = getBrandModels(brand);
                 const matchedModelObj = brandModels.find(m => m.name.toLowerCase() === model.toLowerCase());
+                const brandEmblem = BRAND_LOGOS[brand.toLowerCase()] || BRAND_LOGOS[brand.toLowerCase().replace(/\s+/g, '-')];
                 
                 let startY = 1980;
                 let endY = new Date().getFullYear();
                 if (matchedModelObj) {
-                  startY = matchedModelObj.startYear;
-                  endY = matchedModelObj.endYear;
+                  startY = matchedModelObj.startYear || 1980;
+                  endY = matchedModelObj.endYear || new Date().getFullYear();
                 }
                 
                 const yearsList = [];
@@ -2762,54 +2878,106 @@ export default function GarageScreen({
                 }
 
                 return (
-                  <View style={styles.wizardStepView}>
+                  <View style={styles.stepContainer}>
+                    {/* Selected Model Context Card */}
+                    <View style={[styles.selectedBrandBanner, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={[styles.selectedBrandBannerLeft, isRtl && { flexDirection: 'row-reverse' }]}>
+                        {brandEmblem ? (
+                          <Image source={brandEmblem} style={styles.selectedBrandBannerLogo} resizeMode="contain" />
+                        ) : null}
+                        <View style={isRtl ? { marginRight: 8 } : { marginLeft: 8 }}>
+                          <Text style={[styles.selectedBrandBannerTitle, isRtl && { textAlign: 'right' }]}>{brand} {model}</Text>
+                          <Text style={[styles.selectedBrandBannerSubtitle, isRtl && { textAlign: 'right' }]}>
+                            {selectedLanguage === 'Arabic' ? `${startY} - ${endY}` : `Production: ${startY} - ${endY}`}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.changeBrandBtn} 
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setWizardStep(2);
+                          setYear('');
+                        }}
+                      >
+                        <Text style={styles.changeBrandBtnText}>
+                          {selectedLanguage === 'Arabic' ? 'تغيير' : 'Change'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
                     <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
                       {selectedLanguage === 'Arabic' 
                         ? `اختر سنة صنع سيارتك الـ ${brand} ${model}` 
                         : `Select the year of your ${brand} ${model}`}
                     </Text>
 
-                    {/* Scrollable Year Grid */}
-                    <View style={styles.yearGridContainer}>
-                      <ScrollView 
-                        style={styles.yearScrollList}
-                        nestedScrollEnabled={true}
-                        showsVerticalScrollIndicator={true}
-                      >
-                        <View style={[styles.yearGrid, isRtl && { flexDirection: 'row-reverse' }]}>
-                          {yearsList.map((yrItem) => {
-                            const isSelected = year === yrItem;
-                            return (
-                              <TouchableOpacity
-                                key={yrItem}
-                                style={[
-                                  styles.yearCard,
-                                  isSelected && styles.yearCardSelected
-                                ]}
-                                onPress={() => {
-                                  setYear(yrItem);
-                                  setWizardStep(4);
-                                }}
-                              >
-                                {renderTextWithSystemNumbers(
-                                  yrItem,
-                                  isRtl,
-                                  isSelected ? styles.yearCardTextSelected : styles.yearCardText,
-                                  12
-                                )}
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </ScrollView>
-                    </View>
+                    {/* Native Year Grid */}
+                    <ScrollView 
+                      style={styles.yearScrollNative}
+                      contentContainerStyle={styles.yearGridContent}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      <View style={[styles.yearGrid, isRtl && { flexDirection: 'row-reverse' }]}>
+                        {yearsList.map((yrItem) => {
+                          const isSelected = year === yrItem;
+                          return (
+                            <TouchableOpacity
+                              key={yrItem}
+                              style={[
+                                styles.yearCard,
+                                isSelected && styles.yearCardSelected
+                              ]}
+                              activeOpacity={0.8}
+                              onPress={() => {
+                                setYear(yrItem);
+                                setWizardStep(4);
+                              }}
+                            >
+                              {renderTextWithSystemNumbers(
+                                yrItem,
+                                isRtl,
+                                isSelected ? styles.yearCardTextSelected : styles.yearCardText,
+                                13
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
                   </View>
                 );
               })()}
 
               {/* STEP 4: DETAILS (TRANSMISSION & PLATE) */}
               {wizardStep === 4 && (
-                <View style={styles.wizardStepView}>
+                <ScrollView 
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.detailsScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Selected Car Summary */}
+                  <View style={[styles.selectedBrandBanner, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={[styles.selectedBrandBannerLeft, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={isRtl ? { marginRight: 4 } : { marginLeft: 4 }}>
+                        <Text style={[styles.selectedBrandBannerTitle, isRtl && { textAlign: 'right' }]}>{brand} {model}</Text>
+                        <Text style={[styles.selectedBrandBannerSubtitle, isRtl && { textAlign: 'right' }]}>
+                          {selectedLanguage === 'Arabic' ? `موديل ${year}` : `${year} Model`}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.changeBrandBtn} 
+                      activeOpacity={0.7}
+                      onPress={() => setWizardStep(3)}
+                    >
+                      <Text style={styles.changeBrandBtnText}>
+                        {selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <Text style={[styles.wizardPrompt, isRtl && { textAlign: 'right' }]}>
                     {selectedLanguage === 'Arabic' ? 'اختر ناقل الحركة ورقم اللوحة' : 'Transmission & Plate Number'}
                   </Text>
@@ -2868,19 +3036,14 @@ export default function GarageScreen({
                     </Text>
                     <View style={styles.plateInputContainer}>
                       <View style={styles.metalPlate}>
-                        {/* Left Screw Bolt */}
                         <View style={[styles.plateScrew, { left: 10 }]} />
-                        
-                        {/* Right Screw Bolt */}
                         <View style={[styles.plateScrew, { right: 10 }]} />
 
-                        {/* Top Blue Header Band */}
                         <View style={[styles.plateHeaderBand, isRtl && { flexDirection: 'row-reverse' }]}>
                           <Text style={styles.plateHeaderCountryEn}>EGYPT</Text>
                           <Text style={styles.plateHeaderCountryAr}>مِصْر</Text>
                         </View>
 
-                        {/* Split TextInputs inside the plate */}
                         <View style={[styles.plateInputsRow, isRtl && { flexDirection: 'row-reverse' }]}>
                           <TextInput 
                             style={styles.wizardPlateInputHalf}
@@ -2913,7 +3076,6 @@ export default function GarageScreen({
                     </View>
                   </View>
 
-                  {/* Optional CC field */}
                   <View style={[styles.formGroup, { marginTop: 5 }]}>
                     <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
                       {selectedLanguage === 'Arabic' ? 'سعة المحرك (اختياري):' : 'Engine CC (Optional):'}
@@ -2926,11 +3088,9 @@ export default function GarageScreen({
                       onChangeText={setCc}
                     />
                   </View>
-
-
-                </View>
+                </ScrollView>
               )}
-            </ScrollView>
+            </View>
 
             {/* Sticky Grounded Premium Navigation Footer */}
             {wizardStep > 1 && (
@@ -4668,32 +4828,109 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
     color: colors.white,
   },
-  modelListContainer: {
-    height: 380,
-    marginTop: 10,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    overflow: 'hidden',
+  wizardBodyContainer: {
+    flex: 1,
   },
-  modelScrollList: {
-    padding: 10,
+  stepContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  brandScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 35,
+  },
+  selectedBrandBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen + '40',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  selectedBrandBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  selectedBrandBannerLogo: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
+  },
+  selectedBrandBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  selectedBrandBannerSubtitle: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  changeBrandBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.bgBrand + '25',
+  },
+  changeBrandBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  modelListNativeScroll: {
+    flex: 1,
+    marginTop: 8,
+  },
+  modelListNativeScrollContent: {
+    paddingBottom: 35,
   },
   modelListItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderRadius: 12,
+    marginBottom: 7,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen + '35',
+    backgroundColor: colors.white,
   },
   modelListItemSelected: {
     backgroundColor: colors.bgBrand,
     borderColor: colors.bgBrand,
+  },
+  modelListItemThumbnail: {
+    width: 52,
+    height: 36,
+    borderRadius: 8,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgBrandLight,
+    overflow: 'hidden',
+  },
+  modelListItemThumbnailSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modelListItemImage: {
+    width: '90%',
+    height: '90%',
   },
   modelListItemTextContainer: {
     flexDirection: 'column',
@@ -4701,7 +4938,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   modelListItemText: {
-    fontSize: 13.5,
+    fontSize: 14,
     color: colors.textDark,
     fontWeight: '600',
   },
@@ -4710,26 +4947,27 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
   },
   modelListItemSubtext: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: colors.textMuted,
     fontWeight: '500',
     marginTop: 2,
   },
   modelListItemSubtextSelected: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   modelListCheckmarkCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.bgCreamy,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1.5,
-    elevation: 1,
+  },
+  modelListCheckmarkCircleActive: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.white,
   },
   customModelOptionCard: {
     flexDirection: 'row',
@@ -4739,7 +4977,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.bgBrandLight,
     borderWidth: 1,
     borderColor: colors.bgBrand + '30',
-    borderRadius: 10,
+    borderRadius: 12,
     marginBottom: 10,
   },
   customModelOptionText: {
@@ -4751,24 +4989,24 @@ const createStyles = (colors) => StyleSheet.create({
     textAlign: 'center',
     color: colors.textMuted,
     fontSize: 13,
-    paddingVertical: 15,
+    paddingVertical: 20,
   },
-  yearGridContainer: {
-    height: 380,
+  yearScrollNative: {
+    flex: 1,
     marginTop: 10,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    overflow: 'hidden',
   },
-  yearScrollList: {
-    padding: 10,
+  yearGridContent: {
+    paddingBottom: 35,
   },
   yearGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
+  },
+  detailsScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 40,
   },
   yearCard: {
     width: '22%',

@@ -2728,8 +2728,96 @@ export const CAR_BRANDS_AND_MODELS = {
       endYear: 2026
     }
   ],
-  mercedes: null // Alias assigned below
+  acura: [
+    { name: 'ILX', startYear: 2013, endYear: 2022 },
+    { name: 'Integra', startYear: 1986, endYear: 2026 },
+    { name: 'MDX', startYear: 2001, endYear: 2026 },
+    { name: 'NSX', startYear: 1990, endYear: 2022 },
+    { name: 'RDX', startYear: 2006, endYear: 2026 },
+    { name: 'RSX', startYear: 2002, endYear: 2006 },
+    { name: 'TLX', startYear: 2015, endYear: 2026 },
+    { name: 'TSX', startYear: 2004, endYear: 2014 }
+  ],
+  cadillac: [
+    { name: 'ATS', startYear: 2013, endYear: 2019 },
+    { name: 'CT4', startYear: 2020, endYear: 2026 },
+    { name: 'CT5', startYear: 2020, endYear: 2026 },
+    { name: 'CT6', startYear: 2016, endYear: 2020 },
+    { name: 'CTS', startYear: 2003, endYear: 2019 },
+    { name: 'DeVille', startYear: 1985, endYear: 2005 },
+    { name: 'DTS', startYear: 2006, endYear: 2011 },
+    { name: 'Escalade', startYear: 1999, endYear: 2026 },
+    { name: 'SRX', startYear: 2004, endYear: 2016 },
+    { name: 'XT4', startYear: 2019, endYear: 2026 },
+    { name: 'XT5', startYear: 2017, endYear: 2026 },
+    { name: 'XT6', startYear: 2020, endYear: 2026 }
+  ],
+  datsun: [
+    { name: '120Y', startYear: 1973, endYear: 1982 },
+    { name: '280ZX', startYear: 1978, endYear: 1983 },
+    { name: 'Cross', startYear: 2018, endYear: 2020 },
+    { name: 'Go', startYear: 2014, endYear: 2022 },
+    { name: 'Go+', startYear: 2014, endYear: 2022 },
+    { name: 'mi-DO', startYear: 2015, endYear: 2020 },
+    { name: 'on-DO', startYear: 2014, endYear: 2020 }
+  ],
+  dayun: [
+    { name: 'Chiye', startYear: 2022, endYear: 2026 },
+    { name: 'Yuanhang H8', startYear: 2023, endYear: 2026 },
+    { name: 'Yuanhang Y6', startYear: 2023, endYear: 2026 },
+    { name: 'Yuehu', startYear: 2022, endYear: 2026 }
+  ],
+  forthing: [
+    { name: 'Friday', startYear: 2023, endYear: 2026 },
+    { name: 'SX6', startYear: 2016, endYear: 2024 },
+    { name: 'T5 EVO', startYear: 2021, endYear: 2026 },
+    { name: 'U-Tour', startYear: 2022, endYear: 2026 },
+    { name: 'Yacht', startYear: 2022, endYear: 2026 }
+  ],
+  gmc: [
+    { name: 'Acadia', startYear: 2007, endYear: 2026 },
+    { name: 'Canyon', startYear: 2004, endYear: 2026 },
+    { name: 'Envoy', startYear: 1998, endYear: 2009 },
+    { name: 'Jimmy', startYear: 1983, endYear: 2005 },
+    { name: 'Savana', startYear: 1996, endYear: 2026 },
+    { name: 'Sierra', startYear: 1988, endYear: 2026 },
+    { name: 'Terrain', startYear: 2010, endYear: 2026 },
+    { name: 'Yukon', startYear: 1992, endYear: 2026 }
+  ],
+  hummer: [
+    { name: 'EV', startYear: 2022, endYear: 2026 },
+    { name: 'H1', startYear: 1992, endYear: 2006 },
+    { name: 'H2', startYear: 2002, endYear: 2009 },
+    { name: 'H3', startYear: 2005, endYear: 2010 }
+  ],
+  infiniti: [
+    { name: 'FX35', startYear: 2003, endYear: 2012 },
+    { name: 'FX37', startYear: 2009, endYear: 2013 },
+    { name: 'FX50', startYear: 2009, endYear: 2013 },
+    { name: 'G35', startYear: 2003, endYear: 2008 },
+    { name: 'G37', startYear: 2008, endYear: 2013 },
+    { name: 'Q50', startYear: 2014, endYear: 2026 },
+    { name: 'Q60', startYear: 2014, endYear: 2022 },
+    { name: 'Q70', startYear: 2014, endYear: 2019 },
+    { name: 'QX50', startYear: 2014, endYear: 2026 },
+    { name: 'QX55', startYear: 2021, endYear: 2026 },
+    { name: 'QX60', startYear: 2014, endYear: 2026 },
+    { name: 'QX80', startYear: 2014, endYear: 2026 }
+  ],
+  tata: [
+    { name: 'Altroz', startYear: 2020, endYear: 2026 },
+    { name: 'Harrier', startYear: 2019, endYear: 2026 },
+    { name: 'Indica', startYear: 1998, endYear: 2018 },
+    { name: 'Nexon', startYear: 2017, endYear: 2026 },
+    { name: 'Punch', startYear: 2021, endYear: 2026 },
+    { name: 'Safari', startYear: 1998, endYear: 2026 },
+    { name: 'Tiago', startYear: 2016, endYear: 2026 },
+    { name: 'Tigor', startYear: 2017, endYear: 2026 }
+  ]
 };
 
-// Provide alias for mercedes
+// Provide aliases
 CAR_BRANDS_AND_MODELS['mercedes'] = CAR_BRANDS_AND_MODELS['mercedes-benz'];
+CAR_BRANDS_AND_MODELS['mini'] = CAR_BRANDS_AND_MODELS['mini cooper'];
+CAR_BRANDS_AND_MODELS['land-rover'] = CAR_BRANDS_AND_MODELS['land rover'];
+CAR_BRANDS_AND_MODELS['alfa-romeo'] = CAR_BRANDS_AND_MODELS['alfa romeo'];
