@@ -17,13 +17,8 @@ export default function Header({
   onSetSignInVisible,
   selectedLanguage: propSelectedLanguage,
   onSelectLanguage,
-  settingsVisible: propSettingsVisible,
-  onSetSettingsVisible,
-  onEditProfile
+  onOpenSettings
 }) {
-  const [localSettingsVisible, setLocalSettingsVisible] = useState(false);
-  const settingsVisible = propSettingsVisible !== undefined ? propSettingsVisible : localSettingsVisible;
-  const setSettingsVisible = onSetSettingsVisible || setLocalSettingsVisible;
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [notifications, setNotifications] = useState([
     {
@@ -78,7 +73,7 @@ export default function Header({
     return currentUser.fullName.trim().split(/\s+/)[0];
   };
 
-  if (currentTab === 'mechanics') {
+  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community') {
     return (
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <SignInScreen 
@@ -86,15 +81,7 @@ export default function Header({
           onClose={() => onSetSignInVisible(false)} 
           onSignInSuccess={onSetCurrentUser}
         />
-        <SettingsScreen 
-          visible={settingsVisible} 
-          onClose={() => setSettingsVisible(false)} 
-          currentUser={currentUser}
-          onLogOut={() => onSetCurrentUser(null)}
-          selectedLanguage={selectedLanguage}
-          onSelectLanguage={setSelectedLanguage}
-          onEditProfile={onEditProfile}
-        />
+
         <NotificationsModal 
           visible={notificationsVisible}
           onClose={() => setNotificationsVisible(false)}
@@ -118,15 +105,7 @@ export default function Header({
         onClose={() => onSetSignInVisible(false)} 
         onSignInSuccess={onSetCurrentUser}
       />
-      <SettingsScreen 
-        visible={settingsVisible} 
-        onClose={() => setSettingsVisible(false)} 
-        currentUser={currentUser}
-        onLogOut={() => onSetCurrentUser(null)}
-        selectedLanguage={selectedLanguage}
-        onSelectLanguage={setSelectedLanguage}
-        onEditProfile={onEditProfile}
-      />
+
       <NotificationsModal 
         visible={notificationsVisible}
         onClose={() => setNotificationsVisible(false)}
@@ -274,7 +253,7 @@ export default function Header({
             <TouchableOpacity 
               style={styles.settingsButton} 
               activeOpacity={0.8}
-              onPress={() => setSettingsVisible(true)}
+              onPress={() => onOpenSettings && onOpenSettings()}
             >
               <Ionicons name="settings-outline" size={18} color={colors.textCream} />
             </TouchableOpacity>

@@ -4,7 +4,6 @@ import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { BRAND_LOGOS } from '../data/brandLogos';
-import { CAR_BRANDS_AND_MODELS } from '../data/carModels';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Helper to split numbers (left) and letters (right) on license plates
@@ -33,7 +32,8 @@ export default function ActiveVehicleCard({
   style,
   onChangePress,
   onAddPress,
-  variant = 'horizontal'
+  variant = 'horizontal',
+  onPress
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -57,45 +57,54 @@ export default function ActiveVehicleCard({
   const carYear = vehicle ? vehicle.year : '';
   const plateNumber = vehicle ? (vehicle.plateNumberArabic || vehicle.plateNumber) : '';
 
-  // Resolve vehicle image: first look for exact model/year profile image in CAR_BRANDS_AND_MODELS, then fallback to brand emblem, then default profile
-  let carImageSource = require('../../assets/car_side_profile.png');
-  let hasCustomImage = false;
-  let isModelProfileImage = false;
+  // Resolve vehicle card image: Show ONLY the brand's logo
+  const normalizedBrand = carBrand ? carBrand.trim().toLowerCase() : '';
+  const arabicBrandMap = {
+    'مرسيدس': 'mercedes',
+    'بي إم دبليو': 'bmw',
+    'أودي': 'audi',
+    'بورشه': 'porsche',
+    'فولكس فاجن': 'volkswagen',
+    'هيونداي': 'hyundai',
+    'نيسان': 'nissan',
+    'تويوتا': 'toyota',
+    'كيا': 'kia',
+    'فيات': 'fiat',
+    'رينو': 'renault',
+    'بيجو': 'peugeot',
+    'شيري': 'chery',
+    'إم جي': 'mg',
+    'ميتسوبيشي': 'mitsubishi',
+    'أوبل': 'opel',
+    'سكودا': 'skoda',
+    'سيات': 'seat',
+    'شيفروليه': 'chevrolet',
+    'فورد': 'ford',
+    'هوندا': 'honda',
+    'سوبارو': 'subaru',
+    'سوزوكي': 'suzuki',
+    'تسلا': 'tesla',
+    'فولفو': 'volvo',
+    'لاند روفر': 'land rover',
+    'مازدا': 'mazda',
+    'جيب': 'jeep',
+    'شانجان': 'changan',
+    'هافال': 'haval',
+    'جيلي': 'geely',
+    'بايك': 'baic',
+    'بي واي دي': 'byd',
+  };
 
-  if (carBrand) {
-    const normalizedBrand = carBrand.trim().toLowerCase();
-    const brandModels = CAR_BRANDS_AND_MODELS[normalizedBrand] || 
-                        (normalizedBrand === 'mercedes' ? CAR_BRANDS_AND_MODELS['mercedes-benz'] : []) || [];
-
-    if (carModel && brandModels.length > 0) {
-      const cleanCarModel = carModel.trim().toLowerCase();
-      const matchedModel = brandModels.find(m => m.name.toLowerCase() === cleanCarModel);
-      if (matchedModel) {
-        if (Array.isArray(matchedModel.images) && matchedModel.images.length > 0) {
-          const parsedYear = parseInt(carYear) || new Date().getFullYear();
-          const matchedGen = matchedModel.images.find(imgObj => parsedYear >= imgObj.startYear && parsedYear <= imgObj.endYear) || matchedModel.images[0];
-          if (matchedGen && matchedGen.image) {
-            carImageSource = matchedGen.image;
-            hasCustomImage = true;
-            isModelProfileImage = true;
-          }
-        } else if (matchedModel.image) {
-          carImageSource = matchedModel.image;
-          hasCustomImage = true;
-          isModelProfileImage = true;
-        }
-      }
-    }
-
-    // Fallback to brand emblem if no specific model profile image exists
-    if (!isModelProfileImage) {
-      const brandLogo = BRAND_LOGOS[normalizedBrand];
-      if (brandLogo) {
-        carImageSource = brandLogo;
-        hasCustomImage = true;
-      }
-    }
-  }
+  const lookupKey = arabicBrandMap[carBrand.trim()] || normalizedBrand;
+  const brandLogo = BRAND_LOGOS[lookupKey] || 
+                    BRAND_LOGOS[lookupKey.replace(/\s+/g, '-')] || 
+                    BRAND_LOGOS[lookupKey.replace(/-/g, ' ')] || 
+                    (lookupKey === 'mercedes' ? BRAND_LOGOS['mercedes'] : null) || 
+                    (lookupKey.includes('mercedes') ? BRAND_LOGOS['mercedes'] : null) || 
+                    (lookupKey.includes('mini') ? BRAND_LOGOS['mini cooper'] : null) || 
+                    (lookupKey.includes('rover') ? BRAND_LOGOS['land rover'] : null) || 
+                    (lookupKey.includes('alfa') ? BRAND_LOGOS['alfa romeo'] : null) || 
+                    null;
 
   const isRtl = selectedLanguage === 'Arabic';
   const labelActiveVehicle = isRtl ? 'المركبة النشطة' : 'ACTIVE VEHICLE';
@@ -110,9 +119,11 @@ export default function ActiveVehicleCard({
           styles.verticalCardContainer, 
           style
         ]}
-        activeOpacity={isGuest ? 0.75 : 1}
+        activeOpacity={onPress ? 0.82 : (isGuest ? 0.75 : 1)}
         onPress={() => {
-          if (isGuest && onOpenSignIn) {
+          if (onPress) {
+            onPress();
+          } else if (isGuest && onOpenSignIn) {
             onOpenSignIn();
           }
         }}
@@ -130,10 +141,13 @@ export default function ActiveVehicleCard({
         </View>
 
         {/* Header Row */}
-        <View style={[
-          styles.verticalHeaderRow, 
-          isRtl && { flexDirection: 'row-reverse' }
-        ]}>
+        <View 
+          pointerEvents="none"
+          style={[
+            styles.verticalHeaderRow, 
+            isRtl && { flexDirection: 'row-reverse' }
+          ]}
+        >
           <View style={[styles.verticalHeaderPill, isRtl && { flexDirection: 'row-reverse' }]}>
             <Ionicons 
               name="car-sport-outline" 
@@ -147,25 +161,21 @@ export default function ActiveVehicleCard({
           </View>
         </View>
 
-        {/* Image / Emblem Zone */}
-        <View style={styles.verticalImageSection}>
-          {isGuest ? (
-            <Ionicons name="add-circle-outline" size={38} color="rgba(77, 110, 79, 0.45)" />
+        {/* Brand Logo Zone */}
+        <View pointerEvents="none" style={styles.verticalImageSection}>
+          {isGuest || !brandLogo ? (
+            <Ionicons name="car-outline" size={38} color={colors.bgBrand} style={{ opacity: 0.5 }} />
           ) : (
             <Image 
-              source={carImageSource} 
-              style={[
-                styles.verticalCarImage, 
-                isRtl && !hasCustomImage && { transform: [{ scaleX: -1 }] },
-                !hasCustomImage && { opacity: 0.6 }
-              ]} 
+              source={brandLogo} 
+              style={styles.verticalBrandLogo} 
               resizeMode="contain" 
             />
           )}
         </View>
 
         {/* Details Section */}
-        <View style={styles.verticalDetailsSection}>
+        <View pointerEvents="none" style={styles.verticalDetailsSection}>
           {isGuest ? (
             <>
               <Text style={[styles.verticalNoVehicleText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
@@ -263,9 +273,11 @@ export default function ActiveVehicleCard({
         (isRtl && !showExtendedInfo) ? { height: hasFooter ? 145 : 125, marginTop: 0 } : { minHeight: hasFooter ? 145 : 125 }, 
         style
       ]}
-      activeOpacity={isGuest ? 0.75 : 1}
+      activeOpacity={onPress ? 0.82 : (isGuest ? 0.75 : 1)}
       onPress={() => {
-        if (isGuest && onOpenSignIn) {
+        if (onPress) {
+          onPress();
+        } else if (isGuest && onOpenSignIn) {
           onOpenSignIn();
         }
       }}
@@ -275,16 +287,6 @@ export default function ActiveVehicleCard({
         tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
         style={StyleSheet.absoluteFill}
       />
-
-      {/* 3D Glossy Bevel Highlight Overlay */}
-      <View style={{
-        ...StyleSheet.absoluteFillObject,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        borderColor: 'transparent',
-        borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-        borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-      }} pointerEvents="none" />
 
       {/* Header Row */}
       <View style={[
@@ -352,20 +354,14 @@ export default function ActiveVehicleCard({
         {/* Vertical Divider Line */}
         <View style={styles.divider} />
 
-        {/* Image Zone (takes 1/3 of space) */}
+        {/* Brand Logo Zone (takes 1/3 of space) */}
         <View style={styles.imageSection}>
-          {isGuest ? (
-            <Ionicons name="add-circle-outline" size={32} color="rgba(77, 110, 79, 0.45)" />
+          {isGuest || !brandLogo ? (
+            <Ionicons name="car-outline" size={38} color={colors.bgBrand} style={{ opacity: 0.5 }} />
           ) : (
             <Image 
-              source={carImageSource} 
-              style={[
-                styles.carImage, 
-                isRtl && !hasCustomImage && { transform: [{ scaleX: -1 }] },
-                hasCustomImage 
-                  ? (isModelProfileImage ? { width: '100%', height: '100%', opacity: 1 } : { width: 85, height: 85, opacity: 1 }) 
-                  : { width: '100%', height: '100%' }
-              ]} 
+              source={brandLogo} 
+              style={styles.cardBrandLogo} 
               resizeMode="contain" 
             />
           )}
@@ -484,15 +480,14 @@ const createStyles = (colors) => StyleSheet.create({
     marginHorizontal: 12,
   },
   imageSection: {
-    width: 110, // Locks the width of the image section to 1/3 of the screen width
-    height: 90, // Locks the height safely within the card's inner bounds
+    width: 130,
+    height: 105,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  carImage: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.6,
+  cardBrandLogo: {
+    width: 120,
+    height: 100,
   },
   extendedInfoRow: {
     flexDirection: 'row',
@@ -620,15 +615,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   verticalImageSection: {
     width: '100%',
-    height: 88,
+    height: 102,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 3,
-    marginBottom: 5,
+    marginTop: 2,
+    marginBottom: 4,
   },
-  verticalCarImage: {
-    width: '88%',
-    height: '100%',
+  verticalBrandLogo: {
+    width: 110,
+    height: 98,
   },
   verticalDetailsSection: {
     width: '100%',

@@ -26,15 +26,8 @@ export default function HomeScreen({
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bgCreamy} />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isRtl && { paddingTop: 6 }
-        ]}
-        scrollEnabled={false}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.scrollView}>
+        <View style={[styles.scrollContent, isRtl && { paddingTop: 6 }]}>
           {/* Main Top Row */}
           <View style={[styles.mainRow, isRtl && { flexDirection: 'row-reverse' }]}>
             {/* Left Column: Vertical Active Vehicle Card */}
@@ -45,6 +38,9 @@ export default function HomeScreen({
                 selectedLanguage={selectedLanguage} 
                 activeVehicle={activeVehicle}
                 variant="vertical"
+                onPress={() => {
+                  if (onNavigate) onNavigate('garage');
+                }}
               />
             </View>
 
@@ -86,7 +82,7 @@ export default function HomeScreen({
                 </View>
 
                 {/* Header: Title & Subtitle */}
-                <View style={styles.miniCardHeader}>
+                <View style={styles.miniCardHeader} pointerEvents="none">
                   <Text 
                     style={[
                       styles.miniCardTitle, 
@@ -110,7 +106,7 @@ export default function HomeScreen({
                 </View>
 
                 {/* Premium Action Arrow Button (Bottom Left) */}
-                <View style={styles.miniCardArrowButton}>
+                <View style={styles.miniCardArrowButton} pointerEvents="none">
                   <Ionicons 
                     name={isRtl ? "arrow-back" : "arrow-forward"} 
                     size={13.5} 
@@ -155,7 +151,7 @@ export default function HomeScreen({
                 </View>
 
                 {/* Header: Title & Subtitle */}
-                <View style={styles.miniCardHeader}>
+                <View style={styles.miniCardHeader} pointerEvents="none">
                   <Text 
                     style={[
                       styles.miniCardTitle, 
@@ -179,7 +175,7 @@ export default function HomeScreen({
                 </View>
 
                 {/* Premium Action Arrow Button (Bottom Left) */}
-                <View style={styles.miniCardArrowButton}>
+                <View style={styles.miniCardArrowButton} pointerEvents="none">
                   <Ionicons 
                     name={isRtl ? "arrow-back" : "arrow-forward"} 
                     size={13.5} 
@@ -287,10 +283,10 @@ export default function HomeScreen({
               style={styles.miniCardProfile}
               activeOpacity={0.82}
               onPress={() => {
-                if (currentUser) {
-                  if (onSelectProfile) onSelectProfile();
-                } else {
-                  if (onOpenSignIn) onOpenSignIn();
+                if (onSelectProfile) {
+                  onSelectProfile();
+                } else if (onOpenSignIn) {
+                  onOpenSignIn();
                 }
               }}
             >
@@ -322,7 +318,7 @@ export default function HomeScreen({
               </View>
 
               {/* Header: Title & Subtitle */}
-              <View style={styles.miniCardHeader}>
+              <View style={styles.miniCardHeader} pointerEvents="none">
                 <Text 
                   style={[
                     styles.miniCardTitle, 
@@ -346,7 +342,7 @@ export default function HomeScreen({
               </View>
 
               {/* Premium Action Arrow Button (Bottom Left) */}
-              <View style={styles.miniCardArrowButton}>
+              <View style={styles.miniCardArrowButton} pointerEvents="none">
                 <Ionicons 
                   name={isRtl ? "arrow-back" : "arrow-forward"} 
                   size={13.5} 
@@ -362,7 +358,8 @@ export default function HomeScreen({
             selectedLanguage={selectedLanguage} 
             onSelectAd={onSelectAd} 
           />
-        </ScrollView>
+        </View>
+      </View>
     </View>
   );
 }

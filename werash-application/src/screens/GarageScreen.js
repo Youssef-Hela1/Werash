@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   StyleSheet, 
   View, 
@@ -13,7 +14,8 @@ import {
   Dimensions,
   Platform,
   KeyboardAvoidingView,
-  Keyboard
+  Keyboard,
+  Animated
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
@@ -125,16 +127,53 @@ export const getBrandModels = (brandName) => {
   return [];
 };
 
-export const getModelThumbnail = (brandName, modelItem) => {
-  if (!modelItem) return null;
-  if (Array.isArray(modelItem.images) && modelItem.images.length > 0 && modelItem.images[0].image) {
-    return modelItem.images[0].image;
-  }
-  if (modelItem.image) {
-    return modelItem.image;
-  }
+export const getModelThumbnail = (brandName) => {
   const cleanBrand = String(brandName || '').trim().toLowerCase();
-  return BRAND_LOGOS[cleanBrand] || BRAND_LOGOS[cleanBrand.replace(/\s+/g, '-')] || null;
+  const arabicBrandMap = {
+    'مرسيدس': 'mercedes',
+    'بي إم دبليو': 'bmw',
+    'أودي': 'audi',
+    'بورشه': 'porsche',
+    'فولكس فاجن': 'volkswagen',
+    'هيونداي': 'hyundai',
+    'نيسان': 'nissan',
+    'تويوتا': 'toyota',
+    'كيا': 'kia',
+    'فيات': 'fiat',
+    'رينو': 'renault',
+    'بيجو': 'peugeot',
+    'شيري': 'chery',
+    'إم جي': 'mg',
+    'ميتسوبيشي': 'mitsubishi',
+    'أوبل': 'opel',
+    'سكودا': 'skoda',
+    'سيات': 'seat',
+    'شيفروليه': 'chevrolet',
+    'فورد': 'ford',
+    'هوندا': 'honda',
+    'سوبارو': 'subaru',
+    'سوزوكي': 'suzuki',
+    'تسلا': 'tesla',
+    'فولفو': 'volvo',
+    'لاند روفر': 'land rover',
+    'مازدا': 'mazda',
+    'جيب': 'jeep',
+    'شانجان': 'changan',
+    'هافال': 'haval',
+    'جيلي': 'geely',
+    'بايك': 'baic',
+    'بي واي دي': 'byd',
+  };
+  const lookupKey = arabicBrandMap[String(brandName || '').trim()] || cleanBrand;
+  return BRAND_LOGOS[lookupKey] || 
+         BRAND_LOGOS[lookupKey.replace(/\s+/g, '-')] || 
+         BRAND_LOGOS[lookupKey.replace(/-/g, ' ')] || 
+         (lookupKey === 'mercedes' ? BRAND_LOGOS['mercedes'] : null) || 
+         (lookupKey.includes('mercedes') ? BRAND_LOGOS['mercedes'] : null) || 
+         (lookupKey.includes('mini') ? BRAND_LOGOS['mini cooper'] : null) || 
+         (lookupKey.includes('rover') ? BRAND_LOGOS['land rover'] : null) || 
+         (lookupKey.includes('alfa') ? BRAND_LOGOS['alfa romeo'] : null) || 
+         null;
 };
 
 // Helper to render text with system font for digits and Alkhalil font for words
@@ -412,6 +451,8 @@ export default function GarageScreen({
   setActiveVehicleId,
 }) {
   const { colors, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top;
   const styles = useThemeStyles(createStyles);
   const isRtl = selectedLanguage === 'Arabic';
   const { width: screenWidth } = Dimensions.get('window');
@@ -503,6 +544,7 @@ export default function GarageScreen({
   };
 
   const scrollViewRef = useRef(null);
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   // Add vehicle form fields state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -1192,62 +1234,13 @@ export default function GarageScreen({
     );
   };
 
-  const renderGradientOverlay = () => {
-    const lines = [];
-    
-    // 1. Solid off-white block covering the top region behind the persistent header (y = 0 to y = 10)
-    lines.push(
-      <View
-        key="top-solid-block"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 10,
-          backgroundColor: colors.bgCreamy,
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
-    );
-
-    // 2. 20 thin overlapping gradient lines from y = 10 to y = 20
-    const numLines = 20;
-    const startY = 10;
-    const endY = 20;
-    const step = (endY - startY) / numLines;
-    
-    for (let i = 0; i < numLines; i++) {
-      const y = startY + i * step;
-      const opacity = 1.0 - (i / numLines);
-      lines.push(
-        <View
-          key={i}
-          style={{
-            position: 'absolute',
-            top: y,
-            left: 0,
-            right: 0,
-            height: step + 0.5,
-            backgroundColor: colors.bgCreamy,
-            opacity: opacity,
-            zIndex: 3,
-            pointerEvents: 'none',
-          }}
-        />
-      );
-    }
-    return lines;
-  };
-
   
 
   // GUEST STATE RENDER
   if (!currentUser) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.bgBrand} />
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={colors.bgCreamy} />
         <View style={styles.guestContainer}>
           <View style={styles.guestIllustration}>
             <Ionicons name="car-sport-outline" size={76} color={colors.bgBrand} style={{ opacity: 0.15 }} />
@@ -1568,17 +1561,15 @@ export default function GarageScreen({
           setIsEditing(false);
         }}
       >
-        <View style={styles.editModalAvoidingView}>
+        <View style={[styles.editModalAvoidingView, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
           <TouchableOpacity
-            style={styles.modalBlurOverlay}
+            style={StyleSheet.absoluteFillObject}
             activeOpacity={1}
             onPress={() => {
               handleSaveNotes();
               setIsEditing(false);
             }}
-          >
-            <BlurView intensity={95} tint="dark" style={StyleSheet.absoluteFill} />
-          </TouchableOpacity>
+          />
 
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1714,9 +1705,59 @@ export default function GarageScreen({
     );
   };
 
+  const renderGradientOverlay = () => {
+    const lines = [];
+    
+    // 1. Solid creamy block covering the status bar region (y = 0 to y = topInset)
+    lines.push(
+      <View
+        key="top-solid-block"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: topInset,
+          backgroundColor: colors.bgCreamy,
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      />
+    );
+
+    // 2. 15 thin overlapping gradient lines from y = topInset to y = topInset + 18
+    const numLines = 15;
+    const startY = topInset;
+    const endY = topInset + 18;
+    const step = (endY - startY) / numLines;
+    
+    for (let i = 0; i < numLines; i++) {
+      const y = startY + i * step;
+      const opacity = 1.0 - (i / numLines);
+      lines.push(
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            top: y,
+            left: 0,
+            right: 0,
+            height: step + 0.5,
+            backgroundColor: colors.bgCreamy,
+            opacity: opacity,
+            zIndex: 3,
+            pointerEvents: 'none',
+          }}
+        />
+      );
+    }
+    return lines;
+  };
+
   // MEMBER STATE RENDER
   return (
     <View style={styles.container}>
+      {/* Top Fade Gradient Overlay */}
       {renderGradientOverlay()}
 
       {/* ── Custom Calendar Modal ───────────────────────────────── */}
@@ -1936,13 +1977,85 @@ export default function GarageScreen({
         </View>
       </Modal>
 
-      <ScrollView 
+      {/* Top Page Mode Toggle (Fixed & Animated) */}
+      {activeVehicle && (
+        <Animated.View style={[
+          styles.vehicleFilterWrapper, 
+          isRtl && { flexDirection: 'row-reverse' }, 
+          { 
+            position: 'absolute',
+            top: topInset + 6,
+            left: 20,
+            right: 20,
+            zIndex: 4,
+            opacity: scrollY.interpolate({
+              inputRange: [0, 90],
+              outputRange: [1, 0],
+              extrapolate: 'clamp'
+            }),
+            transform: [{ 
+              translateY: scrollY.interpolate({
+                inputRange: [0, 100],
+                outputRange: [0, -100],
+                extrapolate: 'clamp'
+              }) 
+            }]
+          }
+        ]}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setCardMode('services')}
+            style={[styles.vehicleFilterTab, cardMode === 'services' && styles.vehicleFilterTabActive]}
+          >
+            <Ionicons 
+              name="speedometer-outline" 
+              size={16} 
+              color={cardMode === 'services' ? colors.bgBrand : colors.textMuted} 
+              style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} 
+            />
+            <Text style={[
+              styles.vehicleFilterText, 
+              cardMode === 'services' ? styles.vehicleFilterTextActive : styles.vehicleFilterTextUnselected,
+              isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
+            ]}>
+              {t.serviceStatusTab}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setCardMode('logbook')}
+            style={[styles.vehicleFilterTab, cardMode === 'logbook' && styles.vehicleFilterTabActive]}
+          >
+            <Ionicons 
+              name="book-outline" 
+              size={16} 
+              color={cardMode === 'logbook' ? colors.bgBrand : colors.textMuted} 
+              style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} 
+            />
+            <Text style={[
+              styles.vehicleFilterText, 
+              cardMode === 'logbook' ? styles.vehicleFilterTextActive : styles.vehicleFilterTextUnselected,
+              isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
+            ]}>
+              {t.logBookTab}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
+      <Animated.ScrollView 
         ref={scrollViewRef}
         style={styles.container} 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: topInset + 66 }]}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
       >
-        <StatusBar barStyle="light-content" backgroundColor={colors.bgBrand} />
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={colors.bgCreamy} />
 
         {/* Active Vehicle Card (extended details) */}
         <ActiveVehicleCard 
@@ -2000,33 +2113,6 @@ export default function GarageScreen({
                         : (selectedLanguage === 'Arabic' ? "ملاحظاتي" : "My Notes")}
                     </Text>
                   </View>
-                  
-                  {/* Right Side: Mode Toggle */}
-                  <View style={[styles.headerModeToggleContainer, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity
-                      style={[styles.headerModeToggleButton, cardMode === 'services' && styles.headerModeToggleButtonActive]}
-                      onPress={() => setCardMode('services')}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons 
-                        name={cardMode === 'services' ? "list" : "list-outline"} 
-                        size={20} 
-                        color={cardMode === 'services' ? colors.bgBrand : colors.textMuted} 
-                      />
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={[styles.headerModeToggleButton, cardMode === 'logbook' && styles.headerModeToggleButtonActive]}
-                      onPress={() => setCardMode('logbook')}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons 
-                        name={cardMode === 'logbook' ? "journal" : "journal-outline"} 
-                        size={20} 
-                        color={cardMode === 'logbook' ? colors.bgBrand : colors.textMuted} 
-                      />
-                    </TouchableOpacity>
-                  </View>
                 </View>
 
                 {/* Service Status Mode */}
@@ -2054,7 +2140,7 @@ export default function GarageScreen({
 
                     {/* Service Items List */}
                     <View style={styles.serviceListContainer}>
-                      {data.servicesList.slice(0, isCardExpanded ? undefined : 3).map((item, index) => {
+                      {data.servicesList.map((item, index) => {
                         return (
                           <View key={item.key} style={styles.serviceItemCard}>
                             {/* Title & Icon Header */}
@@ -2445,31 +2531,6 @@ export default function GarageScreen({
                   </View>
                 )}
 
-                {/* Expand/Collapse Button (services mode only) */}
-                {cardMode === 'services' && data.servicesList.length > 3 && (
-                  <TouchableOpacity 
-                    style={[styles.expandCollapseButton, isRtl && { flexDirection: 'row-reverse' }]}
-                    onPress={() => setIsCardExpanded(prev => !prev)}
-                    activeOpacity={0.75}
-                  >
-                    {renderTextWithSystemNumbers(
-                      isCardExpanded 
-                        ? (selectedLanguage === 'Arabic' ? 'عرض أقل' : 'Show Less') 
-                        : (selectedLanguage === 'Arabic' 
-                            ? `عرض المزيد (+${data.servicesList.length - 3})` 
-                            : `Show More (+${data.servicesList.length - 3})`),
-                      isRtl,
-                      styles.expandCollapseButtonText,
-                      11.2
-                    )}
-                    <Ionicons 
-                      name={isCardExpanded ? "chevron-up" : "chevron-down"} 
-                      size={14} 
-                      color={colors.bgBrand} 
-                      style={isRtl ? { marginRight: 6 } : { marginLeft: 6 }} 
-                    />
-                  </TouchableOpacity>
-                )}
                 {/* 3D Glossy Bevel Highlight Overlay */}
                 <View style={{
                   ...StyleSheet.absoluteFillObject,
@@ -2798,7 +2859,11 @@ export default function GarageScreen({
                             }}
                           >
                             {/* Model Thumbnail Preview */}
-                            <View style={[styles.modelListItemThumbnail, isSelected && styles.modelListItemThumbnailSelected]}>
+                            <View style={[
+                              styles.modelListItemThumbnail, 
+                              isSelected && styles.modelListItemThumbnailSelected,
+                              isRtl && { marginRight: 0, marginLeft: 12 }
+                            ]}>
                               {modelThumb ? (
                                 <Image source={modelThumb} style={styles.modelListItemImage} resizeMode="contain" />
                               ) : (
@@ -2934,12 +2999,20 @@ export default function GarageScreen({
                                 setWizardStep(4);
                               }}
                             >
-                              {renderTextWithSystemNumbers(
-                                yrItem,
-                                isRtl,
-                                isSelected ? styles.yearCardTextSelected : styles.yearCardText,
-                                13
-                              )}
+                              <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                <Ionicons 
+                                  name="calendar-clear-outline" 
+                                  size={16} 
+                                  color={isSelected ? colors.white : colors.textMuted} 
+                                  style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} 
+                                />
+                                {renderTextWithSystemNumbers(
+                                  yrItem,
+                                  isRtl,
+                                  isSelected ? styles.yearCardTextSelected : styles.yearCardText,
+                                  14
+                                )}
+                              </View>
                             </TouchableOpacity>
                           );
                         })}
@@ -3036,9 +3109,6 @@ export default function GarageScreen({
                     </Text>
                     <View style={styles.plateInputContainer}>
                       <View style={styles.metalPlate}>
-                        <View style={[styles.plateScrew, { left: 10 }]} />
-                        <View style={[styles.plateScrew, { right: 10 }]} />
-
                         <View style={[styles.plateHeaderBand, isRtl && { flexDirection: 'row-reverse' }]}>
                           <Text style={styles.plateHeaderCountryEn}>EGYPT</Text>
                           <Text style={styles.plateHeaderCountryAr}>مِصْر</Text>
@@ -3266,19 +3336,58 @@ export default function GarageScreen({
 
       {renderEditNotesModal()}
       {renderEditStatusModal()}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
 
 const createStyles = (colors) => StyleSheet.create({
+  vehicleFilterWrapper: {
+    flexDirection: 'row',
+    padding: 4,
+    backgroundColor: colors.bgBrandLight,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    height: 44,
+    marginBottom: 16,
+  },
+  vehicleFilterTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    height: '100%',
+  },
+  vehicleFilterTabActive: {
+    backgroundColor: colors.white,
+    shadowColor: '#1E2D1F',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  vehicleFilterText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  vehicleFilterTextActive: {
+    color: colors.bgBrand,
+  },
+  vehicleFilterTextUnselected: {
+    color: colors.textMuted,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.bgCreamy,
   },
   modalBlurOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: '#000000',
   },
   editModalAvoidingView: {
     flex: 1,
@@ -3342,7 +3451,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.bgBrand,
   },
   scrollContent: {
-    paddingTop: 24,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingHorizontal: 20,
     paddingBottom: 110, // snug above floating bottom navbar
   },
@@ -4661,28 +4770,20 @@ const createStyles = (colors) => StyleSheet.create({
   brandCard: {
     width: '48%',
     backgroundColor: colors.white,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen + '40',
-    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderGreen + '30',
+    borderRadius: 14,
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
     position: 'relative',
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    elevation: 0,
   },
   brandCardSelected: {
     backgroundColor: colors.bgBrand,
     borderColor: colors.bgBrand,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    elevation: 5,
+    elevation: 0,
   },
   brandEmblemBadge: {
     width: 72,
@@ -4732,8 +4833,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   wizardInput: {
     backgroundColor: colors.white,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen,
+    borderWidth: 1,
+    borderColor: colors.borderGreen + '50',
     borderRadius: 12,
     paddingHorizontal: 14,
     height: 48,
@@ -4907,8 +5008,8 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 7,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen + '35',
+    borderWidth: 1,
+    borderColor: colors.borderGreen + '20',
     backgroundColor: colors.white,
   },
   modelListItemSelected: {
@@ -4916,21 +5017,19 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.bgBrand,
   },
   modelListItemThumbnail: {
-    width: 52,
-    height: 36,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bgBrandLight,
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   modelListItemThumbnailSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'transparent',
   },
   modelListItemImage: {
-    width: '90%',
-    height: '90%',
+    width: 36,
+    height: 36,
   },
   modelListItemTextContainer: {
     flexDirection: 'column',
@@ -5009,23 +5108,23 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 40,
   },
   yearCard: {
-    width: '22%',
-    marginHorizontal: '1.5%',
-    backgroundColor: colors.bgCreamy,
+    width: '30%',
+    marginHorizontal: '1.6%',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderColor: colors.borderGreen + '30',
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   yearCardSelected: {
     backgroundColor: colors.bgBrand,
     borderColor: colors.bgBrand,
   },
   yearCardText: {
-    fontSize: 13.5,
+    fontSize: 14.5,
     color: colors.textDark,
     fontWeight: '600',
   },
@@ -5173,20 +5272,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   metalPlate: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 3.5,
-    borderColor: '#1E293B',
-    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+    borderRadius: 12,
     width: '100%',
-    height: 90,
+    height: 80,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   plateHeaderBand: {
     position: 'absolute',

@@ -21,7 +21,7 @@ jobs:
           cache-dependency-path: 'werash-application/package-lock.json'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Generate Native iOS Project
         run: npx expo prebuild -p ios --clean

@@ -11,6 +11,7 @@ import Header from './src/components/Header';
 import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
+import SettingsScreen from './src/screens/SettingsScreen';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 
 function AppContent() {
@@ -30,7 +31,6 @@ function AppContent() {
     avatar: null
   });
   const [signInVisible, setSignInVisible] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
   const [activeSpecialist, setActiveSpecialist] = useState(null);
   const [activeAd, setActiveAd] = useState(null);
@@ -64,11 +64,14 @@ function AppContent() {
       onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         if (currentTabRef.current !== 'home') return false;
-        return isHomeAtTopRef.current && Math.abs(gestureState.dy) > 7 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return Math.abs(gestureState.dy) > 14 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
       },
       onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
         if (currentTabRef.current !== 'home') return false;
-        return isHomeAtTopRef.current && Math.abs(gestureState.dy) > 7 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return Math.abs(gestureState.dy) > 14 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
+      },
+      onPanResponderGrant: () => {
+        homeTranslateY.stopAnimation();
       },
       onPanResponderMove: (evt, gestureState) => {
         const rubberBandY = getRubberBandValue(gestureState.dy);
@@ -77,7 +80,7 @@ function AppContent() {
       onPanResponderRelease: () => {
         Animated.spring(homeTranslateY, {
           toValue: 0,
-          friction: 6,
+          friction: 7,
           tension: 40,
           useNativeDriver: true,
         }).start();
@@ -85,11 +88,12 @@ function AppContent() {
       onPanResponderTerminate: () => {
         Animated.spring(homeTranslateY, {
           toValue: 0,
-          friction: 6,
+          friction: 7,
           tension: 40,
           useNativeDriver: true,
         }).start();
       },
+      onPanResponderTerminationRequest: () => false,
     });
   }, [homeTranslateY]);
   
@@ -349,6 +353,16 @@ function AppContent() {
         );
       case 'community':
         return <CommunityScreen currentUser={currentUser} scrollToTopTrigger={communityScrollTrigger} selectedLanguage={selectedLanguage} />;
+      case 'more':
+        return (
+          <SettingsScreen 
+            currentUser={currentUser}
+            onLogOut={() => setCurrentUser(null)}
+            selectedLanguage={selectedLanguage}
+            onSelectLanguage={setSelectedLanguage}
+            onSelectProfile={() => setProfileVisible(true)}
+          />
+        );
       default:
         return (
           <View style={styles.placeholderContent}>
@@ -379,12 +393,7 @@ function AppContent() {
           onSetSignInVisible={setSignInVisible}
           selectedLanguage={selectedLanguage}
           onSelectLanguage={setSelectedLanguage}
-          settingsVisible={settingsVisible}
-          onSetSettingsVisible={setSettingsVisible}
-          onEditProfile={() => {
-            setSettingsVisible(false);
-            setProfileVisible(true);
-          }}
+          onOpenSettings={() => setCurrentTab('more')}
         />
 
         {/* Core Page Layout switches underneath */}
@@ -394,16 +403,13 @@ function AppContent() {
       {/* Custom Floating Bottom Navigation Bar */}
       {!activeSpecialist && !activeAd && (
         <BottomNavBar 
-          activeTab={settingsVisible ? 'more' : currentTab} 
+          activeTab={currentTab} 
           onTabPress={(tab) => {
-            if (tab === 'more') {
-              setSettingsVisible(true);
-              return;
-            }
             if (tab === 'community' && currentTab === 'community') {
               setCommunityScrollTrigger(prev => prev + 1);
             }
             homeTranslateY.setValue(0);
+            isHomeAtTopRef.current = true;
             setCurrentTab(tab);
             setExpandedSpecialistId(null);
           }} 

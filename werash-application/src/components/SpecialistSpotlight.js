@@ -270,16 +270,6 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
                   {ad.sponsor}
                 </Text>
               </View>
-
-              {/* 3D Glossy Bevel Highlight Overlay */}
-              <View style={{
-                ...StyleSheet.absoluteFillObject,
-                borderRadius: 16,
-                borderWidth: 1.5,
-                borderColor: 'transparent',
-                borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-              }} pointerEvents="none" />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -349,8 +339,6 @@ const createStyles = (colors) => StyleSheet.create({
   adFooter: {
     height: 30,
     backgroundColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.65)' : 'rgba(26, 29, 26, 0.6)',
-    borderTopWidth: 1,
-    borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(93, 130, 96, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 8,

@@ -4,10 +4,17 @@ import {
   Image, ScrollView, Animated, StatusBar, Modal,
   KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
+
+const mockMessages = [
+  { id: 'msg1', user: 'Ahmed Yassin', lastMessage: 'Is the BMW part still available?', time: '10:42 AM', unread: 2, avatarType: 'icon' },
+  { id: 'msg2', user: 'Khaled Omar', lastMessage: 'Thanks for the tip on the oil change.', time: 'Yesterday', unread: 0, avatarType: 'icon' },
+  { id: 'msg3', user: 'Mohamed Salah', lastMessage: 'Can you recommend a good mechanic?', time: 'Mon', unread: 0, avatarType: 'icon' },
+];
 
 const initialPosts = [
   {
@@ -244,21 +251,22 @@ const initialPosts = [
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SEGMENTED_CONTROL_WIDTH = SCREEN_WIDTH - 40; // 20px horizontal margin on each side
-const TAB_WIDTH = (SEGMENTED_CONTROL_WIDTH - 8) / 3; // 4px padding on each side of track
 
 export default function CommunityScreen({ currentUser, scrollToTopTrigger, selectedLanguage }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const COLORS = colors; // Keep JSX compatibility with dynamic themes
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24));
   const isRtl = selectedLanguage === 'Arabic';
   const [feedPosts, setFeedPosts] = useState(initialPosts);
   const [statusText, setStatusText] = useState('');
-  const [selectedFeed, setSelectedFeed] = useState('overall'); // 'overall', 'active', 'marketplace'
+  const [selectedFeed, setSelectedFeed] = useState('active'); // 'overall', 'active', 'marketplace'
   const [showProfile, setShowProfile] = useState(false);
   const [expandedPostId, setExpandedPostId] = useState(null);
   
   const [showListingPage, setShowListingPage] = useState(false);
+  const [showMessagesPage, setShowMessagesPage] = useState(false);
   const [listingImageUri, setListingImageUri] = useState(null);
   const [listingTitle, setListingTitle] = useState('');
   const [listingPrice, setListingPrice] = useState('');
@@ -273,8 +281,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
 
-  const slideAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     if (scrollToTopTrigger > 0) {
       if (scrollViewRef.current) {
@@ -288,13 +294,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   }, [scrollToTopTrigger]);
 
   useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: selectedFeed === 'overall' ? 0 : selectedFeed === 'active' ? 1 : 2,
-      useNativeDriver: true,
-      tension: 60,
-      friction: 10,
-    }).start();
-
     if (scrollViewRef.current) {
       if (typeof scrollViewRef.current.scrollTo === 'function') {
         scrollViewRef.current.scrollTo({ y: 0, animated: false });
@@ -303,11 +302,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       }
     }
   }, [selectedFeed]);
-
-  const translateX = slideAnim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [0, TAB_WIDTH, TAB_WIDTH * 2],
-  });
 
   // In profile mode: header collapses on scroll by translating the whole header.
   // In feed mode: the collapsible header container stays static, and its children animate/compress.
@@ -516,6 +510,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     if (showProfile) {
       return post.author === 'Guest User';
     }
+    if (selectedFeed === 'messages') {
+      return false;
+    }
     if (selectedFeed === 'marketplace') {
       const isMarket = post.isMarketplace === true;
       if (!isMarket) return false;
@@ -605,7 +602,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: showProfile ? 75 : 187 }
+              { paddingTop: showProfile ? topInset + 55 : topInset + 175 }
             ]}
             scrollEventThrottle={16}
             onScroll={Animated.event(
@@ -721,11 +718,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               // Standard Post list (Feed or Profile Mode)
               filteredPosts.map((post) => (
                 <View key={post.id} style={styles.postCard}>
-                  <BlurView
-                    intensity={65}
-                    tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
-                    style={StyleSheet.absoluteFill}
-                  />
+
 
                   {/* Author Info */}
                   <View style={styles.authorRow}>
@@ -810,15 +803,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     )}
                   </View>
 
-                  {/* 3D Glossy Bevel Highlight Overlay */}
-                  <View style={{
-                    ...StyleSheet.absoluteFillObject,
-                    borderRadius: 16,
-                    borderWidth: 1.5,
-                    borderColor: 'transparent',
-                    borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                    borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                  }} pointerEvents="none" />
+
                 </View>
               ))
             )}
@@ -830,7 +815,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             style={[
               styles.collapsibleHeader,
               {
-                height: showProfile ? 55 : 150,
+                top: topInset + 6,
+                height: showProfile ? 55 : 180,
                 opacity: headerOpacity,
                 transform: [{ translateY: headerTranslateY }],
                 justifyContent: showProfile ? 'center' : 'flex-start',
@@ -860,71 +846,74 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   }}
                   pointerEvents={isSticky ? 'none' : 'auto'}
                 >
-                  {/* Feed Segmented Selector */}
-                  <View style={styles.selectorRow}>
-                    <Animated.View style={[
-                      styles.slidingActivePill,
-                      {
-                        width: TAB_WIDTH,
-                        transform: [{ translateX }],
-                      }
-                    ]} />
+                  {/* Feed Segmented Selector & Messages */}
+                  <View style={styles.topHeaderRow}>
+                    <View style={styles.selectorRow}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
+                        style={[styles.selectorTab, selectedFeed === 'active' && styles.selectorTabActive]}
+                      >
+                        <Ionicons 
+                          name={selectedFeed === 'active' ? 'car' : 'car-outline'} 
+                          size={15} 
+                          color={selectedFeed === 'active' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                          style={{ marginBottom: 3 }}
+                        />
+                        <Text style={[
+                          styles.selectorText,
+                          selectedFeed === 'active' ? styles.selectorTextSelected : styles.selectorTextUnselected
+                        ]}>
+                          My Car
+                        </Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={styles.selectorTab}
-                    >
-                      <Ionicons 
-                        name={selectedFeed === 'overall' ? 'chatbubbles' : 'chatbubbles-outline'} 
-                        size={15} 
-                        color={selectedFeed === 'overall' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                        style={{ marginBottom: 3 }}
-                      />
-                      <Text style={[
-                        styles.selectorText,
-                        selectedFeed === 'overall' ? styles.selectorTextSelected : styles.selectorTextUnselected
-                      ]}>
-                        Overall Feed
-                      </Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
+                        style={[styles.selectorTab, selectedFeed === 'overall' && styles.selectorTabActive]}
+                      >
+                        <Ionicons 
+                          name={selectedFeed === 'overall' ? 'chatbubbles' : 'chatbubbles-outline'} 
+                          size={15} 
+                          color={selectedFeed === 'overall' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                          style={{ marginBottom: 3 }}
+                        />
+                        <Text style={[
+                          styles.selectorText,
+                          selectedFeed === 'overall' ? styles.selectorTextSelected : styles.selectorTextUnselected
+                        ]}>
+                          Feed
+                        </Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={styles.selectorTab}
-                    >
-                      <Ionicons 
-                        name={selectedFeed === 'active' ? 'car' : 'car-outline'} 
-                        size={15} 
-                        color={selectedFeed === 'active' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                        style={{ marginBottom: 3 }}
-                      />
-                      <Text style={[
-                        styles.selectorText,
-                        selectedFeed === 'active' ? styles.selectorTextSelected : styles.selectorTextUnselected
-                      ]}>
-                        Active Vehicle
-                      </Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => { setSelectedFeed('marketplace'); setExpandedPostId(null); setMarketSearch(''); }}
+                        style={[styles.selectorTab, selectedFeed === 'marketplace' && styles.selectorTabActive]}
+                      >
+                        <Ionicons 
+                          name={selectedFeed === 'marketplace' ? 'pricetag' : 'pricetag-outline'} 
+                          size={15} 
+                          color={selectedFeed === 'marketplace' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                          style={{ marginBottom: 3 }}
+                        />
+                        <Text style={[
+                          styles.selectorText,
+                          selectedFeed === 'marketplace' ? styles.selectorTextSelected : styles.selectorTextUnselected
+                        ]}>
+                          Souq
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
 
-                    <TouchableOpacity
+                    {/* Messages Icon */}
+                    <TouchableOpacity 
                       activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('marketplace'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={styles.selectorTab}
+                      onPress={() => setShowMessagesPage(true)}
+                      style={styles.messagesHeaderIcon}
                     >
-                      <Ionicons 
-                        name={selectedFeed === 'marketplace' ? 'pricetag' : 'pricetag-outline'} 
-                        size={15} 
-                        color={selectedFeed === 'marketplace' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                        style={{ marginBottom: 3 }}
-                      />
-                      <Text style={[
-                        styles.selectorText,
-                        selectedFeed === 'marketplace' ? styles.selectorTextSelected : styles.selectorTextUnselected
-                      ]}>
-                        Marketplace
-                      </Text>
+                      <Ionicons name="chatbox-ellipses-outline" size={22} color={COLORS.bgBrand} />
                     </TouchableOpacity>
                   </View>
                 </Animated.View>
@@ -934,6 +923,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   style={[
                     styles.stickyBar,
                     {
+                      top: -(topInset + 6),
+                      height: topInset + 50,
                       opacity: stickyBarOpacity,
                     }
                   ]}
@@ -950,23 +941,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   <View style={styles.stickyTabsGroup}>
                     <TouchableOpacity
                       activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[
-                        styles.stickyTab,
-                        selectedFeed === 'overall' ? styles.stickyTabSelected : styles.stickyTabUnselected
-                      ]}
-                    >
-                      <Ionicons 
-                        name="chatbubbles-outline" 
-                        size={15} 
-                        color={selectedFeed === 'overall' ? '#FFFFFF' : COLORS.bgBrand} 
-                      />
-                    </TouchableOpacity>
-
-                    <View style={styles.stickyDivider} />
-
-                    <TouchableOpacity
-                      activeOpacity={0.8}
                       onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
                       style={[
                         styles.stickyTab,
@@ -977,6 +951,23 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                         name="car-outline" 
                         size={15} 
                         color={selectedFeed === 'active' ? '#FFFFFF' : COLORS.bgBrand} 
+                      />
+                    </TouchableOpacity>
+
+                    <View style={styles.stickyDivider} />
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
+                      style={[
+                        styles.stickyTab,
+                        selectedFeed === 'overall' ? styles.stickyTabSelected : styles.stickyTabUnselected
+                      ]}
+                    >
+                      <Ionicons 
+                        name="chatbubbles-outline" 
+                        size={15} 
+                        color={selectedFeed === 'overall' ? '#FFFFFF' : COLORS.bgBrand} 
                       />
                     </TouchableOpacity>
 
@@ -1046,11 +1037,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                           <Ionicons name="person" size={18} color="#FFFFFF" />
                         </TouchableOpacity>
                         <View style={styles.postComposer}>
-                          <BlurView
-                            intensity={65}
-                            tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
-                            style={StyleSheet.absoluteFill}
-                          />
+
                           {/* Top Part: Input Area wrapped in Touchable to open Modal */}
                           <View style={[styles.composerTopRow, { position: 'relative' }]}>
                             <TextInput
@@ -1117,15 +1104,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                             </TouchableOpacity>
                           </View>
 
-                          {/* 3D Glossy Bevel Highlight Overlay */}
-                          <View style={{
-                            ...StyleSheet.absoluteFillObject,
-                            borderRadius: 16,
-                            borderWidth: 1.5,
-                            borderColor: 'transparent',
-                            borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                            borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                          }} pointerEvents="none" />
+
                         </View>
                       </View>
                     </View>
@@ -1365,7 +1344,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
                 >
                   <Ionicons name="chevron-back" size={18} color={COLORS.bgBrand} style={{ marginRight: 2 }} />
-                  <Text style={styles.newPageBackButtonText}>Marketplace</Text>
+                  <Text style={styles.newPageBackButtonText}>Souq</Text>
                 </TouchableOpacity>
                 <Text style={styles.newPageHeaderTitle}>List an Item</Text>
                 <View style={{ width: 110 }} />
@@ -1456,6 +1435,54 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               </KeyboardAvoidingView>
             </View>
           </Modal>
+
+          {/* Messages Page Modal */}
+          <Modal
+            visible={showMessagesPage}
+            transparent={true}
+            animationType="slide"
+            statusBarTranslucent={true}
+            onRequestClose={() => setShowMessagesPage(false)}
+          >
+            <View style={[styles.newPageContainer, { backgroundColor: COLORS.bgCreamy }]}>
+              <StatusBar barStyle="light-content" backgroundColor={COLORS.bgBrand} />
+              <View style={styles.newPageHeader}>
+                <TouchableOpacity 
+                  style={styles.newPageBackButton} 
+                  onPress={() => setShowMessagesPage(false)}
+                  activeOpacity={0.8}
+                  hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
+                >
+                  <Ionicons name="chevron-back" size={18} color={COLORS.bgBrand} style={{ marginRight: 2 }} />
+                  <Text style={styles.newPageBackButtonText}>Community</Text>
+                </TouchableOpacity>
+                <Text style={styles.newPageHeaderTitle}>Inbox</Text>
+                <View style={{ width: 100 }} />
+              </View>
+
+              <ScrollView style={{ flex: 1, padding: 20 }}>
+                {mockMessages.map(msg => (
+                  <TouchableOpacity key={msg.id} style={styles.messageRow} activeOpacity={0.8}>
+                    <View style={styles.messageAvatar}>
+                      <Ionicons name="person" size={20} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.messageContent}>
+                      <View style={styles.messageHeader}>
+                        <Text style={styles.messageUser}>{msg.user}</Text>
+                        <Text style={styles.messageTime}>{msg.time}</Text>
+                      </View>
+                      <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread]} numberOfLines={1}>{msg.lastMessage}</Text>
+                    </View>
+                    {msg.unread > 0 && (
+                      <View style={styles.messageBadge}>
+                        <Text style={styles.messageBadgeText}>{msg.unread}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </Modal>
         </View>
       </View>
     </View>
@@ -1475,7 +1502,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   collapsibleHeader: {
     position: 'absolute',
-    top: 25,
     left: 0,
     right: 0,
     height: 245,
@@ -1523,10 +1549,17 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.textMuted,
     marginTop: 1,
   },
-  selectorRow: {
+  topHeaderRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginHorizontal: 20,
     marginTop: 2,
+    zIndex: 5,
+  },
+  selectorRow: {
+    flex: 1,
+    flexDirection: 'row',
     padding: 4,
     backgroundColor: colors.bgBrandLight,
     borderRadius: 16,
@@ -1534,20 +1567,26 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.borderGreen,
     height: 48,
     position: 'relative',
-    zIndex: 5,
+    marginRight: 10,
   },
-  slidingActivePill: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    borderRadius: 12,
+  messagesHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectorTabActive: {
     backgroundColor: colors.white,
     shadowColor: '#1E2D1F',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 5,
     elevation: 3,
+    borderRadius: 12,
   },
   selectorTab: {
     flex: 1,
@@ -1591,7 +1630,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   postComposer: {
     flex: 1,
-    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
+    backgroundColor: colors.white,
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
@@ -1741,7 +1780,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.borderGreen,
   },
   postCard: {
-    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
+    backgroundColor: colors.white,
     borderWidth: 1.5,
     borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
     borderRadius: 16,
@@ -1828,6 +1867,69 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.textMuted,
     fontWeight: '600',
     marginLeft: 6,
+  },
+  messagesListContainer: {
+    paddingBottom: 20,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+    padding: 16,
+    marginBottom: 12,
+  },
+  messageAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  messageUser: {
+    fontSize: 15,
+    fontFamily: 'AlkhalilArabic-Bold',
+    color: colors.textDark,
+  },
+  messageTime: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  messageSnippet: {
+    fontSize: 13.5,
+    color: colors.textMuted,
+  },
+  messageSnippetUnread: {
+    color: colors.textDark,
+    fontWeight: '600',
+  },
+  messageBadge: {
+    backgroundColor: colors.bgBrand,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 12,
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   emptyState: {
     alignItems: 'center',
@@ -2329,10 +2431,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   stickyBar: {
     position: 'absolute',
-    top: -24,
     left: 0,
     right: 0,
-    height: 68,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',

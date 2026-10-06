@@ -18,7 +18,7 @@ export default function SettingsScreen({
   onLogOut,
   selectedLanguage: propSelectedLanguage,
   onSelectLanguage,
-  onEditProfile
+  onSelectProfile
 }) {
   const slideAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const { colors, isDarkMode, toggleDarkMode } = useTheme();
@@ -50,7 +50,9 @@ export default function SettingsScreen({
       duration: 250,
       easing: Easing.in(Easing.quad),
       useNativeDriver: true,
-    }).start(() => onClose());
+    }).start(() => {
+      if (onClose) onClose();
+    });
   };
 
   const renderMenuItem = (icon, label, onPress, rightElement = null, isFlat = false, isLast = false) => (
@@ -76,35 +78,16 @@ export default function SettingsScreen({
   );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent
-      statusBarTranslucent
-      onRequestClose={handleClose}
-    >
-      <View style={styles.modalOverlay}>
-        {/* Backdrop blur covering background */}
-        <BlurView intensity={75} tint="dark" style={StyleSheet.absoluteFill}>
-          {/* Tapping backdrop closes the drawer */}
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
-        </BlurView>
-
-        {/* Sliding settings drawer */}
-        <Animated.View style={[
-          styles.drawerContainer,
-          { transform: [{ translateX: slideAnim }] }
-        ]}>
-          <View style={styles.drawerHeader}>
-            <Text style={[styles.drawerTitle, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 20 }]}>{selectedLanguage === 'Arabic' ? 'الإعدادات' : 'Settings'}</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
-              <Ionicons name="close" size={22} color={colors.textDark} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <View style={styles.screenContainer}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {/* Account Info Section */}
-            <View style={styles.profileCard}>
+            <TouchableOpacity 
+              style={styles.profileCard}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (onSelectProfile) onSelectProfile();
+              }}
+            >
               {currentUser && currentUser.avatar ? (
                 <Image source={{ uri: currentUser.avatar }} style={styles.profileAvatarImage} />
               ) : (
@@ -116,12 +99,11 @@ export default function SettingsScreen({
                 <Text style={[styles.profileName, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 16 }]}>{currentUser ? currentUser.fullName : (selectedLanguage === 'Arabic' ? 'حساب زائر' : 'Guest User')}</Text>
                 <Text style={styles.profileEmail}>{currentUser ? currentUser.email : 'guest@werash.com'}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Account Settings group */}
             <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12 }]}>{selectedLanguage === 'Arabic' ? 'الحساب' : 'ACCOUNT'}</Text>
             <View style={styles.menuGroup}>
-              {renderMenuItem('person-outline', selectedLanguage === 'Arabic' ? 'تعديل الحساب' : 'Edit Profile', onEditProfile)}
               {renderMenuItem(
                 'globe-outline',
                 selectedLanguage === 'Arabic' ? 'اللغة' : 'Language',
@@ -130,9 +112,10 @@ export default function SettingsScreen({
                 },
                 <Text style={{ fontSize: 13, color: colors.textMuted, marginRight: 4, fontWeight: '600' }}>
                   {selectedLanguage === 'English' ? 'English' : 'العربية'}
-                </Text>
+                </Text>,
+                false,
+                true
               )}
-              {renderMenuItem('shield-checkmark-outline', selectedLanguage === 'Arabic' ? 'الأمان والرمز السري' : 'Security & Pin', () => console.log('Security'), null, false, true)}
             </View>
 
             {/* Preferences settings group */}
@@ -202,7 +185,6 @@ export default function SettingsScreen({
               </TouchableOpacity>
             )}
           </ScrollView>
-        </Animated.View>
 
         {/* Custom Language Selection Dialog Overlay */}
         {languageModalVisible && (
@@ -278,49 +260,15 @@ export default function SettingsScreen({
             </View>
           </View>
         )}
-      </View>
-    </Modal>
+    </View>
   );
 }
 
 const createStyles = (colors) => StyleSheet.create({
-  modalOverlay: {
+  screenContainer: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  drawerContainer: {
-    width: DRAWER_WIDTH,
-    height: '100%',
     backgroundColor: colors.bgCreamy,
-    paddingTop: 54,
-    shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 16,
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1.2,
-    borderBottomColor: colors.borderGreen,
-  },
-  drawerTitle: {
-    fontFamily: 'GuiltyTreasure',
-    fontSize: 28,
-    color: colors.bgBrand,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.bgBrandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 60,
   },
   scrollContent: {
     paddingHorizontal: 24,

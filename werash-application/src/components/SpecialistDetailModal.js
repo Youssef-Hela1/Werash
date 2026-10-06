@@ -3,6 +3,12 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, PanResponder, Animated
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { 
+  getSpecialistCover, 
+  openSpecialistLocation, 
+  callSpecialist, 
+  messageSpecialist 
+} from '../data/specialistHelpers';
 
 const { height: ScreenHeight, width: ScreenWidth } = Dimensions.get('window');
 
@@ -151,31 +157,21 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
           </TouchableOpacity>
 
           {/* Workshop Cover Image */}
-          <Image source={specialist.image} style={styles.expandedCover} />
-
-          {/* Experience Badge */}
-          <View style={[styles.expandedExpBadge, isRtl ? { left: undefined, right: 16 } : { left: 16 }]}>
-            <Text style={[styles.expandedExpBadgeText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10 }]}>
-              {isRtl ? specialist.expAr : specialist.exp}
-            </Text>
-          </View>
-
-          {/* Profile Avatar */}
-          <Image source={specialist.avatar} style={[styles.expandedAvatar, isRtl ? { left: undefined, right: 20 } : { left: 20 }]} />
+          <Image source={getSpecialistCover(specialist)} style={styles.expandedCover} />
 
           {/* Card Content Area */}
           <View style={styles.expandedDetails}>
-            {/* Top Info Area (Aligned right to clear avatar) */}
+            {/* Top Info Area */}
             <View style={[
               styles.expandedTopDetails,
-              isRtl ? { paddingLeft: 0, paddingRight: 96, alignItems: 'flex-end' } : { paddingLeft: 96, paddingRight: 0, alignItems: 'flex-start' }
+              isRtl ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }
             ]}>
               {/* Name */}
               <Text style={[
                 styles.expandedName,
-                isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 17.0 }
-              ]} numberOfLines={1}>
-                {isRtl ? specialist.nameAr : specialist.name}
+                isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
+              ]}>
+                {isRtl ? (specialist.nameAr || specialist.name) : specialist.name}
               </Text>
 
               {/* Specialty */}
@@ -183,7 +179,7 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
                 styles.expandedSpecialty,
                 isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.0, letterSpacing: 0 }
               ]} numberOfLines={1}>
-                {isRtl ? specialist.specialtyAr : specialist.specialty}
+                {isRtl ? (specialist.specialtyAr || specialist.specialty) : specialist.specialty}
               </Text>
 
               {/* Location Row */}
@@ -193,7 +189,7 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
                   styles.expandedLocation,
                   isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }
                 ]} numberOfLines={1}>
-                  {isRtl ? specialist.locationAr : specialist.location}
+                  {isRtl ? (specialist.locationAr || specialist.location) : specialist.location}
                 </Text>
               </View>
             </View>
@@ -203,7 +199,7 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
               styles.expandedDescription,
               isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13, lineHeight: 20 }
             ]} numberOfLines={3}>
-              {isRtl ? specialist.descriptionAr : specialist.description}
+              {isRtl ? (specialist.descriptionAr || specialist.description) : specialist.description}
             </Text>
 
             {/* Bottom Section */}
@@ -229,33 +225,24 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
               <View style={[styles.expandedActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
                 <TouchableOpacity 
                   activeOpacity={0.7} 
-                  style={[styles.expandedActionButtonOutline, isRtl && { flexDirection: 'row-reverse' }]}
-                  onPress={() => console.log('Location pressed for ' + specialist.name)}
+                  style={styles.expandedActionButtonOutline}
+                  onPress={() => openSpecialistLocation(specialist)}
                 >
-                  <Ionicons name="location-outline" size={20} color={colors.bgBrand} />
-                  <Text style={[styles.actionButtonLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                    {isRtl ? 'الموقع' : 'Location'}
-                  </Text>
+                  <Ionicons name="location-outline" size={22} color={colors.bgBrand} />
                 </TouchableOpacity>
                 <TouchableOpacity 
                   activeOpacity={0.7} 
-                  style={[styles.expandedActionButtonOutline, isRtl && { flexDirection: 'row-reverse' }]}
-                  onPress={() => console.log('Call pressed for ' + specialist.name)}
+                  style={styles.expandedActionButtonOutline}
+                  onPress={() => callSpecialist(specialist, isRtl)}
                 >
-                  <Ionicons name="call-outline" size={20} color={colors.bgBrand} />
-                  <Text style={[styles.actionButtonLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                    {isRtl ? 'اتصال' : 'Call'}
-                  </Text>
+                  <Ionicons name="call-outline" size={22} color={colors.bgBrand} />
                 </TouchableOpacity>
                 <TouchableOpacity 
                   activeOpacity={0.7} 
-                  style={[styles.expandedActionButtonSolid, isRtl && { flexDirection: 'row-reverse' }]}
-                  onPress={() => console.log('Message pressed for ' + specialist.name)}
+                  style={styles.expandedActionButtonSolid}
+                  onPress={() => messageSpecialist(specialist, isRtl)}
                 >
-                  <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
-                  <Text style={[styles.actionButtonLabelSolid, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                    {isRtl ? 'مراسلة' : 'Message'}
-                  </Text>
+                  <Ionicons name="logo-whatsapp" size={21} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -335,42 +322,15 @@ const createStyles = (colors) => StyleSheet.create({
     width: '100%',
     height: 160,
   },
-  expandedExpBadge: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    backgroundColor: 'rgba(30, 45, 31, 0.85)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    zIndex: 8,
-  },
-  expandedExpBadgeText: {
-    color: colors.bgCreamy,
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  expandedAvatar: {
-    position: 'absolute',
-    top: 125,
-    left: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: colors.white,
-    zIndex: 9,
-  },
   expandedDetails: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 20,
   },
   expandedTopDetails: {
-    paddingLeft: 96,
-    minHeight: 65,
+    minHeight: 40,
     justifyContent: 'center',
+    marginBottom: 4,
   },
   expandedName: {
     fontSize: 18,
@@ -395,7 +355,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 13,
     color: colors.textDark,
     lineHeight: 19,
-    marginTop: 18,
+    marginTop: 12,
     marginBottom: 10,
   },
   expandedBottomContainer: {
@@ -415,44 +375,30 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
     marginTop: 4,
   },
   expandedActionButtonOutline: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 42,
+    height: 44,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.bgBrand,
     backgroundColor: 'transparent',
-    gap: 6,
   },
   expandedActionButtonSolid: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 42,
+    height: 44,
     borderRadius: 12,
     backgroundColor: colors.bgBrand,
-    gap: 6,
     shadowColor: colors.bgBrand,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
-  },
-  actionButtonLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.bgBrand,
-  },
-  actionButtonLabelSolid: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

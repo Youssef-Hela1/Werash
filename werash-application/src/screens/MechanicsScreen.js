@@ -1,133 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, StatusBar, TextInput, TouchableOpacity, ScrollView, Image, Animated, Modal, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, StatusBar, TextInput, TouchableOpacity, ScrollView, Image, Animated, Modal, Platform, FlatList, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import * as Location from 'expo-location';
 import BouncyPressable from '../components/BouncyPressable';
+import { ALL_MECHANICS } from '../data/mechanicsData';
+import { getBrandOrigin } from '../data/brandOrigins';
+import { getSpecialistCover } from '../data/specialistHelpers';
 
-const specialists = [
-  {
-    id: 'kareem',
-    name: 'Kareem El-Sayed',
-    nameAr: 'كريم السيد',
-    specialty: 'ENGINE & TUNING',
-    specialtyAr: 'محركات وضبط محرك',
-    category: 'mechanical',
-    rating: '5.0',
-    reviews: '184',
-    price: '$65/hr',
-    priceAr: '٦٥ دولار/ساعة',
-    location: 'Sheikh Zayed, Giza',
-    locationAr: 'الشيخ زايد، الجيزة',
-    image: require('../../assets/modern_workshop_banner.png'),
-    avatar: require('../../assets/expert_kareem.png'),
-    exp: '12 Years Exp.',
-    expAr: 'خبرة ١٢ سنة',
-    description: 'Master Porsche & German Specialist. Former OEM certified master tech specializing in high-performance German engineering, ECU remapping, and track prep.',
-    descriptionAr: 'متخصص وخبير سيارات بورشه والألماني. فني معتمد سابق متخصص في الهندسة الألمانية عالية الأداء، إعادة برمجة كمبيوتر السيارة، وتجهيز الحلبات.',
-  },
-  {
-    id: 'elena',
-    name: 'Elena Rostova',
-    nameAr: 'إيلينا روستوفا',
-    specialty: 'DIAGNOSTICS & ECU',
-    specialtyAr: 'كهرباء وبرمجة العقول (ECU)',
-    category: 'electrician',
-    rating: '4.9',
-    reviews: '112',
-    price: '$75/hr',
-    priceAr: '٧٥ دولار/ساعة',
-    location: 'Heliopolis, Cairo',
-    locationAr: 'مصر الجديدة، القاهرة',
-    image: require('../../assets/modern_workshop_banner.png'),
-    avatar: require('../../assets/expert_elena.png'),
-    exp: '9 Years Exp.',
-    expAr: 'خبرة ٩ سنوات',
-    description: 'Diagnostics & ECU Tuning Guru. Expert in automotive electrical systems, ECU flashing, wiring harness repairs, and advanced diagnostics.',
-    descriptionAr: 'خبيرة فحص الكهرباء وضبط كمبيوتر السيارة. متخصصة في الأنظمة الكهربائية المعقدة، فحص وإعادة ضبط الضفيرة والكمبيوتر.',
-  },
-  {
-    id: 'tariq',
-    name: 'Tariq Mansour',
-    nameAr: 'طارق منصور',
-    specialty: 'BRAKES & SUSPENSION',
-    specialtyAr: 'فرامل وأنظمة تعليق',
-    category: 'suspension',
-    rating: '4.8',
-    reviews: '96',
-    price: '$55/hr',
-    priceAr: '٥٥ دولار/ساعة',
-    location: 'Maadi, Cairo',
-    locationAr: 'المعادي، القاهرة',
-    image: require('../../assets/modern_workshop_banner.png'),
-    avatar: require('../../assets/expert_tariq.png'),
-    exp: '8 Years Exp.',
-    expAr: 'خبرة ٨ سنوات',
-    description: 'Brake & Suspension Specialist. Certified technician focusing on performance suspension upgrades, brake system design, alignments, and track setup.',
-    descriptionAr: 'أخصائي الفرامل والعفشة. فني معتمد يركز على ترقية أنظمة التعليق الرياضي والفرامل، وضبط الزوايا وتجهيز السيارات.',
-  },
-  {
-    id: 'samir',
-    name: 'Samir Soliman',
-    nameAr: 'سمير سليمان',
-    specialty: 'TRANSMISSION & PARTS',
-    specialtyAr: 'فتيس وقطع غيار',
-    category: 'parts',
-    rating: '4.7',
-    reviews: '84',
-    price: '$50/hr',
-    priceAr: '٥٠ دولار/ساعة',
-    location: 'New Cairo, Cairo',
-    locationAr: 'القاهرة الجديدة، القاهرة',
-    image: require('../../assets/modern_workshop_banner.png'),
-    avatar: require('../../assets/expert_samir.png'),
-    exp: '10 Years Exp.',
-    expAr: 'خبرة ١٠ سنوات',
-    description: 'Transmission & Parts Expert. Master technician specializing in automatic/manual transmission rebuilds, differential upgrades, and custom parts sourcing.',
-    descriptionAr: 'خبير الفتيس وناقل الحركة. أخصائي في تجديد الفتيس المانيوال والأوتوماتيك، أنظمة الدفع الخلفي وتوفير قطع الغيار النادرة.',
-  },
-  {
-    id: 'sherif',
-    name: 'Sherif Abdel-Meguid',
-    nameAr: 'شريف عبد المجيد',
-    specialty: 'BODY SHOPS & PAINT',
-    specialtyAr: 'سمكرة ودهان',
-    category: 'body',
-    rating: '4.9',
-    reviews: '128',
-    price: '$80/hr',
-    priceAr: '٨٠ دولار/ساعة',
-    location: '6th of October, Giza',
-    locationAr: '٦ أكتوبر، الجيزة',
-    image: require('../../assets/modern_workshop_banner.png'),
-    avatar: require('../../assets/expert_sherif.png'),
-    exp: '15 Years Exp.',
-    expAr: 'خبرة ١٥ سنة',
-    description: 'Body Restoration & Custom Paint Master. Specializing in dent repair, carbon fiber panel fabrication, and custom high-end paint finishes.',
-    descriptionAr: 'أخصائي دهان وسمكرة السيارات. متخصص في إصلاح الصدمات والاعوجاج، تصنيع أجزاء الكاربون فايبر، والدهانات الفاخرة.',
-  },
-  {
-    id: 'michael',
-    name: 'Michael Chang',
-    nameAr: 'مايكل تشانغ',
-    specialty: 'GERMAN ENGINE SPECIALIST',
-    specialtyAr: 'خبير محركات ألماني',
-    category: 'mechanical',
-    rating: '5.0',
-    reviews: '142',
-    price: '$90/hr',
-    priceAr: '٩٠ دولار/ساعة',
-    location: 'Zamalek, Cairo',
-    locationAr: 'الزمالك، القاهرة',
-    image: require('../../assets/modern_workshop_banner.png'),
-    avatar: require('../../assets/expert_michael.png'),
-    exp: '14 Years Exp.',
-    expAr: 'خبرة ١٤ سنة',
-    description: 'German Engine & Powertrain Expert. Certified master specialist for Audi, BMW, and Mercedes engine diagnostics, major rebuilds, and power optimization.',
-    descriptionAr: 'خبير المحركات الألمانية وناقل الحركة. فني معتمد متخصص في تشخيص محركات أودي، بي إم دبليو، ومرسيدس وعمراتها الكاملة.',
-  },
-];
+const REGION_KEYWORDS = {
+  central_north_cairo: [
+    'central', 'north cairo', 'downtown', 'ramses', 'abbaseya', 'abbasiya', 'shubra', 'shubra el kheima', 'shubra el-kheima', 'shubra elkheima', 'rod el farag', 'zamalek', 'wust el balad',
+    'وسط', 'شمال القاهرة', 'وسط البلد', 'رمسيس', 'العباسية', 'شبرا', 'شبرا الخيمة', 'روض الفرج', 'الزمالك'
+  ],
+  east_cairo: [
+    'east cairo', 'heliopolis', 'nasr city', 'nozha', 'sheraton', 'ain shams', 'matariya', 'matareya', 'el marg', 'marg',
+    'شرق القاهرة', 'مصر الجديدة', 'مدينة نصر', 'النزهة', 'شيراتون', 'عين شمس', 'المطرية', 'المرج'
+  ],
+  new_cairo_eastern: [
+    'new cairo', 'eastern cities', 'first settlement', 'third settlement', 'fifth settlement', 'settlement', 'tagamoa', 'rehab', 'madinaty', 'el shorouk', 'shorouk', 'badr',
+    'القاهرة الجديدة', 'المدن الشرقية', 'التجمع الأول', 'التجمع الثالث', 'التجمع الخامس', 'التجمع', 'الرحاب', 'مدينتي', 'الشروق', 'بدر'
+  ],
+  south_cairo: [
+    'south cairo', 'maadi', 'zahraa el maadi', 'mokattam', 'old cairo', 'manial', 'basateen', 'dar el salam', 'helwan', '15 may', '15th of may', 'fustat',
+    'جنوب القاهرة', 'المعادي', 'زهراء المعادي', 'المقطم', 'مصر القديمة', 'المنيل', 'البساتين', 'دار السلام', 'حلوان', '١٥ مايو', '15 مايو', 'الفسطاط'
+  ],
+  giza_districts: [
+    'giza', 'nearby districts', 'dokki', 'agouza', 'mohandessin', 'imbaba', 'warraq', 'haram', 'faisal', 'boulaq el dakrour', 'omraneya', 'talbiya', 'mounib', 'kerdasa',
+    'الجيزة', 'ضواحيها', 'الأحياء المجاورة', 'الدقي', 'العجوزة', 'المهندسين', 'إمبابة', 'الوراق', 'الهرم', 'فيصل', 'بولاق الدكرور', 'العمرانية', 'الطالبية', 'المنيب', 'كرداسة'
+  ],
+  october_zayed: [
+    'october', 'sheikh zayed', 'zayed', '6th of october', 'hadayek october', 'new october', 'new zayed',
+    'أكتوبر', 'الشيخ زايد', 'زايد', '٦ أكتوبر', 'حدائق أكتوبر', 'أكتوبر الجديدة', 'زايد الجديدة'
+  ],
+};
 
 export default function MechanicsScreen({ 
   initialExpandedCardId, 
@@ -145,12 +53,39 @@ export default function MechanicsScreen({
   const [filterByVehicle, setFilterByVehicle] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState('overall');
   const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [userCoords, setUserCoords] = useState(null);
   const [scrollY] = useState(() => new Animated.Value(0));
   const [categoriesScrollX] = useState(() => new Animated.Value(0));
   const [categoriesContentWidth, setCategoriesContentWidth] = useState(0);
   const [categoriesLayoutWidth, setCategoriesLayoutWidth] = useState(0);
   const maxCategoriesScroll = Math.max(0, categoriesContentWidth - categoriesLayoutWidth);
   const [listAnim] = useState(() => new Animated.Value(0));
+  const flatListRef = useRef(null);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const showScrollToTopRef = useRef(false);
+  const backToTopAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(backToTopAnim, {
+      toValue: showScrollToTop ? 1 : 0,
+      friction: 8,
+      tension: 50,
+      useNativeDriver: true,
+    }).start();
+  }, [showScrollToTop, backToTopAnim]);
+
+  const handleScrollToTop = () => {
+    if (flatListRef.current) {
+      const list = flatListRef.current.scrollToOffset ? flatListRef.current : flatListRef.current?.getNode?.();
+      if (list?.scrollToOffset) {
+        try {
+          list.scrollToOffset({ offset: 0, animated: true });
+        } catch (e) {
+          flatListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     listAnim.setValue(0);
@@ -160,6 +95,18 @@ export default function MechanicsScreen({
       friction: 9,
       useNativeDriver: true,
     }).start();
+
+    showScrollToTopRef.current = false;
+    setShowScrollToTop(false);
+
+    if (flatListRef.current) {
+      const list = flatListRef.current.scrollToOffset ? flatListRef.current : flatListRef.current?.getNode?.();
+      if (list?.scrollToOffset) {
+        try {
+          list.scrollToOffset({ offset: 0, animated: false });
+        } catch (e) {}
+      }
+    }
   }, [selectedCategory, searchQuery, filterByVehicle, selectedLocation, listAnim]);
 
   const leftFadeOpacity = categoriesScrollX.interpolate({
@@ -183,18 +130,63 @@ export default function MechanicsScreen({
   const noResultsPaddingTop = topInset + (hasActiveVehicle ? 180 : 122);
 
   const locations = [
-    { id: 'overall', label: isRtl ? 'جميع المناطق / القاهرة الكبرى' : 'All Areas / Greater Cairo' },
-    { id: 'sheikh zayed', label: isRtl ? 'الشيخ زايد، الجيزة' : 'Sheikh Zayed, Giza' },
-    { id: '6th of october', label: isRtl ? '٦ أكتوبر، الجيزة' : '6th of October, Giza' },
-    { id: 'heliopolis', label: isRtl ? 'مصر الجديدة، القاهرة' : 'Heliopolis, Cairo' },
-    { id: 'maadi', label: isRtl ? 'المعادي، القاهرة' : 'Maadi, Cairo' },
-    { id: 'new cairo', label: isRtl ? 'القاهرة الجديدة، القاهرة' : 'New Cairo, Cairo' },
-    { id: 'zamalek', label: isRtl ? 'الزمالك، القاهرة' : 'Zamalek, Cairo' },
+    { 
+      id: 'nearest', 
+      label: isRtl ? 'الأقرب لي' : 'Nearest to Me',
+      subtext: isRtl ? 'بناءً على موقعك الحالي' : 'Based on your current location',
+    },
+    { 
+      id: 'overall', 
+      label: isRtl ? 'جميع المناطق' : 'All Areas',
+      subtext: isRtl ? 'كل أنحاء القاهرة الكبرى' : 'All of Greater Cairo',
+    },
+    { 
+      id: 'central_north_cairo', 
+      label: isRtl ? 'وسط وشمال القاهرة' : 'Central & North Cairo',
+      subtext: isRtl 
+        ? 'وسط البلد، رمسيس، العباسية، شبرا، شبرا الخيمة، روض الفرج، الزمالك' 
+        : 'Downtown, Ramses, Abbaseya, Shubra, Shubra El Kheima, Rod El Farag, Zamalek',
+    },
+    { 
+      id: 'east_cairo', 
+      label: isRtl ? 'شرق القاهرة' : 'East Cairo',
+      subtext: isRtl 
+        ? 'مصر الجديدة، مدينة نصر، النزهة، شيراتون، عين شمس، المطرية، المرج' 
+        : 'Heliopolis, Nasr City, Nozha, Sheraton, Ain Shams, Matariya, El Marg',
+    },
+    { 
+      id: 'new_cairo_eastern', 
+      label: isRtl ? 'القاهرة الجديدة والمدن الشرقية' : 'New Cairo & Eastern Cities',
+      subtext: isRtl 
+        ? 'التجمع الأول والثالث والخامس، الرحاب، مدينتي، الشروق، بدر' 
+        : 'First, Third and Fifth Settlements, Rehab, Madinaty, El Shorouk, Badr',
+    },
+    { 
+      id: 'south_cairo', 
+      label: isRtl ? 'جنوب القاهرة' : 'South Cairo',
+      subtext: isRtl 
+        ? 'المعادي، زهراء المعادي، المقطم، مصر القديمة، المنيل، البساتين، دار السلام، حلوان، ١٥ مايو' 
+        : 'Maadi, Zahraa El Maadi, Mokattam, Old Cairo, Manial, Basateen, Dar El Salam, Helwan, 15 May',
+    },
+    { 
+      id: 'giza_districts', 
+      label: isRtl ? 'الجيزة وضواحيها' : 'Giza & Nearby Districts',
+      subtext: isRtl 
+        ? 'الدقي، العجوزة، المهندسين، إمبابة، الوراق، الهرم، فيصل، بولاق الدكرور، العمرانية، الطالبية، المنيب، كرداسة' 
+        : 'Dokki, Agouza, Mohandessin, Imbaba, Warraq, Haram, Faisal, Boulaq El Dakrour, Omraneya, Talbiya, Mounib, Kerdasa',
+    },
+    { 
+      id: 'october_zayed', 
+      label: isRtl ? 'أكتوبر والشيخ زايد' : 'October & Sheikh Zayed',
+      subtext: isRtl 
+        ? '٦ أكتوبر، حدائق أكتوبر، أكتوبر الجديدة، الشيخ زايد، زايد الجديدة' 
+        : '6th of October, Hadayek October, New October, Sheikh Zayed, New Zayed',
+    },
   ];
 
   useEffect(() => {
     if (initialExpandedCardId) {
-      const found = specialists.find((spec) => spec.id === initialExpandedCardId);
+      const found = ALL_MECHANICS.find((spec) => spec.id === initialExpandedCardId);
       if (found) {
         onSelectSpecialist && onSelectSpecialist(found);
       }
@@ -223,41 +215,127 @@ export default function MechanicsScreen({
     { id: 'parts', label: isRtl ? 'قطع غيار' : 'PARTS', icon: 'cog-outline' },
   ];
 
-  const filteredSpecialists = specialists.filter((spec) => {
+  const filteredSpecialists = ALL_MECHANICS.filter((spec) => {
+    // 1. Category Filter
     const matchesCategory =
-      selectedCategory === 'overall' || spec.category === selectedCategory;
+      selectedCategory === 'overall' ||
+      spec.category === selectedCategory ||
+      (Array.isArray(spec.categories) && spec.categories.includes(selectedCategory));
+
+    // 2. Search Query Filter
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !query ||
-      spec.name.toLowerCase().includes(query) ||
+      (spec.name && spec.name.toLowerCase().includes(query)) ||
       (spec.nameAr && spec.nameAr.toLowerCase().includes(query)) ||
-      spec.specialty.toLowerCase().includes(query) ||
+      (spec.specialty && spec.specialty.toLowerCase().includes(query)) ||
       (spec.specialtyAr && spec.specialtyAr.toLowerCase().includes(query)) ||
-      spec.location.toLowerCase().includes(query) ||
-      (spec.locationAr && spec.locationAr.toLowerCase().includes(query));
+      (spec.location && spec.location.toLowerCase().includes(query)) ||
+      (spec.locationAr && spec.locationAr.toLowerCase().includes(query)) ||
+      (spec.carOrigin && spec.carOrigin.toLowerCase().includes(query)) ||
+      (spec.phone && spec.phone.replace(/\s+/g, '').includes(query.replace(/\s+/g, '')));
 
+    // 3. Vehicle Filter (when "MY [BRAND]" toggle is selected)
     let matchesVehicle = true;
     if (filterByVehicle && activeVehicle) {
-      const brand = activeVehicle.brand.toLowerCase();
-      const inDescription = spec.description.toLowerCase().includes(brand) || 
-                          (spec.descriptionAr && spec.descriptionAr.toLowerCase().includes(brand));
-      const inSpecialty = spec.specialty.toLowerCase().includes(brand) || 
-                        (spec.specialtyAr && spec.specialtyAr.toLowerCase().includes(brand));
-      const inName = spec.name.toLowerCase().includes(brand) || 
-                    (spec.nameAr && spec.nameAr.toLowerCase().includes(brand));
-      const isGermanBrand = ['porsche', 'bmw', 'mercedes', 'audi', 'volkswagen'].includes(brand);
-      const specializesInGerman = isGermanBrand && 
-        (spec.description.toLowerCase().includes('german') || (spec.descriptionAr && spec.descriptionAr.toLowerCase().includes('ألماني')));
-      
-      matchesVehicle = inDescription || inSpecialty || inName || specializesInGerman;
+      const brand = (activeVehicle.brand || '').toLowerCase().trim();
+      const origin = getBrandOrigin(activeVehicle.brand);
+      const originLower = origin ? origin.toLowerCase() : null;
+
+      const matchesOrigin = originLower && spec.carOrigin && spec.carOrigin.toLowerCase().includes(originLower);
+      const isOverall = spec.carOrigin === 'Overall' || (spec.carOrigin && spec.carOrigin.toLowerCase().includes('overall'));
+
+      const inName = (spec.name && spec.name.toLowerCase().includes(brand)) ||
+                     (spec.nameAr && spec.nameAr.toLowerCase().includes(brand));
+      const inSpecialty = (spec.specialty && spec.specialty.toLowerCase().includes(brand)) ||
+                          (spec.specialtyAr && spec.specialtyAr.toLowerCase().includes(brand));
+      const inDesc = (spec.description && spec.description.toLowerCase().includes(brand)) ||
+                     (spec.descriptionAr && spec.descriptionAr.toLowerCase().includes(brand));
+
+      matchesVehicle = matchesOrigin || isOverall || inName || inSpecialty || inDesc;
     }
 
+    // 4. Location Filter (6 areas + all + nearest)
     const matchesLocation =
       selectedLocation === 'overall' ||
-      spec.location.toLowerCase().includes(selectedLocation.toLowerCase()) ||
-      (spec.locationAr && spec.locationAr.toLowerCase().includes(selectedLocation.toLowerCase()));
+      selectedLocation === 'nearest' ||
+      spec.region === selectedLocation ||
+      (() => {
+        const keywords = REGION_KEYWORDS[selectedLocation] || [];
+        const locCombined = `${spec.location || ''} ${spec.locationAr || ''} ${spec.area || ''}`.toLowerCase();
+        return keywords.some((kw) => locCombined.includes(kw.toLowerCase()));
+      })();
 
     return matchesCategory && matchesSearch && matchesVehicle && matchesLocation;
+  });
+
+  const distanceCache = {};
+
+  filteredSpecialists.sort((a, b) => {
+    if (selectedLocation === 'nearest' && userCoords) {
+      const getDistanceFor = (spec) => {
+        if (distanceCache[spec.id] !== undefined) return distanceCache[spec.id];
+        if (!spec.url) return distanceCache[spec.id] = Infinity;
+        const latM = spec.url.match(/!3d([-.\d]+)/);
+        const lngM = spec.url.match(/!4d([-.\d]+)/);
+        if (latM && lngM) {
+          const lat = parseFloat(latM[1]);
+          const lng = parseFloat(lngM[1]);
+          const R = 6371; 
+          const dLat = (lat - userCoords.latitude) * Math.PI / 180;
+          const dLon = (lng - userCoords.longitude) * Math.PI / 180;
+          const aVal = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(userCoords.latitude * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+          return distanceCache[spec.id] = R * (2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1-aVal)));
+        }
+        return distanceCache[spec.id] = Infinity;
+      };
+
+      const distA = getDistanceFor(a);
+      const distB = getDistanceFor(b);
+
+      const getDistanceBand = (dist) => {
+        if (dist <= 5) return 1;
+        if (dist <= 12) return 2;
+        if (dist <= 20) return 3;
+        if (dist <= 35) return 4;
+        return 5;
+      };
+
+      const bandA = getDistanceBand(distA);
+      const bandB = getDistanceBand(distB);
+      
+      if (bandA !== bandB) {
+        return bandA - bandB;
+      }
+    }
+
+    let aPriority = 0;
+    let bPriority = 0;
+
+    if (activeVehicle && (activeVehicle.brand || '').toLowerCase().trim() === 'hyundai') {
+      const aName = `${a.name || ''} ${a.nameAr || ''}`.toLowerCase();
+      const bName = `${b.name || ''} ${b.nameAr || ''}`.toLowerCase();
+      const isRelevant = (name) => name.includes('hyundai') || name.includes('هيونداي') || name.includes('korean') || name.includes('كوري');
+      
+      aPriority = isRelevant(aName) ? 1 : 0;
+      bPriority = isRelevant(bName) ? 1 : 0;
+    }
+
+    if (aPriority !== bPriority) {
+      return bPriority - aPriority;
+    }
+
+    const aRating = parseFloat(a.rating) || 0;
+    const bRating = parseFloat(b.rating) || 0;
+    
+    if (aRating !== bRating) {
+      return bRating - aRating;
+    }
+
+    const aReviews = parseInt(a.reviews) || 0;
+    const bReviews = parseInt(b.reviews) || 0;
+    
+    return bReviews - aReviews;
   });
 
   const renderGradientOverlay = () => {
@@ -395,6 +473,96 @@ export default function MechanicsScreen({
     );
   };
 
+  const renderSpecialistItem = ({ item: specialist, index }) => {
+    const cardOpacity = index < 8 ? listAnim.interpolate({
+      inputRange: [0, index * 0.1, Math.min(1, index * 0.1 + 0.3)],
+      outputRange: [0, 0, 1],
+      extrapolate: 'clamp'
+    }) : 1;
+
+    const cardTranslateY = index < 8 ? listAnim.interpolate({
+      inputRange: [0, index * 0.1, Math.min(1, index * 0.1 + 0.3)],
+      outputRange: [15, 15, 0],
+      extrapolate: 'clamp'
+    }) : 0;
+
+    return (
+      <Animated.View
+        key={specialist.id}
+        style={{
+          width: '48.2%',
+          height: 240,
+          marginBottom: 16,
+          opacity: cardOpacity,
+          transform: [{ translateY: cardTranslateY }]
+        }}
+      >
+        <BouncyPressable
+          onPress={() => onSelectSpecialist && onSelectSpecialist(specialist)}
+          style={[
+            styles.card,
+            {
+              width: '100%',
+              height: '100%',
+              marginBottom: 0
+            }
+          ]}
+        >
+          <BlurView
+            intensity={65}
+            tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+            style={StyleSheet.absoluteFill}
+          />
+
+          {/* Workshop Cover Image */}
+          <Image source={getSpecialistCover(specialist)} style={styles.cardCover} />
+
+          {/* Card Content Area */}
+          <View style={styles.cardDetails}>
+            {/* Top Info Area */}
+            <View style={isRtl && { alignItems: 'flex-end' }}>
+              {/* Name */}
+              <Text style={[styles.cardName, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]} numberOfLines={2}>
+                {isRtl ? (specialist.nameAr || specialist.name) : specialist.name}
+              </Text>
+
+              {/* Specialty */}
+              <Text style={[styles.cardSpecialty, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]} numberOfLines={1}>
+                {isRtl ? (specialist.specialtyAr || specialist.specialty) : specialist.specialty}
+              </Text>
+
+              {/* Location Row */}
+              <View style={[styles.locationRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                <Ionicons name="location-sharp" size={12} color={colors.textMuted} style={[styles.locationIcon, isRtl ? { marginLeft: 2, marginRight: 0 } : { marginRight: 2 }]} />
+                <Text style={[styles.cardLocation, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]} numberOfLines={1}>
+                  {isRtl ? (specialist.locationAr || specialist.location) : specialist.location}
+                </Text>
+              </View>
+            </View>
+
+            {/* Bottom Info Area */}
+            <View>
+              {/* Thin Divider Line */}
+              <View style={styles.cardDivider} />
+
+              {/* Rating Row */}
+              <View style={styles.statsRow}>
+                {/* Rating */}
+                <View style={[styles.ratingContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <Ionicons name="star" size={12} color={colors.gold} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
+                  <Text style={[styles.ratingText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+                    {specialist.rating || '4.5'}{' '}
+                    <Text style={styles.reviewsText}>({isRtl ? `${specialist.reviews || '0'} تقييم` : `${specialist.reviews || '0'}`})</Text>
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </BouncyPressable>
+      </Animated.View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bgCreamy} />
@@ -402,6 +570,48 @@ export default function MechanicsScreen({
         <View style={styles.contentBlock}>
           {/* Top Fade Gradient Overlay */}
           {renderGradientOverlay()}
+
+          {/* Floating Back to Top Button */}
+          <Animated.View
+            pointerEvents={showScrollToTop ? 'auto' : 'none'}
+            style={[
+              styles.backToTopContainer,
+              {
+                top: topInset + 8,
+                opacity: backToTopAnim,
+                transform: [
+                  {
+                    translateY: backToTopAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-24, 0],
+                    }),
+                  },
+                  {
+                    scale: backToTopAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.85, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <BouncyPressable
+              onPress={handleScrollToTop}
+              style={[styles.backToTopButton, isRtl && { flexDirection: 'row-reverse' }]}
+              activeOpacity={0.85}
+            >
+              <Ionicons 
+                name="arrow-up" 
+                size={14} 
+                color={colors.white === '#FFFFFF' ? '#FFFFFF' : colors.textCream} 
+                style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
+              />
+              <Text style={[styles.backToTopText, isRtl && styles.backToTopTextArabic]}>
+                {isRtl ? 'العودة للأعلى' : 'Back to Top'}
+              </Text>
+            </BouncyPressable>
+          </Animated.View>
 
           {/* Collapsible Header Group */}
           <Animated.View style={[
@@ -482,10 +692,13 @@ export default function MechanicsScreen({
                 onPress={() => setLocationModalVisible(true)}
               >
                 <Ionicons 
-                  name="location-outline" 
+                  name={selectedLocation !== 'overall' ? "location" : "location-outline"} 
                   size={18} 
                   color={selectedLocation !== 'overall' ? colors.bgBrand : colors.white} 
                 />
+                {selectedLocation !== 'overall' && (
+                  <View style={styles.activeFilterDot} />
+                )}
               </TouchableOpacity>
             </View>
 
@@ -545,117 +758,35 @@ export default function MechanicsScreen({
               </Text>
             </View>
           ) : (
-            <Animated.ScrollView
+            <Animated.FlatList
+              ref={flatListRef}
+              data={filteredSpecialists}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
+              columnWrapperStyle={{ justifyContent: 'space-between' }}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[styles.cardsScroll, { paddingTop: cardsScrollPaddingTop }]}
               scrollEventThrottle={16}
               onScroll={Animated.event(
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: true }
+                { 
+                  useNativeDriver: true,
+                  listener: (event) => {
+                    const offsetY = event?.nativeEvent?.contentOffset?.y || 0;
+                    const shouldShow = offsetY > 350;
+                    if (shouldShow !== showScrollToTopRef.current) {
+                      showScrollToTopRef.current = shouldShow;
+                      setShowScrollToTop(shouldShow);
+                    }
+                  }
+                }
               )}
-            >
-              <View style={styles.gridContainer}>
-                {filteredSpecialists.map((specialist, index) => {
-                  const cardOpacity = listAnim.interpolate({
-                    inputRange: [0, Math.min(1, index * 0.12), Math.min(1, index * 0.12 + 0.25)],
-                    outputRange: [0, 0, 1],
-                    extrapolate: 'clamp'
-                  });
-
-                  const cardTranslateY = listAnim.interpolate({
-                    inputRange: [0, Math.min(1, index * 0.12), Math.min(1, index * 0.12 + 0.25)],
-                    outputRange: [15, 15, 0],
-                    extrapolate: 'clamp'
-                  });
-
-                  return (
-                    <Animated.View
-                      key={specialist.id}
-                      style={{
-                        width: '48.2%',
-                        height: 240,
-                        marginBottom: 16,
-                        opacity: cardOpacity,
-                        transform: [{ translateY: cardTranslateY }]
-                      }}
-                    >
-                      <BouncyPressable
-                        onPress={() => onSelectSpecialist && onSelectSpecialist(specialist)}
-                        style={[
-                          styles.card,
-                          {
-                            width: '100%',
-                            height: '100%',
-                            marginBottom: 0
-                          }
-                        ]}
-                      >
-                        <BlurView
-                          intensity={65}
-                          tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
-                          style={StyleSheet.absoluteFill}
-                        />
-
-                        {/* Workshop Cover Image */}
-                        <Image source={specialist.image} style={styles.cardCover} />
-
-                        {/* Card Content Area */}
-                        <View style={styles.cardDetails}>
-                          {/* Top Info Area */}
-                          <View style={isRtl && { alignItems: 'flex-end' }}>
-                            {/* Name */}
-                            <Text style={[styles.cardName, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]} numberOfLines={2}>
-                              {isRtl ? specialist.nameAr : specialist.name}
-                            </Text>
-
-                            {/* Specialty */}
-                            <Text style={[styles.cardSpecialty, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]} numberOfLines={1}>
-                              {isRtl ? specialist.specialtyAr : specialist.specialty}
-                            </Text>
-
-                            {/* Location Row */}
-                            <View style={[styles.locationRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                              <Ionicons name="location-sharp" size={12} color={colors.textMuted} style={[styles.locationIcon, isRtl ? { marginLeft: 2, marginRight: 0 } : { marginRight: 2 }]} />
-                              <Text style={[styles.cardLocation, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]} numberOfLines={1}>
-                                {isRtl ? specialist.locationAr : specialist.location}
-                              </Text>
-                            </View>
-                          </View>
-
-                          {/* Bottom Info Area */}
-                          <View>
-                            {/* Thin Divider Line */}
-                            <View style={styles.cardDivider} />
-
-                            {/* Rating Row */}
-                            <View style={styles.statsRow}>
-                              {/* Rating */}
-                              <View style={[styles.ratingContainer, isRtl && { flexDirection: 'row-reverse' }]}>
-                                <Ionicons name="star" size={12} color={colors.gold} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                                <Text style={[styles.ratingText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
-                                  {specialist.rating}{' '}
-                                  <Text style={styles.reviewsText}>({isRtl ? `${specialist.reviews} تقييم` : `${specialist.reviews}`})</Text>
-                                </Text>
-                              </View>
-                            </View>
-                          </View>
-                        </View>
-
-                        {/* 3D Glossy Bevel Highlight Overlay */}
-                        <View style={{
-                          ...StyleSheet.absoluteFillObject,
-                          borderRadius: 16,
-                          borderWidth: 1.5,
-                          borderColor: 'transparent',
-                          borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                          borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                        }} pointerEvents="none" />
-                      </BouncyPressable>
-                    </Animated.View>
-                  );
-                })}
-              </View>
-            </Animated.ScrollView>
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
+              renderItem={renderSpecialistItem}
+            />
           )}
 
           {/* Custom Location Selection Dialog Overlay */}
@@ -702,9 +833,25 @@ export default function MechanicsScreen({
                         <TouchableOpacity
                           key={loc.id}
                           activeOpacity={0.8}
-                          onPress={() => {
-                            setSelectedLocation(loc.id);
-                            setLocationModalVisible(false);
+                          onPress={async () => {
+                            if (loc.id === 'nearest') {
+                              let { status } = await Location.requestForegroundPermissionsAsync();
+                              if (status !== 'granted') {
+                                Alert.alert(isRtl ? 'عذراً' : 'Sorry', isRtl ? 'نحتاج إذن للوصول إلى موقعك.' : 'Permission to access location was denied');
+                                return;
+                              }
+                              try {
+                                let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                                setUserCoords(location.coords);
+                                setSelectedLocation(loc.id);
+                                setLocationModalVisible(false);
+                              } catch (e) {
+                                Alert.alert(isRtl ? 'خطأ' : 'Error', isRtl ? 'لم نتمكن من تحديد موقعك.' : 'Could not fetch your location');
+                              }
+                            } else {
+                              setSelectedLocation(loc.id);
+                              setLocationModalVisible(false);
+                            }
                           }}
                           style={[
                             styles.locationRowItem,
@@ -713,19 +860,35 @@ export default function MechanicsScreen({
                           ]}
                         >
                           <View style={[styles.locationRowLeft, isRtl && { flexDirection: 'row-reverse' }]}>
-                            <Ionicons 
-                              name="location-sharp" 
-                              size={16} 
-                              color={isSelected ? colors.bgBrand : colors.textMuted} 
-                              style={isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8 }} 
-                            />
-                            <Text style={[
-                              styles.locationRowLabel,
-                              isSelected && styles.locationRowLabelSelected,
-                              isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0, textAlign: 'right' }
+                            <View style={[
+                              styles.locationIconBadge, 
+                              isSelected && styles.locationIconBadgeSelected,
+                              isRtl ? { marginLeft: 10 } : { marginRight: 10 }
                             ]}>
-                              {loc.label}
-                            </Text>
+                              <Ionicons 
+                                name={loc.id === 'overall' ? "globe-outline" : loc.id === 'nearest' ? "navigate" : "location-sharp"} 
+                                size={15} 
+                                color={isSelected ? colors.white : colors.bgBrand} 
+                              />
+                            </View>
+                            <View style={[styles.locationTextGroup, isRtl && { alignItems: 'flex-end' }]}>
+                              <Text style={[
+                                styles.locationRowLabel,
+                                isSelected && styles.locationRowLabelSelected,
+                                isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0, textAlign: 'right' }
+                              ]}>
+                                {loc.label}
+                              </Text>
+                              {loc.subtext ? (
+                                <Text style={[
+                                  styles.locationRowSubtext,
+                                  isSelected && styles.locationRowSubtextSelected,
+                                  isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5, textAlign: 'right' }
+                                ]}>
+                                  {loc.subtext}
+                                </Text>
+                              ) : null}
+                            </View>
                           </View>
                           {isSelected && (
                             <Ionicons name="checkmark-circle" size={18} color={colors.bgBrand} />
@@ -911,6 +1074,38 @@ const createStyles = (colors) => StyleSheet.create({
   },
   vehicleFilterTextUnselected: {
     color: colors.textMuted,
+  },
+  backToTopContainer: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: colors.white === '#FFFFFF' ? 0.22 : 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  backToTopButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgBrand,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.2,
+    borderColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.20)',
+  },
+  backToTopText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  backToTopTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 12,
+    letterSpacing: 0,
   },
   collapsibleHeader: {
     position: 'absolute',
@@ -1249,15 +1444,15 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '600',
   },
   locationScroll: {
-    maxHeight: 250,
+    maxHeight: 380,
   },
   locationRowItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.borderGreen,
     marginBottom: 8,
@@ -1270,14 +1465,53 @@ const createStyles = (colors) => StyleSheet.create({
   locationRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  locationIconBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen + '40',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationIconBadgeSelected: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+  },
+  locationTextGroup: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    flex: 1,
   },
   locationRowLabel: {
-    fontSize: 12.5,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.textDark,
   },
   locationRowLabelSelected: {
     color: colors.bgBrand,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  locationRowSubtext: {
+    fontSize: 10.5,
+    color: colors.textMuted,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  locationRowSubtextSelected: {
+    color: colors.bgBrand,
+    opacity: 0.85,
+  },
+  activeFilterDot: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#E04A4A',
   },
 });
