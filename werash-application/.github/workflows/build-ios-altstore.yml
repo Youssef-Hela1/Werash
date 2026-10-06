@@ -1,0 +1,52 @@
+name: Build iOS IPA for AltStore
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Native iOS Project
+        run: npx expo prebuild -p ios --clean
+
+      - name: Build Unsigned iOS App
+        working-directory: ios
+        run: |
+          WORKSPACE=$(ls | grep .xcworkspace | head -n 1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Building Workspace: $WORKSPACE, Scheme: $SCHEME"
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package into IPA
+        run: |
+          mkdir -p Payload
+          mv ios/build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -qr werash-app.ipa Payload
+      
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: werash-ios-ipa
+          path: werash-app.ipa
