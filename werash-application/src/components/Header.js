@@ -144,22 +144,22 @@ export default function Header({
           source={require('../../assets/top_right_tire_blob.png')} 
           style={[
             styles.cornerTireBlob,
-            isRTL ? styles.cornerTireBlobRtl : styles.cornerTireBlobLtr
+            styles.cornerTireBlobLtr
           ]} 
           resizeMode="cover" 
         />
       )}
 
-      <View style={[styles.topRow, isHome && styles.topRowHome, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.topRow, isHome && styles.topRowHome, false]}>
         {/* Logo, Text, and Greeting on Home */}
-        <View style={[styles.brandWrapper, isRTL && styles.brandWrapperRtl]}>
-          <View style={[styles.logoContainer, isRTL && styles.logoContainerRtl]}>
+        <View style={[styles.brandWrapper, false]}>
+          <View style={[styles.logoContainer, false]}>
             <Image 
               source={isHome ? require('../../assets/logo_green.png') : require('../../assets/logo.png')} 
               style={[
                 styles.logoImage, 
                 isHome && styles.logoImageHome,
-                isRTL && styles.logoImageRtl
+                false
               ]} 
               resizeMode="contain" 
             />
@@ -197,7 +197,7 @@ export default function Header({
         {/* Notifications Button on Home (Top Right inside Green Area) */}
         {isHome && (
           <TouchableOpacity 
-            style={[styles.notificationButtonHome, isRTL && styles.notificationButtonHomeRtl]} 
+            style={[styles.notificationButtonHome, false]} 
             activeOpacity={0.8}
             onPress={() => setNotificationsVisible(true)}
             accessibilityRole="button"
@@ -205,7 +205,7 @@ export default function Header({
           >
             <Ionicons name="notifications-outline" size={20} color={colors.textCream} />
             {unreadCount > 0 && (
-              <View style={[styles.badgeContainer, isRTL ? { left: -4 } : { right: -4 }, { top: -4 }]}>
+              <View style={[styles.badgeContainer, { right: -4 }, { top: -4 }]}>
                 <Text style={styles.badgeText}>{unreadCount}</Text>
               </View>
             )}
@@ -225,11 +225,11 @@ export default function Header({
                 }
               }}
             >
-              <Ionicons name="person-outline" size={16} color={colors.textCream} style={isRTL ? { marginLeft: 6 } : { marginRight: 6 }} />
+              <Ionicons name="person-outline" size={16} color={colors.textCream} style={{ marginRight: 6 }} />
               <Text style={styles.signInText}>{currentUser ? getFirstName().toUpperCase() : (selectedLanguage === 'Arabic' ? "تسجيل الدخول" : "SIGN IN")}</Text>
               {/* Notification Badge Count */}
               {currentUser && unreadCount > 0 && (
-                <View style={[styles.badgeContainer, isRTL ? { left: -6 } : { right: -6 }]}>
+                <View style={[styles.badgeContainer, { right: -6 }]}>
                   <Text style={styles.badgeText}>{unreadCount}</Text>
                 </View>
               )}
@@ -243,7 +243,7 @@ export default function Header({
             >
               <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textCream} />
               {currentUser && unreadCount > 0 && (
-                <View style={[styles.badgeContainer, isRTL ? { left: -6 } : { right: -6 }]}>
+                <View style={[styles.badgeContainer, { right: -6 }]}>
                   <Text style={styles.badgeText}>{unreadCount}</Text>
                 </View>
               )}

@@ -7,6 +7,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../styles/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY_LOCAL_USERS = '@werash_local_users_db';
 
 const GREEN       = '#37633B';
 const DARK_GREEN  = '#2A4E2E';
@@ -22,7 +25,19 @@ const API_URL = Platform.select({
 });
 
 // Local in-memory database fallback for offline testing or Expo Go connection issues
-const localUsersDb = [
+// Load local users DB from AsyncStorage on launch
+AsyncStorage.getItem(STORAGE_KEY_LOCAL_USERS).then(stored => {
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        localUsersDb = parsed;
+      }
+    } catch (_) {}
+  }
+}).catch(() => {});
+
+let localUsersDb = [
   {
     id: 'mock-youssef',
     fullName: 'Youssef Helal',
@@ -338,6 +353,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
       };
       
       localUsersDb.push(newUser);
+      AsyncStorage.setItem(STORAGE_KEY_LOCAL_USERS, JSON.stringify(localUsersDb)).catch(() => {});
       
       Alert.alert('Success (Offline Mode)', 'Your account has been registered successfully (Offline Mock Mode)! Welcome to Werash.');
       if (onSignInSuccess) {

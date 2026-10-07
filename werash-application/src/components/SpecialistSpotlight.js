@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { BlurView } from 'expo-blur';
+import ServiceBrandLogo from './ServiceBrandLogo';
 
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -23,7 +24,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
   
   const ads = [
     {
-      id: 'ad-tuning',
+      id: 'ad-tuning', serviceBrand: 'mobil',
       sponsor: isRtl ? 'ميونخ للضبط والتعديل' : 'Munich Tuning Studio',
       title: isRtl ? 'خصم ١٥٪ على باقات التعديل' : '15% Off ECU Tuning',
       desc: isRtl ? 'قم بتحسين أداء المحرك واستجابة دواسة الوقود مع مهندسينا المعتمدين.' : 'Boost engine performance and throttle response with certified specialists.',
@@ -34,7 +35,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: colors.gold,
     },
     {
-      id: 'ad-ceramic',
+      id: 'ad-ceramic', serviceBrand: 'shell',
       sponsor: isRtl ? 'مركز أوتو سبا للعناية' : 'AutoSpa Detailing',
       title: isRtl ? 'تلميع داخلي مجاني بالكامل' : 'Free Interior Polish',
       desc: isRtl ? 'احصل على تلميع داخلي مجاني بالكامل لسيارتك عند طلب حماية النانو سيراميك الذهبية.' : 'Get a complimentary interior detailing with any gold ceramic coating pack.',
@@ -45,7 +46,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: colors.accentRed || '#B54D4F',
     },
     {
-      id: 'ad-parts',
+      id: 'ad-parts', serviceBrand: 'bosch',
       sponsor: isRtl ? 'بارت فايندر لقطع الغيار' : 'PartFinder Egypt',
       title: isRtl ? 'وفر ٢٠$ على تيل الفرامل' : 'Save $20 on Brake Pads',
       desc: isRtl ? 'تيل فرامل أصلي من بريمبو وبوش وإي بي سي مع ضمان التركيب مجاناً لدى ورشنا المعتمدة.' : 'Original Brembo, Bosch, and EBC brake pad kits with free installation.',
@@ -56,7 +57,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#4A6984',
     },
     {
-      id: 'ad-turbo',
+      id: 'ad-turbo', serviceBrand: 'total',
       sponsor: isRtl ? 'توربو تك للأداء' : 'TurboTech Egypt',
       title: isRtl ? 'خصم ١٠٪ على صيانة التوربو' : '10% Off Turbo Services',
       desc: isRtl ? 'فحص وصيانة شواحن التوربو وتعديل أنظمة العادم بأحدث الأجهزة.' : 'Professional turbo repair and exhaust system modifications.',
@@ -67,7 +68,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#D97706',
     },
     {
-      id: 'ad-wash',
+      id: 'ad-wash', serviceBrand: 'castrol',
       sponsor: isRtl ? 'إيليت لغسيل السيارات' : 'Elite Car Care',
       title: isRtl ? 'باقة غسيل وتلميع VIP' : 'VIP Wash & Polish Package',
       desc: isRtl ? 'غسيل بخار كامل وتلميع بالنانو شمع مع تعقيم مقصورة القيادة.' : 'Full steam wash, nano wax polish, and cabin sanitization at your doorstep.',
@@ -78,7 +79,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#10B981',
     },
     {
-      id: 'ad-brakes',
+      id: 'ad-brakes', serviceBrand: 'brembo',
       sponsor: isRtl ? 'بريك ماستر للفرامل' : 'BrakeMaster Egypt',
       title: isRtl ? 'فحص مجاني لنظام الفرامل' : 'Free Brake System Check',
       desc: isRtl ? 'اطمئن على سلامتك مع فحص مجاني للفرامل وتخفيض على تيل الطنابير.' : 'Ensure your safety with a free brake inspection and discounts on replacement rotors.',
@@ -89,7 +90,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#EF4444',
     },
     {
-      id: 'ad-transmission',
+      id: 'ad-transmission', serviceBrand: 'mobil',
       sponsor: isRtl ? 'مركز الفتيس الاحترافي' : 'Gearbox Pro Clinic',
       title: isRtl ? 'ضمان سنة على توضيب الفتيس' : '1 Year Transmission Warranty',
       desc: isRtl ? 'صيانة وتوضيب نواقل الحركة الأوتوماتيكية وDSG بأيدي مهندسين مختصين.' : 'Specialized repair and rebuilds for automatic and DSG gearboxes.',
@@ -100,7 +101,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#6366F1',
     },
     {
-      id: 'ad-tires',
+      id: 'ad-tires', serviceBrand: 'michelin',
       sponsor: isRtl ? 'تاير زون لمبيعات الإطارات' : 'TyreZone Egypt',
       title: isRtl ? 'اشترِ ٣ إطارات واحصل على الرابع مجاناً' : 'Buy 3 Tires, Get 1 Free',
       desc: isRtl ? 'احصل على خصم مميز مع ترصيص وضبط زوايا مجاني عند شراء طقم إطارات.' : 'Get free alignment and wheel balancing with any premium brand tire set purchase.',
@@ -111,7 +112,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#06B6D4',
     },
     {
-      id: 'ad-battery',
+      id: 'ad-battery', serviceBrand: 'varta',
       sponsor: isRtl ? 'فولت تشارج لكهرباء السيارات' : 'VoltCharge Electrical',
       title: isRtl ? 'خصم ٢٠٪ على بطاريات فارتا' : '20% Off Varta Batteries',
       desc: isRtl ? 'تغيير البطارية وتوصيلها حتى باب البيت مع فحص شامل لدينامو السيارة.' : 'Battery replacement delivered to your location with alternator diagnosis.',
@@ -122,7 +123,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       color: '#F59E0B',
     },
     {
-      id: 'ad-carbon',
+      id: 'ad-carbon', serviceBrand: 'shell',
       sponsor: isRtl ? 'كاربو كلين لتنظيف المحرك' : 'CarbonClean Egypt',
       title: isRtl ? 'استعد قوة المحرك المفقودة' : 'Restore Your Engine Power',
       desc: isRtl ? 'جلسة تنظيف محرك بالهيدروجين لإزالة الكربون وتحسين استهلاك الوقود.' : 'Hydrogen engine cleaning session to remove carbon deposits and save fuel.',
@@ -199,9 +200,9 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
   return (
     <View style={[styles.container, isRtl && { marginTop: 16 }]}>
       {/* Spotlight Header Row */}
-      <View style={[styles.headerRow, isRtl && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.headerRow, false]}>
         <View>
-          <Text style={[styles.sectionMain, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }, isRtl && { textAlign: 'right' }]}>{labelSpotlight}</Text>
+          <Text style={[styles.sectionMain, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }, false]}>{labelSpotlight}</Text>
         </View>
       </View>
 
@@ -264,7 +265,13 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
                 tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
                 style={StyleSheet.absoluteFill}
               />
-              <Image source={ad.image} style={styles.adImage} />
+              <View style={{ flex: 1, backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }}>
+                {ad.serviceBrand ? (
+                  <ServiceBrandLogo brand={ad.serviceBrand} />
+                ) : (
+                  <Image source={ad.image} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+                )}
+              </View>
               <View style={styles.adFooter}>
                 <Text style={styles.adFooterText} numberOfLines={1}>
                   {ad.sponsor}

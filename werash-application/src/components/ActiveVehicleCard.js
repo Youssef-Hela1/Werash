@@ -8,14 +8,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 // Helper to split numbers (left) and letters (right) on license plates
 const splitPlate = (plateStr) => {
-  if (!plateStr) return { numbers: '', letters: '' };
+  if (!plateStr || typeof plateStr !== 'string') return { numbers: '', letters: '' };
   
   // Match digits (0-9 and Arabic numerals ٠-٩)
-  const digitRegex = /[0-9\u0660-\u0669]/g;
+  const digitRegex = /[0-9٠-٩]/g;
   const digits = plateStr.match(digitRegex) || [];
   
   // Replace digits to extract letters only, normalizing spacing
-  const lettersOnly = plateStr.replace(digitRegex, '').trim().replace(/\s+/g, ' ');
+  const lettersOnly = plateStr.replace(digitRegex, '').trim().replace(/s+/g, ' ');
   
   return {
     numbers: digits.join(''),
@@ -52,10 +52,10 @@ export default function ActiveVehicleCard({
     cc: currentUser.cc || '2000 CC'
   } : null);
 
-  const carBrand = vehicle ? vehicle.brand : '';
-  const carModel = vehicle ? vehicle.model : '';
-  const carYear = vehicle ? vehicle.year : '';
-  const plateNumber = vehicle ? (vehicle.plateNumberArabic || vehicle.plateNumber) : '';
+  const carBrand = (vehicle && vehicle.brand) ? String(vehicle.brand) : '';
+  const carModel = (vehicle && vehicle.model) ? String(vehicle.model) : '';
+  const carYear = (vehicle && vehicle.year) ? String(vehicle.year) : '';
+  const plateNumber = vehicle ? (vehicle.plateNumberArabic || vehicle.plateNumber || '') : '';
 
   // Resolve vehicle card image: Show ONLY the brand's logo
   const normalizedBrand = carBrand ? carBrand.trim().toLowerCase() : '';
@@ -95,8 +95,9 @@ export default function ActiveVehicleCard({
     'بي واي دي': 'byd',
   };
 
-  const lookupKey = arabicBrandMap[carBrand.trim()] || normalizedBrand;
-  const brandLogo = BRAND_LOGOS[lookupKey] || 
+  const lookupKey = (carBrand && arabicBrandMap[carBrand.trim()]) ? arabicBrandMap[carBrand.trim()] : normalizedBrand;
+  const brandLogo = lookupKey ? (
+                    BRAND_LOGOS[lookupKey] || 
                     BRAND_LOGOS[lookupKey.replace(/\s+/g, '-')] || 
                     BRAND_LOGOS[lookupKey.replace(/-/g, ' ')] || 
                     (lookupKey === 'mercedes' ? BRAND_LOGOS['mercedes'] : null) || 
@@ -104,7 +105,8 @@ export default function ActiveVehicleCard({
                     (lookupKey.includes('mini') ? BRAND_LOGOS['mini cooper'] : null) || 
                     (lookupKey.includes('rover') ? BRAND_LOGOS['land rover'] : null) || 
                     (lookupKey.includes('alfa') ? BRAND_LOGOS['alfa romeo'] : null) || 
-                    null;
+                    null
+                  ) : null;
 
   const isRtl = selectedLanguage === 'Arabic';
   const labelActiveVehicle = isRtl ? 'المركبة النشطة' : 'ACTIVE VEHICLE';
@@ -145,10 +147,10 @@ export default function ActiveVehicleCard({
           pointerEvents="none"
           style={[
             styles.verticalHeaderRow, 
-            isRtl && { flexDirection: 'row-reverse' }
+            false
           ]}
         >
-          <View style={[styles.verticalHeaderPill, isRtl && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.verticalHeaderPill, false]}>
             <Ionicons 
               name="car-sport-outline" 
               size={12} 
@@ -178,10 +180,10 @@ export default function ActiveVehicleCard({
         <View pointerEvents="none" style={styles.verticalDetailsSection}>
           {isGuest ? (
             <>
-              <Text style={[styles.verticalNoVehicleText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+              <Text style={[styles.verticalNoVehicleText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]} numberOfLines={2}>
                 {labelNoVehicle}
               </Text>
-              <Text style={styles.verticalNoVehicleSubtext}>
+              <Text style={styles.verticalNoVehicleSubtext} numberOfLines={1}>
                 {labelNoVehicleSub}
               </Text>
             </>
@@ -208,7 +210,7 @@ export default function ActiveVehicleCard({
                   <View style={styles.plateBadge}>
                     <View style={styles.plateBadgeHeader}>
                       <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                        {isRtl ? 'مِصْر' : 'EGYPT'}
+                        {isRtl ? 'مصر' : 'EGYPT'}
                       </Text>
                     </View>
                     {(() => {
@@ -234,14 +236,14 @@ export default function ActiveVehicleCard({
 
         {/* Footer actions if provided */}
         {hasFooter ? (
-          <View style={[styles.cardFooterActionsRow, { marginTop: 10, width: '100%' }, isRtl && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.cardFooterActionsRow, { marginTop: 10, width: '100%' }, false]}>
             {onChangePress ? (
               <TouchableOpacity 
-                style={[styles.footerActionBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                style={[styles.footerActionBtn, false]}
                 activeOpacity={0.7}
                 onPress={onChangePress}
               >
-                <Ionicons name="swap-horizontal-outline" size={13} color={colors.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+                <Ionicons name="swap-horizontal-outline" size={13} color={colors.bgBrand} style={{ marginRight: 5 }} />
                 <Text style={styles.footerActionBtnText}>
                   {isRtl ? 'تغيير' : 'Change'}
                 </Text>
@@ -250,11 +252,11 @@ export default function ActiveVehicleCard({
 
             {onAddPress ? (
               <TouchableOpacity 
-                style={[styles.footerActionBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                style={[styles.footerActionBtn, false]}
                 activeOpacity={0.7}
                 onPress={onAddPress}
               >
-                <Ionicons name="add-circle-outline" size={13} color={colors.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+                <Ionicons name="add-circle-outline" size={13} color={colors.bgBrand} style={{ marginRight: 5 }} />
                 <Text style={styles.footerActionBtnText}>
                   {isRtl ? 'إضافة' : 'Add'}
                 </Text>
@@ -270,7 +272,7 @@ export default function ActiveVehicleCard({
     <TouchableOpacity 
       style={[
         styles.cardContainer, 
-        (isRtl && !showExtendedInfo) ? { height: hasFooter ? 145 : 125, marginTop: 0 } : { minHeight: hasFooter ? 145 : 125 }, 
+        { minHeight: hasFooter ? 145 : 125 }, 
         style
       ]}
       activeOpacity={onPress ? 0.82 : (isGuest ? 0.75 : 1)}
@@ -291,10 +293,10 @@ export default function ActiveVehicleCard({
       {/* Header Row */}
       <View style={[
         styles.cardHeaderRow, 
-        isRtl && { flexDirection: 'row-reverse' },
+        false,
         { marginBottom: 8, paddingBottom: 0 }
       ]}>
-        <View style={[styles.headerRowLabelContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+        <View style={[styles.headerRowLabelContainer, false]}>
           <Ionicons 
             name="car-sport-outline" 
             size={16} 
@@ -306,27 +308,27 @@ export default function ActiveVehicleCard({
       </View>
 
       {/* Card Body Row */}
-      <View style={[styles.cardBodyRow, isRtl && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.cardBodyRow, false]}>
         {/* Text Zone (takes 2/3 of space) */}
-        <View style={[styles.textSection, isRtl && { paddingLeft: 10, paddingRight: 0 }]}>
+        <View style={[styles.textSection, false]}>
           {isGuest ? (
             <>
-              <Text style={[styles.noVehicleText, isRtl && { textAlign: 'right' }]}>{labelNoVehicle}</Text>
-              <Text style={[styles.noVehicleSubtext, isRtl && { textAlign: 'right' }]}>{labelNoVehicleSub}</Text>
+              <Text style={[styles.noVehicleText, false]}>{labelNoVehicle}</Text>
+              <Text style={[styles.noVehicleSubtext, false]}>{labelNoVehicleSub}</Text>
             </>
           ) : (
             <>
-              <Text style={[styles.carName, isRtl && { textAlign: 'right' }]}>{carBrand} {carModel}</Text>
-              <Text style={[styles.carModel, isRtl && { textAlign: 'right' }]}>{labelModel}</Text>
+              <Text style={[styles.carName, false]}>{carBrand} {carModel}</Text>
+              <Text style={[styles.carModel, false]}>{labelModel}</Text>
               
               {showExtendedInfo && (
-                <View style={[styles.extendedInfoRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                <View style={[styles.extendedInfoRow, false]}>
                   {/* Plate Badge */}
                   {plateNumber ? (
                     <View style={styles.plateBadge}>
                       <View style={styles.plateBadgeHeader}>
                         <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                          {isRtl ? 'مِصْر' : 'EGYPT'}
+                          {isRtl ? 'مصر' : 'EGYPT'}
                         </Text>
                       </View>
                       {(() => {
@@ -370,14 +372,14 @@ export default function ActiveVehicleCard({
 
       {/* Bottom Actions Row inside the card */}
       {hasFooter ? (
-        <View style={[styles.cardFooterActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+        <View style={[styles.cardFooterActionsRow, false]}>
           {onChangePress ? (
             <TouchableOpacity 
-              style={[styles.footerActionBtn, isRtl && { flexDirection: 'row-reverse' }]}
+              style={[styles.footerActionBtn, false]}
               activeOpacity={0.7}
               onPress={onChangePress}
             >
-              <Ionicons name="swap-horizontal-outline" size={13} color={colors.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+              <Ionicons name="swap-horizontal-outline" size={13} color={colors.bgBrand} style={{ marginRight: 5 }} />
               <Text style={styles.footerActionBtnText}>
                 {isRtl ? 'تغيير السيارة' : 'Change Car'}
               </Text>
@@ -386,11 +388,11 @@ export default function ActiveVehicleCard({
 
           {onAddPress ? (
             <TouchableOpacity 
-              style={[styles.footerActionBtn, isRtl && { flexDirection: 'row-reverse' }]}
+              style={[styles.footerActionBtn, false]}
               activeOpacity={0.7}
               onPress={onAddPress}
             >
-              <Ionicons name="add-circle-outline" size={13} color={colors.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+              <Ionicons name="add-circle-outline" size={13} color={colors.bgBrand} style={{ marginRight: 5 }} />
               <Text style={styles.footerActionBtnText}>
                 {isRtl ? 'إضافة سيارة' : 'Add Car'}
               </Text>
@@ -585,7 +587,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
+    height: 236,
     minHeight: 236,
+    maxHeight: 236,
+    overflow: 'hidden',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: colors.white === '#FFFFFF' ? 0.06 : 0.35,
@@ -615,15 +620,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   verticalImageSection: {
     width: '100%',
-    height: 102,
+    height: 65,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
     marginBottom: 4,
   },
   verticalBrandLogo: {
-    width: 110,
-    height: 98,
+    width: 75,
+    height: 55,
   },
   verticalDetailsSection: {
     width: '100%',
@@ -674,3 +679,4 @@ const createStyles = (colors) => StyleSheet.create({
     lineHeight: 14,
   }
 });
+

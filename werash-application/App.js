@@ -13,6 +13,11 @@ import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY_USER_VEHICLES = '@werash_user_vehicles';
+const STORAGE_KEY_ACTIVE_VEHICLE_ID = '@werash_active_vehicle_id';
+const STORAGE_KEY_CURRENT_USER = '@werash_current_user';
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState('home');
@@ -122,6 +127,57 @@ function AppContent() {
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Load stored user & vehicles on launch
+  useEffect(() => {
+    let isMounted = true;
+    const loadStorage = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem(STORAGE_KEY_CURRENT_USER);
+        if (storedUser && isMounted) {
+          const parsedUser = JSON.parse(storedUser);
+          if (parsedUser) setCurrentUser(parsedUser);
+        }
+
+        const storedVehicles = await AsyncStorage.getItem(STORAGE_KEY_USER_VEHICLES);
+        const storedActiveId = await AsyncStorage.getItem(STORAGE_KEY_ACTIVE_VEHICLE_ID);
+        if (storedVehicles && isMounted) {
+          const parsedVehicles = JSON.parse(storedVehicles);
+          if (Array.isArray(parsedVehicles) && parsedVehicles.length > 0) {
+            setUserVehicles(parsedVehicles);
+            setActiveVehicleId(storedActiveId || parsedVehicles[0].id);
+          }
+        }
+      } catch (e) {
+        console.warn('Storage load error:', e);
+      }
+    };
+    loadStorage();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Save vehicles when updated
+  useEffect(() => {
+    if (userVehicles && userVehicles.length > 0) {
+      AsyncStorage.setItem(STORAGE_KEY_USER_VEHICLES, JSON.stringify(userVehicles)).catch(() => {});
+    }
+  }, [userVehicles]);
+
+  // Save active vehicle ID when changed
+  useEffect(() => {
+    if (activeVehicleId) {
+      AsyncStorage.setItem(STORAGE_KEY_ACTIVE_VEHICLE_ID, activeVehicleId).catch(() => {});
+    }
+  }, [activeVehicleId]);
+
+  // Save current user session when updated
+  useEffect(() => {
+    if (currentUser) {
+      AsyncStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser)).catch(() => {});
+    } else {
+      AsyncStorage.removeItem(STORAGE_KEY_CURRENT_USER).catch(() => {});
+    }
+  }, [currentUser]);
 
   // Sync user cars on login/change
   useEffect(() => {
@@ -422,6 +478,7 @@ function AppContent() {
           specialist={activeSpecialist} 
           onClose={() => setActiveSpecialist(null)} 
           selectedLanguage={selectedLanguage}
+          activeVehicle={userVehicles.find(v => v.id === activeVehicleId)}
         />
       )}
 

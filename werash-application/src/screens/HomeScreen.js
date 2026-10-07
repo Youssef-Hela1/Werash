@@ -29,7 +29,7 @@ export default function HomeScreen({
       <View style={styles.scrollView}>
         <View style={[styles.scrollContent, isRtl && { paddingTop: 6 }]}>
           {/* Main Top Row */}
-          <View style={[styles.mainRow, isRtl && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.mainRow, false]}>
             {/* Left Column: Vertical Active Vehicle Card */}
             <View style={styles.leftColumn}>
               <ActiveVehicleCard 
@@ -67,12 +67,12 @@ export default function HomeScreen({
                   {/* Subtle Atmospheric Icon Halo */}
                   <LinearGradient
                     colors={['rgba(77, 110, 79, 0.05)', 'transparent']}
-                    style={[styles.watermarkHalo, isRtl && styles.watermarkHaloRtl]}
+                    style={[styles.watermarkHalo, false]}
                   />
                 </View>
 
                 {/* Subtle Background Watermark Icon */}
-                <View style={[styles.miniCardWatermarkWrapper, isRtl && styles.miniCardWatermarkWrapperRtl]} pointerEvents="none">
+                <View style={[styles.miniCardWatermarkWrapper, false]} pointerEvents="none">
                   <Ionicons 
                     name="construct-outline" 
                     size={44} 
@@ -108,7 +108,7 @@ export default function HomeScreen({
                 {/* Premium Action Arrow Button (Bottom Left) */}
                 <View style={styles.miniCardArrowButton} pointerEvents="none">
                   <Ionicons 
-                    name={isRtl ? "arrow-back" : "arrow-forward"} 
+                    name="arrow-forward" 
                     size={13.5} 
                     color={colors.white === '#FFFFFF' ? '#243E27' : '#8EBF92'} 
                   />
@@ -136,12 +136,12 @@ export default function HomeScreen({
                   {/* Subtle Atmospheric Icon Halo */}
                   <LinearGradient
                     colors={['rgba(77, 110, 79, 0.05)', 'transparent']}
-                    style={[styles.watermarkHalo, isRtl && styles.watermarkHaloRtl]}
+                    style={[styles.watermarkHalo, false]}
                   />
                 </View>
 
                 {/* Subtle Background Watermark Icon */}
-                <View style={[styles.miniCardWatermarkWrapper, isRtl && styles.miniCardWatermarkWrapperRtl]} pointerEvents="none">
+                <View style={[styles.miniCardWatermarkWrapper, false]} pointerEvents="none">
                   <Ionicons 
                     name="chatbubbles-outline" 
                     size={44} 
@@ -177,7 +177,7 @@ export default function HomeScreen({
                 {/* Premium Action Arrow Button (Bottom Left) */}
                 <View style={styles.miniCardArrowButton} pointerEvents="none">
                   <Ionicons 
-                    name={isRtl ? "arrow-back" : "arrow-forward"} 
+                    name="arrow-forward" 
                     size={13.5} 
                     color={colors.white === '#FFFFFF' ? '#223C25' : '#8CBF90'} 
                   />
@@ -187,7 +187,7 @@ export default function HomeScreen({
           </View>
 
           {/* Secondary Row: Tow & Profile Cards */}
-          <View style={[styles.secondaryRow, isRtl && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.secondaryRow, false]}>
             {/* Tow Card (Dark Construction Theme with Hazard Ribbons & Coming Soon Sign) */}
             <TouchableOpacity
               style={styles.miniCardTow}
@@ -209,12 +209,12 @@ export default function HomeScreen({
                 {/* Subtle Atmospheric Halo Glow */}
                 <LinearGradient
                   colors={['rgba(77, 110, 79, 0.06)', 'transparent']}
-                  style={[styles.watermarkHalo, isRtl && styles.watermarkHaloRtl]}
+                  style={[styles.watermarkHalo, false]}
                 />
               </View>
 
               {/* Tow Truck Silhouette Watermark */}
-              <View style={[styles.miniCardWatermarkWrapper, isRtl && styles.miniCardWatermarkWrapperRtl]} pointerEvents="none">
+              <View style={[styles.miniCardWatermarkWrapper, false]} pointerEvents="none">
                 <MaterialCommunityIcons 
                   name="tow-truck" 
                   size={44} 
@@ -257,7 +257,7 @@ export default function HomeScreen({
               </View>
 
               {/* Construction Sign Plaque: Coming Soon */}
-              <View style={[styles.constructionSignWrapper, isRtl && styles.constructionSignWrapperRtl]} pointerEvents="none">
+              <View style={[styles.constructionSignWrapper, false]} pointerEvents="none">
                 <View style={styles.constructionSign}>
                   {/* Metallic Corner Rivets */}
                   <View style={[styles.signBolt, { top: 2.5, left: 2.5 }]} />
@@ -269,7 +269,7 @@ export default function HomeScreen({
                     name="warning" 
                     size={11.5} 
                     color="#141414" 
-                    style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                    style={{ marginRight: 4 }} 
                   />
                   <Text style={[styles.constructionSignText, isRtl && styles.constructionSignTextArabic]}>
                     {isRtl ? 'قريباً' : 'COMING SOON'}
@@ -303,12 +303,12 @@ export default function HomeScreen({
                 {/* Subtle Atmospheric Icon Halo */}
                 <LinearGradient
                   colors={['rgba(77, 110, 79, 0.05)', 'transparent']}
-                  style={[styles.watermarkHalo, isRtl && styles.watermarkHaloRtl]}
+                  style={[styles.watermarkHalo, false]}
                 />
               </View>
 
               {/* Subtle Background Watermark Icon */}
-              <View style={[styles.miniCardWatermarkWrapper, isRtl && styles.miniCardWatermarkWrapperRtl]} pointerEvents="none">
+              <View style={[styles.miniCardWatermarkWrapper, false]} pointerEvents="none">
                 <Ionicons 
                   name="person-outline" 
                   size={44} 
@@ -344,7 +344,7 @@ export default function HomeScreen({
               {/* Premium Action Arrow Button (Bottom Left) */}
               <View style={styles.miniCardArrowButton} pointerEvents="none">
                 <Ionicons 
-                  name={isRtl ? "arrow-back" : "arrow-forward"} 
+                  name="arrow-forward" 
                   size={13.5} 
                   color={colors.white === '#FFFFFF' ? '#29452C' : '#9ACD9E'} 
                 />
@@ -390,6 +390,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   leftColumn: {
     width: '48.5%',
+    height: 236,
   },
   rightColumn: {
     width: '48.5%',
@@ -608,9 +609,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   miniCardTitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 13.5,
+    fontSize: 15,
     letterSpacing: 0,
-    textAlign: 'right',
+    textAlign: 'left',
   },
   miniCardSubtitle: {
     fontSize: 10.5,
@@ -622,9 +623,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   miniCardSubtitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 9.5,
+    fontSize: 10.5,
     letterSpacing: 0,
-    textAlign: 'right',
-    marginTop: 1,
+    textAlign: 'left',
+    marginTop: 2,
   },
 });

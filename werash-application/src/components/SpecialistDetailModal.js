@@ -7,12 +7,13 @@ import {
   getSpecialistCover, 
   openSpecialistLocation, 
   callSpecialist, 
-  messageSpecialist 
+  messageSpecialist,
+  getMechanicBrandLogo 
 } from '../data/specialistHelpers';
 
 const { height: ScreenHeight, width: ScreenWidth } = Dimensions.get('window');
 
-export default function SpecialistDetailModal({ specialist, onClose, selectedLanguage }) {
+export default function SpecialistDetailModal({ specialist, onClose, selectedLanguage, activeVehicle }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const isRtl = selectedLanguage === 'Arabic';
@@ -157,7 +158,17 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
           </TouchableOpacity>
 
           {/* Workshop Cover Image */}
-          <Image source={getSpecialistCover(specialist)} style={styles.expandedCover} />
+          {(() => {
+            const brandLogo = getMechanicBrandLogo(specialist, activeVehicle);
+            if (brandLogo) {
+              return (
+                <View style={[styles.expandedCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
+                  <Image source={brandLogo} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+                </View>
+              );
+            }
+            return <Image source={getSpecialistCover(specialist)} style={styles.expandedCover} />;
+          })()}
 
           {/* Card Content Area */}
           <View style={styles.expandedDetails}>

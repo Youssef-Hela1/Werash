@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, Alert, PanRes
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import ServiceBrandLogo from './ServiceBrandLogo';
 
 const { height: ScreenHeight, width: ScreenWidth } = Dimensions.get('window');
 
@@ -178,7 +179,13 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
           </TouchableOpacity>
 
           {/* Ad Banner Image */}
-          <Image source={ad.image} style={styles.expandedCover} />
+          <View style={[styles.expandedCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
+            {ad.serviceBrand ? (
+              <ServiceBrandLogo brand={ad.serviceBrand} />
+            ) : (
+              <Image source={ad.image} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+            )}
+          </View>
 
           {/* Sponsored Label */}
           <View style={[styles.expandedBadge, isRtl ? { left: undefined, right: 16 } : { left: 16 }]}>

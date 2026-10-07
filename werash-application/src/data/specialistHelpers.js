@@ -1,4 +1,5 @@
 import { Linking, Alert } from 'react-native';
+import { BRAND_LOGOS } from './brandLogos';
 
 const BANNER_IMAGES = {
   mechanical: require('../../assets/modern_workshop_banner.png'),
@@ -114,4 +115,13 @@ export const messageSpecialist = (spec, isRtl) => {
   Linking.openURL(whatsappUrl).catch(() => {
     Linking.openURL(`tel:${spec.phone.replace(/[^0-9+]/g, '')}`);
   });
+};
+
+
+export const getMechanicBrandLogo = (spec, activeVehicle) => {
+  if (activeVehicle && activeVehicle.brand) {
+    const brand = activeVehicle.brand.toLowerCase();
+    if (BRAND_LOGOS[brand]) return BRAND_LOGOS[brand];
+  }
+  return null;
 };

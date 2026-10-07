@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import BouncyPressable from '../components/BouncyPressable';
 import { ALL_MECHANICS } from '../data/mechanicsData';
 import { getBrandOrigin } from '../data/brandOrigins';
-import { getSpecialistCover } from '../data/specialistHelpers';
+import { getSpecialistCover, getMechanicBrandLogo } from '../data/specialistHelpers';
 
 const REGION_KEYWORDS = {
   central_north_cairo: [
@@ -515,14 +515,24 @@ export default function MechanicsScreen({
           />
 
           {/* Workshop Cover Image */}
-          <Image source={getSpecialistCover(specialist)} style={styles.cardCover} />
+          {(() => {
+            const brandLogo = getMechanicBrandLogo(specialist, activeVehicle);
+            if (brandLogo) {
+              return (
+                <View style={[styles.cardCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
+                  <Image source={brandLogo} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+                </View>
+              );
+            }
+            return <Image source={getSpecialistCover(specialist)} style={styles.cardCover} />;
+          })()}
 
           {/* Card Content Area */}
           <View style={styles.cardDetails}>
             {/* Top Info Area */}
             <View style={isRtl && { alignItems: 'flex-end' }}>
               {/* Name */}
-              <Text style={[styles.cardName, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]} numberOfLines={2}>
+              <Text style={[styles.cardName, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.5 }]} numberOfLines={1} ellipsizeMode="tail">
                 {isRtl ? (specialist.nameAr || specialist.name) : specialist.name}
               </Text>
 
