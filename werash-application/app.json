@@ -14,6 +14,7 @@
       }
     },
     "android": {
+      "package": "com.youssef.werash",
       "adaptiveIcon": {
         "backgroundColor": "#4D6E4F",
         "foregroundImage": "./assets/android-icon-foreground.png",
