@@ -28,8 +28,8 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Install dependencies
         run: npm install
@@ -46,7 +46,13 @@ jobs:
       - name: Prepare APK for Artifact
         run: |
           mkdir -p output
-          find android/app/build/outputs/apk -name "*.apk" -exec cp {} output/werash-app.apk \;
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk output/werash-app.apk
+          elif [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk output/werash-app.apk
+          else
+            find android/app/build/outputs/apk -name "*.apk" | head -n 1 | xargs -I {} cp {} output/werash-app.apk
+          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
