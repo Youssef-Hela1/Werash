@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LIGHT_COLORS, DARK_COLORS } from './theme';
+
+const STORAGE_KEY_DARK_MODE = '@werash_dark_mode';
 
 export const ThemeContext = createContext({
   isDarkMode: false,
   toggleDarkMode: () => {},
+  setDarkMode: () => {},
   colors: LIGHT_COLORS,
 });
 
@@ -13,11 +17,35 @@ export function ThemeProvider({ children }) {
   const [isDarkMode, setIsDarkMode] = useState(systemScheme === 'dark');
 
   useEffect(() => {
-    setIsDarkMode(systemScheme === 'dark');
-  }, [systemScheme]);
+    let isMounted = true;
+    AsyncStorage.getItem(STORAGE_KEY_DARK_MODE)
+      .then((stored) => {
+        if (!isMounted) return;
+        if (stored !== null) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (typeof parsed === 'boolean') {
+              setIsDarkMode(parsed);
+            }
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
 
   const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(STORAGE_KEY_DARK_MODE, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+
+  const setDarkMode = (val) => {
+    setIsDarkMode(val);
+    AsyncStorage.setItem(STORAGE_KEY_DARK_MODE, JSON.stringify(val)).catch(() => {});
   };
 
   const colors = useMemo(() => {
@@ -27,6 +55,7 @@ export function ThemeProvider({ children }) {
   const value = useMemo(() => ({
     isDarkMode,
     toggleDarkMode,
+    setDarkMode,
     colors,
   }), [isDarkMode, colors]);
 
@@ -45,3 +74,4 @@ export function useThemeStyles(stylesFactory) {
   const { colors } = useTheme();
   return useMemo(() => stylesFactory(colors), [colors, stylesFactory]);
 }
+

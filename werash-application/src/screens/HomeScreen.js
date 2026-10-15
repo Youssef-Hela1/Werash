@@ -20,7 +20,9 @@ export default function HomeScreen({
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
   const isRtl = selectedLanguage === 'Arabic';
-  const activeVehicle = userVehicles.find(v => v.id === activeVehicleId) || null;
+  const activeVehicle = (currentUser && userVehicles && userVehicles.length > 0)
+    ? (userVehicles.find(v => v.id === activeVehicleId) || userVehicles[0])
+    : null;
 
   return (
     <View style={styles.container}>

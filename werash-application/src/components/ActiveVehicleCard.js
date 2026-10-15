@@ -39,23 +39,24 @@ export default function ActiveVehicleCard({
   const styles = useThemeStyles(createStyles);
   
   // Guest state exists if there is no logged-in user AND no explicit active vehicle passed
-  const isGuest = !currentUser && !activeVehicle;
+  const isGuest = !currentUser;
   const hasFooter = !isGuest && (onChangePress || onAddPress);
   
   // Use activeVehicle if provided, fallback to currentUser details
-  const vehicle = activeVehicle || (currentUser ? {
+  const vehicle = currentUser ? (activeVehicle || ((currentUser && (currentUser.carBrand || currentUser.carModel)) ? {
     brand: currentUser.carBrand,
     model: currentUser.carModel,
     year: currentUser.carYear,
     plateNumber: currentUser.plateNumber || '1873 RW',
     plateNumberArabic: currentUser.plateNumberArabic || '١٨٧٣ ر و',
     cc: currentUser.cc || '2000 CC'
-  } : null);
+  } : null)) : null;
 
   const carBrand = (vehicle && vehicle.brand) ? String(vehicle.brand) : '';
   const carModel = (vehicle && vehicle.model) ? String(vehicle.model) : '';
   const carYear = (vehicle && vehicle.year) ? String(vehicle.year) : '';
   const plateNumber = vehicle ? (vehicle.plateNumberArabic || vehicle.plateNumber || '') : '';
+  const hasVehicle = Boolean(carBrand || carModel);
 
   // Resolve vehicle card image: Show ONLY the brand's logo
   const normalizedBrand = carBrand ? carBrand.trim().toLowerCase() : '';
@@ -165,7 +166,7 @@ export default function ActiveVehicleCard({
 
         {/* Brand Logo Zone */}
         <View pointerEvents="none" style={styles.verticalImageSection}>
-          {isGuest || !brandLogo ? (
+          {!hasVehicle || !brandLogo ? (
             <Ionicons name="car-outline" size={38} color={colors.bgBrand} style={{ opacity: 0.5 }} />
           ) : (
             <Image 
@@ -178,13 +179,13 @@ export default function ActiveVehicleCard({
 
         {/* Details Section */}
         <View pointerEvents="none" style={styles.verticalDetailsSection}>
-          {isGuest ? (
+          {!hasVehicle ? (
             <>
               <Text style={[styles.verticalNoVehicleText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]} numberOfLines={2}>
-                {labelNoVehicle}
+                {isGuest ? labelNoVehicle : (isRtl ? 'أضف مركبة إلى ورشتك' : 'Add a vehicle to your Warsha')}
               </Text>
               <Text style={styles.verticalNoVehicleSubtext} numberOfLines={1}>
-                {labelNoVehicleSub}
+                {isGuest ? labelNoVehicleSub : (isRtl ? 'تتبع الصيانة والخدمات والملاحظات' : 'Track maintenance, services & notes')}
               </Text>
             </>
           ) : (
@@ -311,10 +312,14 @@ export default function ActiveVehicleCard({
       <View style={[styles.cardBodyRow, false]}>
         {/* Text Zone (takes 2/3 of space) */}
         <View style={[styles.textSection, false]}>
-          {isGuest ? (
+          {!hasVehicle ? (
             <>
-              <Text style={[styles.noVehicleText, false]}>{labelNoVehicle}</Text>
-              <Text style={[styles.noVehicleSubtext, false]}>{labelNoVehicleSub}</Text>
+              <Text style={[styles.noVehicleText, false]}>
+                {isGuest ? labelNoVehicle : (isRtl ? 'أضف مركبة إلى ورشتك' : 'Add a vehicle to your Warsha')}
+              </Text>
+              <Text style={[styles.noVehicleSubtext, false]}>
+                {isGuest ? labelNoVehicleSub : (isRtl ? 'تتبع الصيانة والخدمات والملاحظات' : 'Track maintenance, services & notes')}
+              </Text>
             </>
           ) : (
             <>
@@ -358,7 +363,7 @@ export default function ActiveVehicleCard({
 
         {/* Brand Logo Zone (takes 1/3 of space) */}
         <View style={styles.imageSection}>
-          {isGuest || !brandLogo ? (
+          {!hasVehicle || !brandLogo ? (
             <Ionicons name="car-outline" size={38} color={colors.bgBrand} style={{ opacity: 0.5 }} />
           ) : (
             <Image 

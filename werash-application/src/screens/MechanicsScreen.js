@@ -41,6 +41,7 @@ export default function MechanicsScreen({
   initialExpandedCardId, 
   onClearInitialExpanded, 
   onSelectSpecialist,
+  currentUser,
   activeVehicleId,
   userVehicles,
   selectedLanguage
@@ -124,7 +125,9 @@ export default function MechanicsScreen({
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24));
 
-  const activeVehicle = userVehicles?.find((v) => v.id === activeVehicleId);
+  const activeVehicle = (currentUser && userVehicles && userVehicles.length > 0)
+    ? (userVehicles.find((v) => v.id === activeVehicleId) || userVehicles[0])
+    : null;
   const hasActiveVehicle = !!activeVehicle;
   const cardsScrollPaddingTop = topInset + (hasActiveVehicle ? 190 : 132);
   const noResultsPaddingTop = topInset + (hasActiveVehicle ? 180 : 122);

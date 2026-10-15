@@ -619,7 +619,9 @@ export default function GarageScreen({
   const [paperWidth, setPaperWidth] = useState(0);
   const notebookInputRef = useRef(null);
 
-  const activeVehicle = userVehicles.find(v => v.id === activeVehicleId);
+  const activeVehicle = (currentUser && userVehicles && userVehicles.length > 0)
+    ? (userVehicles.find(v => v.id === activeVehicleId) || userVehicles[0])
+    : null;
 
   // Sync note text + date + images whenever active vehicle changes or language is toggled
   React.useEffect(() => {

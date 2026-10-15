@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 3.8.2"
+    "version": ">= 3.8.2",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -9,13 +10,16 @@
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "android": {
-        "buildType": "aab"
+        "buildType": "app-bundle"
       }
     }
   },
