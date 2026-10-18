@@ -8,18 +8,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 // Helper to split numbers (left) and letters (right) on license plates
 const splitPlate = (plateStr) => {
-  if (!plateStr || typeof plateStr !== 'string') return { numbers: '', letters: '' };
+  if (!plateStr || typeof plateStr !== 'string') return { numbers: '', letters: '', lettersList: [] };
   
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
   // Match digits (0-9 and Arabic numerals ٠-٩)
   const digitRegex = /[0-9٠-٩]/g;
-  const digits = plateStr.match(digitRegex) || [];
+  const digits = (plateStr.match(digitRegex) || []).map(d =>
+    /[0-9]/.test(d) ? arabicDigits[parseInt(d, 10)] : d
+  );
   
-  // Replace digits to extract letters only, normalizing spacing
-  const lettersOnly = plateStr.replace(digitRegex, '').trim().replace(/s+/g, ' ');
+  // Extract individual letters so they are never connected
+  const rawLetters = plateStr.replace(digitRegex, '').replace(/\s+/g, '');
+  const lettersList = Array.from(rawLetters);
   
   return {
     numbers: digits.join(''),
-    letters: lettersOnly
+    letters: lettersList.join(' '),
+    lettersList,
   };
 };
 
@@ -215,14 +220,18 @@ export default function ActiveVehicleCard({
                       </Text>
                     </View>
                     {(() => {
-                      const { numbers, letters } = splitPlate(plateNumber);
+                      const { numbers, lettersList } = splitPlate(plateNumber);
                       return (
                         <View style={styles.plateBadgeContent}>
                           <Text style={styles.plateBadgeNumbers}>{numbers}</Text>
-                          {letters ? (
+                          {lettersList && lettersList.length > 0 ? (
                             <>
                               <View style={styles.plateBadgeDivider} />
-                              <Text style={styles.plateBadgeLetters}>{letters}</Text>
+                              <View style={styles.plateBadgeLettersRow}>
+                                {lettersList.map((char, idx) => (
+                                  <Text key={idx} style={styles.plateBadgeLetters}>{char}</Text>
+                                ))}
+                              </View>
                             </>
                           ) : null}
                         </View>
@@ -337,14 +346,18 @@ export default function ActiveVehicleCard({
                         </Text>
                       </View>
                       {(() => {
-                        const { numbers, letters } = splitPlate(plateNumber);
+                        const { numbers, lettersList } = splitPlate(plateNumber);
                         return (
                           <View style={styles.plateBadgeContent}>
                             <Text style={styles.plateBadgeNumbers}>{numbers}</Text>
-                            {letters ? (
+                            {lettersList && lettersList.length > 0 ? (
                               <>
                                 <View style={styles.plateBadgeDivider} />
-                                <Text style={styles.plateBadgeLetters}>{letters}</Text>
+                                <View style={styles.plateBadgeLettersRow}>
+                                  {lettersList.map((char, idx) => (
+                                    <Text key={idx} style={styles.plateBadgeLetters}>{char}</Text>
+                                  ))}
+                                </View>
                               </>
                             ) : null}
                           </View>
@@ -553,6 +566,11 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
     marginHorizontal: 3.5,
   },
+  plateBadgeLettersRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 2,
+  },
   plateBadgeLetters: {
     fontSize: 10.5,
     fontWeight: '800',
@@ -684,4 +702,3 @@ const createStyles = (colors) => StyleSheet.create({
     lineHeight: 14,
   }
 });
-

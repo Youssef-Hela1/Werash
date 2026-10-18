@@ -8,7 +8,8 @@ import {
   openSpecialistLocation, 
   callSpecialist, 
   messageSpecialist,
-  getMechanicBrandLogo 
+  getMechanicBrandLogo,
+  getSpecialistCategoryIcon
 } from '../data/specialistHelpers';
 
 const { height: ScreenHeight, width: ScreenWidth } = Dimensions.get('window');
@@ -159,15 +160,63 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
 
           {/* Workshop Cover Image */}
           {(() => {
-            const brandLogo = getMechanicBrandLogo(specialist, activeVehicle);
+            const showBrand = specialist._filterByVehicle !== false;
+            const brandLogo = showBrand ? getMechanicBrandLogo(specialist, activeVehicle) : null;
+            const specialtyIcon = getSpecialistCategoryIcon(specialist, specialist._selectedCategory);
+
             if (brandLogo) {
               return (
-                <View style={[styles.expandedCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
-                  <Image source={brandLogo} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+                <View
+                  style={[
+                    styles.expandedCover,
+                    {
+                      backgroundColor: '#EBEBEB',
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 20,
+                      gap: 18,
+                    }
+                  ]}
+                >
+                  <Image source={brandLogo} resizeMode="contain" style={{ width: 84, height: 84 }} />
+                  <View style={{ width: 1.5, height: 50, backgroundColor: 'rgba(0, 0, 0, 0.12)', borderRadius: 1 }} />
+                  <View
+                    style={{
+                      width: 62,
+                      height: 62,
+                      borderRadius: 18,
+                      backgroundColor: 'rgba(77, 110, 79, 0.12)',
+                      borderWidth: 1.5,
+                      borderColor: 'rgba(77, 110, 79, 0.22)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Ionicons name={specialtyIcon} size={32} color={colors.bgBrand} />
+                  </View>
                 </View>
               );
             }
-            return <Image source={getSpecialistCover(specialist)} style={styles.expandedCover} />;
+
+            return (
+              <View style={[styles.expandedCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 22,
+                    backgroundColor: 'rgba(77, 110, 79, 0.12)',
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(77, 110, 79, 0.22)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name={specialtyIcon} size={38} color={colors.bgBrand} />
+                </View>
+              </View>
+            );
           })()}
 
           {/* Card Content Area */}

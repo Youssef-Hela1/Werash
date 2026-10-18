@@ -187,7 +187,13 @@ export default function SettingsScreen({
           </ScrollView>
 
         {/* Custom Language Selection Dialog Overlay */}
-        {languageModalVisible && (
+        <Modal
+          visible={languageModalVisible}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setLanguageModalVisible(false)}
+        >
           <View style={styles.alertOverlay}>
             <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill}>
               <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setLanguageModalVisible(false)} activeOpacity={1} />
@@ -217,49 +223,78 @@ export default function SettingsScreen({
               </View>
               
               <View style={styles.alertActions}>
-                {/* English Option Row with Toggle */}
-                <View style={styles.langToggleRow}>
+                {/* English Option Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.langToggleRow,
+                    selectedLanguage === 'English' && styles.langToggleRowActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setSelectedLanguage('English');
+                    setLanguageModalVisible(false);
+                  }}
+                >
                   <View style={styles.langToggleLeft}>
                     <Image 
                       source={require('../../assets/uk_flag.png')} 
                       style={styles.flagImageCompact} 
                       resizeMode="cover"
                     />
-                    <Text style={styles.langToggleLabel}>English</Text>
+                    <Text
+                      style={[
+                        styles.langToggleLabel,
+                        selectedLanguage === 'English' && styles.langToggleLabelActive,
+                      ]}
+                    >
+                      English
+                    </Text>
                   </View>
-                  <Switch
-                    value={selectedLanguage === 'English'}
-                    onValueChange={(val) => {
-                      if (val) setSelectedLanguage('English');
-                    }}
-                    trackColor={{ false: '#D5DED6', true: colors.bgBrand }}
-                    thumbColor={colors.bgCreamy}
-                  />
-                </View>
+                  {selectedLanguage === 'English' ? (
+                    <Ionicons name="checkmark-circle" size={22} color={colors.bgBrand} />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={22} color={colors.borderGreen} />
+                  )}
+                </TouchableOpacity>
 
-                {/* Arabic Option Row with Toggle */}
-                <View style={styles.langToggleRow}>
+                {/* Arabic Option Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.langToggleRow,
+                    selectedLanguage === 'Arabic' && styles.langToggleRowActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setSelectedLanguage('Arabic');
+                    setLanguageModalVisible(false);
+                  }}
+                >
                   <View style={styles.langToggleLeft}>
                     <Image 
                       source={require('../../assets/egypt_flag.png')} 
                       style={styles.flagImageCompact} 
                       resizeMode="cover"
                     />
-                    <Text style={[styles.langToggleLabelArabic, { fontFamily: 'AlkhalilArabic-Bold' }]}>العربية</Text>
+                    <Text
+                      style={[
+                        styles.langToggleLabelArabic,
+                        { fontFamily: 'AlkhalilArabic-Bold' },
+                        selectedLanguage === 'Arabic' && styles.langToggleLabelActive,
+                      ]}
+                    >
+                      العربية
+                    </Text>
                   </View>
-                  <Switch
-                    value={selectedLanguage === 'Arabic'}
-                    onValueChange={(val) => {
-                      if (val) setSelectedLanguage('Arabic');
-                    }}
-                    trackColor={{ false: '#D5DED6', true: colors.bgBrand }}
-                    thumbColor={colors.bgCreamy}
-                  />
-                </View>
+                  {selectedLanguage === 'Arabic' ? (
+                    <Ionicons name="checkmark-circle" size={22} color={colors.bgBrand} />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={22} color={colors.borderGreen} />
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
           </View>
-        )}
+        </Modal>
     </View>
   );
 }
@@ -378,6 +413,7 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: 0.4,
   },
   alertOverlay: {
+    flex: 1,
     position: 'absolute',
     top: 0,
     bottom: 0,
@@ -452,12 +488,16 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.white,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.borderGreen,
     borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  langToggleRowActive: {
+    backgroundColor: colors.bgBrandLight,
+    borderColor: colors.bgBrand,
   },
   langToggleLeft: {
     flexDirection: 'row',
@@ -481,4 +521,9 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
     color: colors.textDark,
   },
+  langToggleLabelActive: {
+    color: colors.bgBrand,
+    fontWeight: '800',
+  },
 });
+

@@ -334,9 +334,10 @@ function AppContent() {
 
         // Vehicles belong strictly to an authenticated user!
         if (!loadedUser) {
-          // If no user is signed in, app opens as an unauthenticated guest: NO active vehicle!
+          // If no user is signed in, app opens as an unauthenticated guest and prompts Sign In / Sign Up
           setUserVehicles([]);
           setActiveVehicleId(null);
+          setSignInVisible(true);
           AsyncStorage.multiRemove([
             STORAGE_KEY_USER_VEHICLES,
             STORAGE_KEY_ACTIVE_VEHICLE_ID,
@@ -492,7 +493,7 @@ function AppContent() {
     }
   };
 
-  if (!fontsLoaded || !splashFinished) {
+  if (!fontsLoaded || !splashFinished || !isStorageReady) {
     return (
       <View style={styles.splashContainer}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bgBrand} />

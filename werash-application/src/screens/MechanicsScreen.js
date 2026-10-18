@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import BouncyPressable from '../components/BouncyPressable';
 import { ALL_MECHANICS } from '../data/mechanicsData';
 import { getBrandOrigin } from '../data/brandOrigins';
-import { getSpecialistCover, getMechanicBrandLogo } from '../data/specialistHelpers';
+import { getSpecialistCover, getMechanicBrandLogo, getSpecialistCategoryIcon } from '../data/specialistHelpers';
 
 const REGION_KEYWORDS = {
   central_north_cairo: [
@@ -501,7 +501,7 @@ export default function MechanicsScreen({
         }}
       >
         <BouncyPressable
-          onPress={() => onSelectSpecialist && onSelectSpecialist(specialist)}
+          onPress={() => onSelectSpecialist && onSelectSpecialist({ ...specialist, _filterByVehicle: filterByVehicle, _selectedCategory: selectedCategory })}
           style={[
             styles.card,
             {
@@ -519,15 +519,62 @@ export default function MechanicsScreen({
 
           {/* Workshop Cover Image */}
           {(() => {
-            const brandLogo = getMechanicBrandLogo(specialist, activeVehicle);
+            const brandLogo = filterByVehicle ? getMechanicBrandLogo(specialist, activeVehicle) : null;
+            const specialtyIcon = getSpecialistCategoryIcon(specialist, selectedCategory);
+
             if (brandLogo) {
               return (
-                <View style={[styles.cardCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
-                  <Image source={brandLogo} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+                <View
+                  style={[
+                    styles.cardCover,
+                    {
+                      backgroundColor: '#EBEBEB',
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 12,
+                      gap: 12,
+                    }
+                  ]}
+                >
+                  <Image source={brandLogo} resizeMode="contain" style={{ width: 56, height: 56 }} />
+                  <View style={{ width: 1.5, height: 34, backgroundColor: 'rgba(0, 0, 0, 0.12)', borderRadius: 1 }} />
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 13,
+                      backgroundColor: 'rgba(77, 110, 79, 0.12)',
+                      borderWidth: 1.2,
+                      borderColor: 'rgba(77, 110, 79, 0.22)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Ionicons name={specialtyIcon} size={22} color={colors.bgBrand} />
+                  </View>
                 </View>
               );
             }
-            return <Image source={getSpecialistCover(specialist)} style={styles.cardCover} />;
+
+            return (
+              <View style={[styles.cardCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
+                <View
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 16,
+                    backgroundColor: 'rgba(77, 110, 79, 0.12)',
+                    borderWidth: 1.2,
+                    borderColor: 'rgba(77, 110, 79, 0.22)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name={specialtyIcon} size={28} color={colors.bgBrand} />
+                </View>
+              </View>
+            );
           })()}
 
           {/* Card Content Area */}

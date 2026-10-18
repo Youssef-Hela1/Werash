@@ -118,6 +118,23 @@ export const messageSpecialist = (spec, isRtl) => {
 };
 
 
+export const SPECIALTY_ICONS = {
+  mechanical: 'build-outline',
+  body: 'car-outline',
+  suspension: 'disc-outline',
+  electrician: 'flash-outline',
+  parts: 'cog-outline',
+  overall: 'construct-outline',
+};
+
+export const getSpecialistCategoryIcon = (spec, selectedCategory = 'overall') => {
+  if (selectedCategory && selectedCategory !== 'overall' && SPECIALTY_ICONS[selectedCategory]) {
+    return SPECIALTY_ICONS[selectedCategory];
+  }
+  const cat = spec?.category || (Array.isArray(spec?.categories) ? spec.categories[0] : null);
+  return SPECIALTY_ICONS[cat] || 'build-outline';
+};
+
 export const getMechanicBrandLogo = (spec, activeVehicle) => {
   if (activeVehicle && activeVehicle.brand) {
     const brand = activeVehicle.brand.toLowerCase();

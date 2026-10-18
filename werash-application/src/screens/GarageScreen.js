@@ -203,18 +203,23 @@ const renderTextWithSystemNumbers = (text, isRtl, baseStyle, rtlFontSize) => {
 
 // Helper to split numbers (left) and letters (right) on license plates
 const splitPlate = (plateStr) => {
-  if (!plateStr) return { numbers: '', letters: '' };
+  if (!plateStr) return { numbers: '', letters: '', lettersList: [] };
   
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
   // Match digits (0-9 and Arabic numerals ٠-٩)
   const digitRegex = /[0-9\u0660-\u0669]/g;
-  const digits = plateStr.match(digitRegex) || [];
+  const digits = (plateStr.match(digitRegex) || []).map(d =>
+    /[0-9]/.test(d) ? arabicDigits[parseInt(d, 10)] : d
+  );
   
-  // Replace digits to extract letters only, normalizing spacing
-  const lettersOnly = plateStr.replace(digitRegex, '').trim().replace(/\s+/g, ' ');
+  // Extract individual letters so they are never connected
+  const rawLetters = plateStr.replace(digitRegex, '').replace(/\s+/g, '');
+  const lettersList = Array.from(rawLetters);
   
   return {
     numbers: digits.join(''),
-    letters: lettersOnly
+    letters: lettersList.join(' '),
+    lettersList,
   };
 };
 
@@ -462,7 +467,7 @@ export default function GarageScreen({
     if (!car) return { odoNum: 0, odoStr: '0 km', servicesList: [] };
     
     const isArabic = selectedLanguage === 'Arabic';
-    const odoNum = car.odometer !== undefined && !isNaN(parseInt(car.odometer)) ? parseInt(car.odometer) : 284000;
+    const odoNum = car.odometer !== undefined && !isNaN(parseInt(car.odometer)) ? parseInt(car.odometer) : 0;
     
     const odoStr = isArabic 
       ? `${odoNum.toLocaleString('ar-EG')} كم` 
@@ -476,13 +481,14 @@ export default function GarageScreen({
       return true;
     }).map(item => {
       const serviceData = car.services?.[item.key] || {};
-      const lastService = serviceData.lastService ?? (item.key === 'engineOil' ? (car.lastOil ?? 10000) : 10000);
-      const lifespan = serviceData.lifespan ?? (item.key === 'engineOil' ? (car.oilLife ?? 10000) : item.defaultLifespan);
+      const lastService = serviceData.lastService ?? 0;
+      const lifespan = serviceData.lifespan ?? 0;
+      const isZeroed = lastService === 0 && lifespan === 0;
       
-      const nextServiceAt = lastService + lifespan;
-      const remaining = nextServiceAt - odoNum;
-      const driven = Math.max(0, odoNum - lastService);
-      const progress = lifespan > 0 ? Math.min(1, driven / lifespan) : 0;
+      const nextServiceAt = isZeroed ? 0 : (lastService + lifespan);
+      const remaining = isZeroed ? 0 : (nextServiceAt - odoNum);
+      const driven = isZeroed ? 0 : Math.max(0, odoNum - lastService);
+      const progress = (!isZeroed && lifespan > 0) ? Math.min(1, driven / lifespan) : 0;
       
       const lastServiceStr = isArabic 
         ? `${lastService.toLocaleString('ar-EG')} كم` 
@@ -499,12 +505,15 @@ export default function GarageScreen({
       let remainingStr = '';
       let statusColor = colors.bgBrand; // Green default
       
-      if (remaining > 0) {
+      if (isZeroed) {
+        remainingStr = nextServiceAtStr;
+        statusColor = colors.textMuted;
+      } else if (remaining > 0) {
         remainingStr = isArabic 
           ? `خلال ${remaining.toLocaleString('ar-EG')} كم` 
           : `In ${remaining.toLocaleString('en-US')} km`;
         // Check warning threshold (30%)
-        if (remaining / lifespan <= 0.3) {
+        if (lifespan > 0 && remaining / lifespan <= 0.3) {
           statusColor = '#E2B13C'; // Warning Yellow
         }
       } else {
@@ -529,12 +538,17 @@ export default function GarageScreen({
         lifespanStr,
         nextServiceAtStr,
         remainingStr,
-        statusColor
+        statusColor,
+        isZeroed
       };
     });
 
-    // Sort services by remaining distance ascending (most overdue and soonest due first)
-    servicesList.sort((a, b) => a.remaining - b.remaining);
+    // Sort services: configured services by remaining distance ascending first, then zeroed-out items
+    servicesList.sort((a, b) => {
+      if (a.isZeroed && !b.isZeroed) return 1;
+      if (!a.isZeroed && b.isZeroed) return -1;
+      return a.remaining - b.remaining;
+    });
 
     return {
       odoNum,
@@ -554,6 +568,7 @@ export default function GarageScreen({
   const [plateNumber, setPlateNumber] = useState('');
   const [plateNumbers, setPlateNumbers] = useState('');
   const [plateLetters, setPlateLetters] = useState('');
+  const [plateInputMode, setPlateInputMode] = useState('numbers');
   const [cc, setCc] = useState('');
   const [wizardStep, setWizardStep] = useState(1);
   const [isManualCar, setIsManualCar] = useState(false);
@@ -571,12 +586,14 @@ export default function GarageScreen({
       setModelSearchQuery('');
     } else if (wizardStep === 4) {
       setYear('');
+      setPlateInputMode('numbers');
     }
     setWizardStep(wizardStep - 1);
   };
 
   // Edit service status card state
   const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [isOdoSetupStep, setIsOdoSetupStep] = useState(false);
   const [tempOdometer, setTempOdometer] = useState('');
   const [tempServices, setTempServices] = useState({});
   const [focusedInput, setFocusedInput] = useState(null);
@@ -596,6 +613,7 @@ export default function GarageScreen({
   }, []);
 
   const [selectedPartKey, setSelectedPartKey] = useState(null);
+  const [isDirectPartEdit, setIsDirectPartEdit] = useState(false);
   const [editSearchQuery, setEditSearchQuery] = useState('');
   const [selectedEditCategory, setSelectedEditCategory] = useState('overall');
 
@@ -874,6 +892,8 @@ export default function GarageScreen({
     if (activeVehicle) {
       setTempOdometer(activeVehicle.odometer ? activeVehicle.odometer.toLocaleString('en-US') : '');
       setSelectedPartKey(null);
+      setIsDirectPartEdit(false);
+      setIsOdoSetupStep(true);
       setIsEditingStatus(true);
       setIsSwitchingVehicle(false);
       setShowAddForm(false);
@@ -951,11 +971,8 @@ export default function GarageScreen({
   const handleSelectPartForEdit = (itemKey) => {
     if (activeVehicle) {
       const carService = activeVehicle.services?.[itemKey] || {};
-      const lastService = carService.lastService ?? (itemKey === 'engineOil' ? (activeVehicle.lastOil ?? 10000) : 10000);
-      
-      const meta = SERVICE_ITEMS_METADATA.find(m => m.key === itemKey);
-      const defaultLife = meta ? meta.defaultLifespan : 10000;
-      const lifespan = carService.lifespan ?? (itemKey === 'engineOil' ? (activeVehicle.oilLife ?? defaultLife) : defaultLife);
+      const lastService = carService.lastService ?? 0;
+      const lifespan = carService.lifespan ?? 0;
 
       setTempServices({
         [itemKey]: {
@@ -964,6 +981,18 @@ export default function GarageScreen({
         }
       });
       setSelectedPartKey(itemKey);
+    }
+  };
+
+  const handleOpenDirectPartEdit = (itemKey) => {
+    if (activeVehicle) {
+      setTempOdometer(activeVehicle.odometer ? activeVehicle.odometer.toLocaleString('en-US') : '0');
+      handleSelectPartForEdit(itemKey);
+      setIsDirectPartEdit(true);
+      setIsOdoSetupStep(false);
+      setIsEditingStatus(true);
+      setIsSwitchingVehicle(false);
+      setShowAddForm(false);
     }
   };
 
@@ -978,10 +1007,11 @@ export default function GarageScreen({
       return;
     }
 
-    const odoVal = parseInt(tempOdometer.replace(/[^0-9]/g, '')) || 0;
+    const rawOdoVal = parseInt(tempOdometer.replace(/[^0-9]/g, '')) || 0;
     const itemTemp = tempServices[itemKey] || {};
     const lastServiceVal = parseInt((itemTemp.lastService || '').replace(/[^0-9]/g, '')) || 0;
     const lifespanVal = parseInt((itemTemp.lifespan || '').replace(/[^0-9]/g, '')) || 0;
+    const odoVal = Math.max(rawOdoVal, lastServiceVal);
 
     const meta = SERVICE_ITEMS_METADATA.find(m => m.key === itemKey) || { labelEn: itemKey, labelAr: itemKey };
     const dateObj = getFormattedDate();
@@ -1023,7 +1053,10 @@ export default function GarageScreen({
     });
 
     setUserVehicles(updatedVehicles);
-    setSelectedPartKey(null); // Return to list
+    setTempOdometer(odoVal.toLocaleString('en-US'));
+    setSelectedPartKey(null);
+    setIsDirectPartEdit(false);
+    setIsEditingStatus(false);
 
     Alert.alert(
       selectedLanguage === 'Arabic' ? 'نجاح' : 'Success',
@@ -1032,10 +1065,11 @@ export default function GarageScreen({
   };
 
   const getLiveCalculation = (key, defaultLifespan) => {
-    const odoVal = parseInt(tempOdometer.replace(/[^0-9]/g, '')) || 0;
+    const rawOdoVal = parseInt(tempOdometer.replace(/[^0-9]/g, '')) || 0;
     const itemTemp = tempServices[key] || {};
     const lastVal = parseInt((itemTemp.lastService || '').replace(/[^0-9]/g, '')) || 0;
     const lifeVal = parseInt((itemTemp.lifespan || '').replace(/[^0-9]/g, '')) || 0;
+    const odoVal = Math.max(rawOdoVal, lastVal);
     
     const nextVal = lastVal + lifeVal;
     const remaining = nextVal - odoVal;
@@ -1150,29 +1184,16 @@ export default function GarageScreen({
     }
 
 
-    // Generate default services mapping
+    // Generate zeroed-out services mapping for newly added car
     const defaultCarServices = {};
     SERVICE_ITEMS_METADATA.forEach(item => {
       defaultCarServices[item.key] = {
-        lastService: 10000,
-        lifespan: item.defaultLifespan
+        lastService: 0,
+        lifespan: 0
       };
     });
 
-    const odoVal = 15000;
-    const dateObj = getFormattedDate();
-    const initialLog = {
-      id: `log-initial-${Date.now()}`,
-      titleEn: `Vehicle Registered in Warsha`,
-      titleAr: `تم تسجيل المركبة في وِرَش`,
-      descEn: `Initial setup of vehicle log book at ${odoVal.toLocaleString('en-US')} km.`,
-      descAr: `الإعداد الأولي لدفتر صيانة المركبة عند عداد ${odoVal.toLocaleString('ar-EG')} كم.`,
-      dateEn: dateObj.dateEn,
-      dateAr: dateObj.dateAr,
-      odometer: odoVal,
-      costEn: 'Setup',
-      costAr: 'إعداد'
-    };
+    const odoVal = 0;
 
     const newCar = {
       id: Date.now().toString(),
@@ -1183,14 +1204,15 @@ export default function GarageScreen({
       plateNumberArabic: plateNumber.trim(),
       cc: cc.trim() || '1600 CC',
       odometer: odoVal,
+      isServiceSetup: false,
       isManual: isManualCar,
       is4WD: false,
       hasHydraulicPS: false,
       hasTimingBelt: false,
       services: defaultCarServices,
-      logs: [initialLog], // Initial log entry
-      lastOil: 10000,
-      oilLife: 10000,
+      logs: [],
+      lastOil: 0,
+      oilLife: 0,
     };
 
     const updated = [...userVehicles, newCar];
@@ -1206,6 +1228,7 @@ export default function GarageScreen({
     setPlateNumber('');
     setPlateNumbers('');
     setPlateLetters('');
+    setPlateInputMode('numbers');
     setCc('');
     setIsManualCar(false);
 
@@ -1229,6 +1252,9 @@ export default function GarageScreen({
             setUserVehicles(filtered);
             if (activeVehicleId === carId) {
               setActiveVehicleId(filtered.length > 0 ? filtered[0].id : null);
+            }
+            if (filtered.length <= 1) {
+              setIsSwitchingVehicle(false);
             }
           }
         }
@@ -1261,112 +1287,91 @@ export default function GarageScreen({
     );
   }
 
-  const renderPartSelectionPage = () => {
+  const renderOdoSetupPage = () => {
     if (!activeVehicle) return null;
     const isArabic = selectedLanguage === 'Arabic';
-    
-    const filteredMetadata = SERVICE_ITEMS_METADATA.filter(item => {
-      if (item.condition === 'isManual' && !activeVehicle?.isManual) return false;
-      if (item.condition === 'is4WD' && !activeVehicle?.is4WD) return false;
-      if (item.condition === 'hasHydraulicPS' && !activeVehicle?.hasHydraulicPS) return false;
-      if (item.condition === 'hasTimingBelt' && !activeVehicle?.hasTimingBelt) return false;
-      return true;
-    });
-
-    const data = getVehicleServiceData(activeVehicle);
+    const isCarSetup = Boolean(activeVehicle.isServiceSetup || (activeVehicle.odometer && activeVehicle.odometer > 0));
 
     return (
       <View style={{ width: '100%' }}>
         <Text style={[styles.formHeader, isRtl && { textAlign: 'right' }]}>
-          {isArabic ? 'اختر الجزء لتعديله' : 'Select Part to Edit'}
+          {isCarSetup
+            ? (isArabic ? 'تعديل عداد المسافات الحالي' : 'Edit Current Odometer')
+            : (isArabic ? 'إعداد عداد المسافات الحالي' : 'Setup Current Odometer')}
         </Text>
 
-        {/* Current Odometer display & Edit card */}
-        <View style={[styles.odoInfoCard, isRtl && { flexDirection: 'row-reverse' }]}>
-          <View style={[styles.odoInfoCardText, isRtl && { alignItems: 'flex-end' }]}>
-            <Text style={styles.odoInfoCardLabel}>{isArabic ? 'عداد المسافات الحالي' : 'Current Odometer'}</Text>
-            <Text style={styles.odoInfoCardValue}>{data.odoStr}</Text>
-          </View>
-          <View style={[styles.compactOdoInputWrapper, isRtl && { flexDirection: 'row-reverse' }]}>
+        <View style={styles.formGroup}>
+          <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
+            {isArabic ? 'عداد المسافات الحالي (كم)' : 'Current Odometer (KM)'}
+          </Text>
+          <View style={[
+            styles.premiumInputWrapper,
+            focusedInput === 'setup-odometer' && styles.inputFocusedStyle,
+            isRtl && { flexDirection: 'row-reverse' }
+          ]}>
+            <Ionicons name="speedometer-outline" size={18} color={colors.bgBrand} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
             <TextInput
-              style={[styles.compactOdoInput, isRtl && { textAlign: 'right' }]}
+              style={[styles.premiumInput, isRtl && { textAlign: 'right' }]}
               value={tempOdometer}
               onChangeText={(val) => {
                 const cleaned = val.replace(/[^0-9]/g, '');
-                const formatted = cleaned ? parseInt(cleaned).toLocaleString('en-US') : '';
+                const formatted = cleaned ? parseInt(cleaned, 10).toLocaleString('en-US') : '';
                 setTempOdometer(formatted);
-                const updated = userVehicles.map(car => car.id === activeVehicleId ? { ...car, odometer: parseInt(cleaned) || 0 } : car);
-                setUserVehicles(updated);
               }}
               keyboardType="number-pad"
-              placeholder="12,450"
+              placeholder="0"
               placeholderTextColor={colors.textMuted}
+              onFocus={() => setFocusedInput('setup-odometer')}
+              onBlur={() => setFocusedInput(null)}
+              autoFocus
             />
-            <Text style={styles.compactOdoUnit}>{isArabic ? 'كم' : 'KM'}</Text>
+            <View style={[
+              styles.inputUnitBadge,
+              isRtl
+                ? { borderRightWidth: 1.5, borderRightColor: colors.borderGreen }
+                : { borderLeftWidth: 1.5, borderLeftColor: colors.borderGreen }
+            ]}>
+              <Text style={styles.inputUnitText}>{isArabic ? 'كم' : 'KM'}</Text>
+            </View>
           </View>
         </View>
 
-        {/* Scrollable list of part cards */}
-        <ScrollView 
-          style={styles.modalFieldsScrollView}
-          contentContainerStyle={{ paddingRight: 8 }}
-          showsVerticalScrollIndicator={true}
-          nestedScrollEnabled={true}
-        >
-          {filteredMetadata.map(item => {
-            const carService = activeVehicle?.services?.[item.key] || {};
-            const lastService = carService.lastService ?? (item.key === 'engineOil' ? (activeVehicle?.lastOil ?? 10000) : 10000);
-            const lifespan = carService.lifespan ?? (item.key === 'engineOil' ? (activeVehicle?.oilLife ?? 10000) : item.defaultLifespan);
-            const nextServiceAt = lastService + lifespan;
-            const remaining = nextServiceAt - (activeVehicle?.odometer || 0);
-            
-            let statusColor = colors.bgBrand;
-            if (remaining > 0) {
-              if (remaining / lifespan <= 0.3) statusColor = '#E2B13C';
-            } else {
-              statusColor = colors.accentRed || '#B54D4F';
-            }
-
-            const nextServiceAtStr = isArabic
-              ? `${nextServiceAt.toLocaleString('ar-EG')} كم`
-              : `${nextServiceAt.toLocaleString('en-US')} km`;
-
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.partSelectCard, isRtl && { flexDirection: 'row-reverse' }]}
-                activeOpacity={0.8}
-                onPress={() => handleSelectPartForEdit(item.key)}
-              >
-                <View style={[styles.partSelectCardLeft, isRtl && { flexDirection: 'row-reverse' }]}>
-                  <View style={[styles.partSelectIconContainer, { backgroundColor: statusColor + '15' }]}>
-                    <Ionicons name={item.icon} size={16} color={statusColor} />
-                  </View>
-                  <View style={[styles.partSelectTextContainer, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }]}>
-                    <Text style={[styles.partSelectLabel, isRtl && { textAlign: 'right' }]}>
-                      {isArabic ? item.labelAr : item.labelEn}
-                    </Text>
-                    <Text style={[styles.partSelectDueAt, isRtl && { textAlign: 'right' }]}>
-                      {isArabic ? 'موعد الصيانة: ' : 'Due: '}{nextServiceAtStr}
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles.partSelectCardRight, isRtl && { flexDirection: 'row-reverse' }]}>
-                  <View style={[styles.partStatusDot, { backgroundColor: statusColor }]} />
-                  <Ionicons name={isRtl ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.textMuted} />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={[styles.formActions, { marginTop: 10 }]}>
-          <TouchableOpacity 
+        <View style={[styles.formActions, isRtl && { flexDirection: 'row-reverse' }, { marginTop: 15 }]}>
+          <TouchableOpacity
+            style={[styles.submitBtn, { flex: 1 }]}
+            activeOpacity={0.8}
+            onPress={() => {
+              const cleaned = tempOdometer.replace(/[^0-9]/g, '');
+              if (!cleaned) {
+                Alert.alert(
+                  isArabic ? 'تنبيه' : 'Validation Error',
+                  isArabic ? 'يرجى إدخال عداد المسافات الحالي للمتابعة.' : 'Please enter your current odometer to continue.'
+                );
+                return;
+              }
+              const odoVal = parseInt(cleaned, 10) || 0;
+              const updated = userVehicles.map(car =>
+                car.id === activeVehicleId
+                  ? { ...car, odometer: odoVal, isServiceSetup: true }
+                  : car
+              );
+              setUserVehicles(updated);
+              setIsOdoSetupStep(false);
+              setIsEditingStatus(false);
+            }}
+          >
+            <Text style={styles.submitBtnText}>
+              {isCarSetup
+                ? (isArabic ? 'حفظ التعديلات' : 'Save Changes')
+                : (isArabic ? 'حفظ' : 'Save')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.cancelBtn, { flex: 1 }]}
             activeOpacity={0.8}
             onPress={() => setIsEditingStatus(false)}
           >
-            <Text style={styles.cancelBtnText}>{isArabic ? 'إغلاق' : 'Close'}</Text>
+            <Text style={styles.cancelBtnText}>{isArabic ? 'إلغاء' : 'Cancel'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1385,27 +1390,11 @@ export default function GarageScreen({
 
     return (
       <View style={{ width: '100%' }}>
-        <View style={[styles.editPageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-          <TouchableOpacity 
-            style={[styles.editPageBackButton, isRtl && { flexDirection: 'row-reverse' }]}
-            onPress={() => setSelectedPartKey(null)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name={isRtl ? 'chevron-forward' : 'chevron-back'} size={18} color={colors.bgBrand} />
-            <Text style={styles.editPageBackButtonText}>{isArabic ? 'رجوع' : 'Back'}</Text>
-          </TouchableOpacity>
-          <Text style={styles.editPageTitle}>
-            {isArabic ? 'تعديل الجزء' : 'Edit Part'}
-          </Text>
-        </View>
-
-        <Text style={[styles.editPagePartName, isRtl && { textAlign: 'right' }]}>
-          {isArabic ? item.labelAr : item.labelEn}
+        <Text style={[styles.formHeader, isRtl && { textAlign: 'right' }]}>
+          {isArabic ? `تعديل ${item.labelAr}` : `Edit ${item.labelEn}`}
         </Text>
 
         <ScrollView style={styles.modalFieldsScrollView} showsVerticalScrollIndicator={false}>
-
-
           {/* Last Changed input */}
           <View style={styles.formGroup}>
             <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
@@ -1432,7 +1421,7 @@ export default function GarageScreen({
                   }));
                 }}
                 keyboardType="number-pad"
-                placeholder="e.g. 10,000"
+                placeholder="0"
                 placeholderTextColor={colors.textMuted}
                 onFocus={() => setFocusedInput(lastFocusKey)}
                 onBlur={() => setFocusedInput(null)}
@@ -1474,7 +1463,7 @@ export default function GarageScreen({
                   }));
                 }}
                 keyboardType="number-pad"
-                placeholder="e.g. 10,000"
+                placeholder="0"
                 placeholderTextColor={colors.textMuted}
                 onFocus={() => setFocusedInput(lifeFocusKey)}
                 onBlur={() => setFocusedInput(null)}
@@ -1511,7 +1500,11 @@ export default function GarageScreen({
           <TouchableOpacity 
             style={[styles.cancelBtn, { flex: 1 }]}
             activeOpacity={0.8}
-            onPress={() => setSelectedPartKey(null)}
+            onPress={() => {
+              setSelectedPartKey(null);
+              setIsDirectPartEdit(false);
+              setIsEditingStatus(false);
+            }}
           >
             <Text style={styles.cancelBtnText}>{isArabic ? 'إلغاء' : 'Cancel'}</Text>
           </TouchableOpacity>
@@ -1543,7 +1536,7 @@ export default function GarageScreen({
             style={styles.overlayCardContainer}
           >
             <View style={styles.formContainerModal}>
-              {selectedPartKey === null ? renderPartSelectionPage() : renderPartEditPage()}
+              {selectedPartKey === null ? renderOdoSetupPage() : renderPartEditPage()}
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -2067,10 +2060,10 @@ export default function GarageScreen({
           activeVehicle={activeVehicle}
           showExtendedInfo={true}
           style={{ marginHorizontal: 0, marginTop: 0 }}
-          onChangePress={() => {
+          onChangePress={userVehicles.length > 1 ? () => {
             setIsSwitchingVehicle(prev => !prev);
             setShowAddForm(false);
-          }}
+          } : undefined}
           onAddPress={() => {
             setWizardStep(1);
             setBrand('');
@@ -2079,6 +2072,7 @@ export default function GarageScreen({
             setPlateNumber('');
             setPlateNumbers('');
             setPlateLetters('');
+            setPlateInputMode('numbers');
             setCc('');
             setIsManualCar(false);
             setBrandSearchQuery('');
@@ -2092,6 +2086,89 @@ export default function GarageScreen({
         {activeVehicle && (
           (() => {
             const data = getVehicleServiceData(activeVehicle);
+            const isCarSetup = Boolean(activeVehicle.isServiceSetup || (activeVehicle.odometer && activeVehicle.odometer > 0));
+
+            if (cardMode === 'services' && !isCarSetup) {
+              return (
+                <TouchableOpacity
+                  style={[
+                    {
+                      marginTop: 16,
+                      backgroundColor: colors.bgBrand,
+                      borderRadius: 20,
+                      paddingVertical: 16,
+                      paddingHorizontal: 18,
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255, 255, 255, 0.16)',
+                      shadowColor: colors.bgBrand,
+                      shadowOffset: { width: 0, height: 8 },
+                      shadowOpacity: 0.22,
+                      shadowRadius: 14,
+                      elevation: 5,
+                    }
+                  ]}
+                  activeOpacity={0.85}
+                  onPress={handleStartEditStatus}
+                >
+                  <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', flex: 1 }}>
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        backgroundColor: 'rgba(255, 255, 255, 0.16)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.24)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="speedometer-outline" size={22} color="#FFFFFF" />
+                    </View>
+                    <View style={[ { flex: 1 }, isRtl ? { marginRight: 14, alignItems: 'flex-end' } : { marginLeft: 14, alignItems: 'flex-start' } ]}>
+                      <Text
+                        style={[
+                          { fontSize: 15, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.2 },
+                          isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 16, lineHeight: 21, textAlign: 'right' }
+                        ]}
+                      >
+                        {selectedLanguage === 'Arabic' ? 'إعداد الصيانة والمسافات' : 'Setup Service & Mileage'}
+                      </Text>
+                      <Text
+                        style={[
+                          { fontSize: 11.5, fontWeight: '600', color: 'rgba(255, 255, 255, 0.8)', marginTop: 3 },
+                          isRtl && { textAlign: 'right' }
+                        ]}
+                      >
+                        {selectedLanguage === 'Arabic'
+                          ? 'أدخل عداد المسافات الحالي لتفعيل متابعة الصيانة'
+                          : 'Enter your current odometer to start tracking services'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      {
+                        width: 34,
+                        height: 34,
+                        borderRadius: 11,
+                        backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      },
+                      isRtl ? { marginRight: 10 } : { marginLeft: 10 }
+                    ]}
+                  >
+                    <Ionicons name={isRtl ? 'arrow-back' : 'arrow-forward'} size={17} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+
             return (
               <View style={styles.statusCard}>
                 <BlurView
@@ -2120,83 +2197,88 @@ export default function GarageScreen({
                 {/* Service Status Mode */}
                 {cardMode === 'services' && (
                   <View>
-                    {/* Main Readout: Odometer & Edit Button */}
-                    <View style={[styles.mainReadoutContainer, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <View style={[isRtl && { alignItems: 'flex-end' }]}>
-                        <Text style={[styles.readoutLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, lineHeight: 15 }, isRtl && { textAlign: 'right' }]}>{t.odometer}</Text>
-                        {renderTextWithSystemNumbers(data.odoStr, isRtl, styles.readoutValue, 20.0)}
+                      {/* Main Readout: Odometer & Edit Button */}
+                      <View style={[styles.mainReadoutContainer, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <View style={[isRtl && { alignItems: 'flex-end' }]}>
+                          <Text style={[styles.readoutLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, lineHeight: 15 }, isRtl && { textAlign: 'right' }]}>{t.odometer}</Text>
+                          {renderTextWithSystemNumbers(data.odoStr, isRtl, styles.readoutValue, 20.0)}
+                        </View>
+                        
+                        <TouchableOpacity 
+                          style={[styles.statusEditButton, isRtl && { flexDirection: 'row-reverse' }]} 
+                          onPress={handleStartEditStatus}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="create-outline" size={15} color={colors.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
+                          <Text style={[styles.statusEditButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0, lineHeight: 17 }]}>{selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}</Text>
+                        </TouchableOpacity>
                       </View>
-                      
-                      <TouchableOpacity 
-                        style={[styles.statusEditButton, isRtl && { flexDirection: 'row-reverse' }]} 
-                        onPress={handleStartEditStatus}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="create-outline" size={15} color={colors.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                        <Text style={[styles.statusEditButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0, lineHeight: 17 }]}>{selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}</Text>
-                      </TouchableOpacity>
-                    </View>
 
-                    {/* Divider Line */}
-                    <View style={styles.statusDivider} />
+                      {/* Divider Line */}
+                      <View style={styles.statusDivider} />
 
-                    {/* Service Items List */}
-                    <View style={styles.serviceListContainer}>
-                      {data.servicesList.map((item, index) => {
-                        return (
-                          <View key={item.key} style={styles.serviceItemCard}>
-                            {/* Title & Icon Header */}
-                            <View style={[styles.serviceCardHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                              <View style={[styles.serviceCardIconWrap, { backgroundColor: item.statusColor + '12' }]}>
-                                <Ionicons name={item.icon} size={15} color={item.statusColor} />
-                              </View>
-                              <Text style={[styles.serviceCardTitleText, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.2, lineHeight: 18 }]}>
-                                {item.label}
-                              </Text>
-                            </View>
-
-                            {/* Inline Progress Bar */}
-                            <View style={styles.serviceCardProgressContainer}>
-                              <View style={styles.serviceCardProgressBarBg}>
-                                <View style={[styles.serviceCardProgressBarFill, { width: `${item.progress * 100}%`, backgroundColor: item.statusColor }]} />
-                              </View>
-                            </View>
-
-                            {/* Bottom Stats Grid (Boxes) */}
-                            <View style={[styles.serviceCardStatsGrid, isRtl && { flexDirection: 'row-reverse' }]}>
-                              {/* Last Service Box */}
-                              <View style={[styles.serviceStatBox, styles.serviceStatBoxLeft, isRtl && { alignItems: 'flex-end' }]}>
-                                <Text style={[styles.serviceStatBoxLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'right' }]}>
-                                  {isRtl ? 'آخر صيانة' : 'LAST SERVICE'}
+                      {/* Service Items List */}
+                      <View style={styles.serviceListContainer}>
+                        {data.servicesList.map((item, index) => {
+                          return (
+                            <TouchableOpacity
+                              key={item.key}
+                              style={styles.serviceItemCard}
+                              activeOpacity={0.75}
+                              onPress={() => handleOpenDirectPartEdit(item.key)}
+                            >
+                              {/* Title & Icon Header */}
+                              <View style={[styles.serviceCardHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                                <View style={[styles.serviceCardIconWrap, { backgroundColor: item.statusColor + '12' }]}>
+                                  <Ionicons name={item.icon} size={15} color={item.statusColor} />
+                                </View>
+                                <Text style={[styles.serviceCardTitleText, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.2, lineHeight: 18 }]}>
+                                  {item.label}
                                 </Text>
-                                {renderTextWithSystemNumbers(item.lastServiceStr, isRtl, styles.serviceStatBoxValue, 13.0)}
                               </View>
 
-                              {/* Limit Due Box */}
-                              <View style={[
-                                styles.serviceStatBox, 
-                                styles.serviceStatBoxRight, 
-                                { backgroundColor: item.statusColor + '08', borderColor: item.statusColor + '18' },
-                                isRtl ? { alignItems: 'flex-start' } : { alignItems: 'flex-end' }
-                              ]}>
-                                <Text style={[styles.serviceStatBoxLabel, { color: item.statusColor }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'left' }]}>
-                                  {isRtl ? 'مستحق عند' : 'DUE AT'}
-                                </Text>
-                                {renderTextWithSystemNumbers(
-                                  item.remaining <= 0 
-                                    ? (isRtl ? 'متجاوز! ' + item.nextServiceAtStr : 'Overdue! ' + item.nextServiceAtStr) 
-                                    : item.nextServiceAtStr,
-                                  isRtl,
-                                  [styles.serviceStatBoxValue, { color: item.statusColor }, isRtl && { textAlign: 'left' }],
-                                  13.0
-                                )}
+                              {/* Inline Progress Bar */}
+                              <View style={styles.serviceCardProgressContainer}>
+                                <View style={styles.serviceCardProgressBarBg}>
+                                  <View style={[styles.serviceCardProgressBarFill, { width: `${item.progress * 100}%`, backgroundColor: item.statusColor }]} />
+                                </View>
                               </View>
-                            </View>
-                          </View>
-                        );
-                      })}
+
+                              {/* Bottom Stats Grid (Boxes) */}
+                              <View style={[styles.serviceCardStatsGrid, isRtl && { flexDirection: 'row-reverse' }]}>
+                                {/* Last Service Box */}
+                                <View style={[styles.serviceStatBox, styles.serviceStatBoxLeft, isRtl && { alignItems: 'flex-end' }]}>
+                                  <Text style={[styles.serviceStatBoxLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'right' }]}>
+                                    {isRtl ? 'آخر صيانة' : 'LAST SERVICE'}
+                                  </Text>
+                                  {renderTextWithSystemNumbers(item.lastServiceStr, isRtl, styles.serviceStatBoxValue, 13.0)}
+                                </View>
+
+                                {/* Limit Due Box */}
+                                <View style={[
+                                  styles.serviceStatBox, 
+                                  styles.serviceStatBoxRight, 
+                                  { backgroundColor: item.statusColor + '08', borderColor: item.statusColor + '18' },
+                                  isRtl ? { alignItems: 'flex-start' } : { alignItems: 'flex-end' }
+                                ]}>
+                                  <Text style={[styles.serviceStatBoxLabel, { color: item.statusColor }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'left' }]}>
+                                    {isRtl ? 'مستحق عند' : 'DUE AT'}
+                                  </Text>
+                                  {renderTextWithSystemNumbers(
+                                    !item.isZeroed && item.remaining <= 0 
+                                      ? (isRtl ? 'متجاوز! ' + item.nextServiceAtStr : 'Overdue! ' + item.nextServiceAtStr) 
+                                      : item.nextServiceAtStr,
+                                    isRtl,
+                                    [styles.serviceStatBoxValue, { color: item.statusColor }, isRtl && { textAlign: 'left' }],
+                                    13.0
+                                  )}
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
                     </View>
-                  </View>
                 )}
 
                 {/* Notes Mode - Notebook Style */}
@@ -2588,6 +2670,7 @@ export default function GarageScreen({
                   setPlateNumber('');
                   setPlateNumbers('');
                   setPlateLetters('');
+                  setPlateInputMode('numbers');
                   setCc('');
                   setIsManualCar(false);
                 }}
@@ -2771,9 +2854,7 @@ export default function GarageScreen({
                         <View style={isRtl ? { marginRight: 8 } : { marginLeft: 8 }}>
                           <Text style={[styles.selectedBrandBannerTitle, isRtl && { textAlign: 'right' }]}>{brand}</Text>
                           <Text style={[styles.selectedBrandBannerSubtitle, isRtl && { textAlign: 'right' }]}>
-                            {brandModels.length > 0 
-                              ? (selectedLanguage === 'Arabic' ? `${brandModels.length} موديل متاح` : `${brandModels.length} models available`)
-                              : (selectedLanguage === 'Arabic' ? 'موديل مخصص' : 'Custom model')}
+                            {selectedLanguage === 'Arabic' ? `${brandModels.length} موديل متاح` : `${brandModels.length} models available`}
                           </Text>
                         </View>
                       </View>
@@ -2803,7 +2884,7 @@ export default function GarageScreen({
                       <Ionicons name="search" size={18} color={colors.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
                       <TextInput 
                         style={[styles.wizardSearchInput, isRtl && { textAlign: 'right' }]}
-                        placeholder={selectedLanguage === 'Arabic' ? 'ابحث عن الموديل أو اكتب مخصصاً...' : 'Search model or type custom...'}
+                        placeholder={selectedLanguage === 'Arabic' ? 'ابحث عن الموديل...' : 'Search model...'}
                         placeholderTextColor={colors.textMuted}
                         value={modelSearchQuery}
                         onChangeText={setModelSearchQuery}
@@ -2822,25 +2903,6 @@ export default function GarageScreen({
                       showsVerticalScrollIndicator={true}
                       keyboardShouldPersistTaps="handled"
                     >
-                      {/* Custom Option based on Search Query */}
-                      {modelSearchQuery.trim().length > 0 && !brandModels.some(m => m.name.toLowerCase() === modelSearchQuery.toLowerCase()) && (
-                        <TouchableOpacity
-                          style={[styles.customModelOptionCard, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => {
-                            setModel(modelSearchQuery.trim());
-                            setModelSearchQuery('');
-                            setWizardStep(3);
-                          }}
-                        >
-                          <Ionicons name="add-circle-outline" size={20} color={colors.bgBrand} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-                          <Text style={styles.customModelOptionText}>
-                            {selectedLanguage === 'Arabic' 
-                              ? `استخدم الموديل المخصص: "${modelSearchQuery}"` 
-                              : `Use custom model: "${modelSearchQuery}"`}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-
                       {filteredModels.map((item) => {
                         const isSelected = model.toLowerCase() === item.name.toLowerCase();
                         const modelThumb = getModelThumbnail(brand, item);
@@ -2899,27 +2961,10 @@ export default function GarageScreen({
                         );
                       })}
 
-                      {filteredModels.length === 0 && modelSearchQuery.trim().length === 0 && (
-                        brandModels.length > 0 ? (
-                          <Text style={styles.emptySearchText}>
-                            {selectedLanguage === 'Arabic' ? 'لا توجد نتائج مطابقة.' : 'No matching results found.'}
-                          </Text>
-                        ) : (
-                          <View style={{ marginTop: 10 }}>
-                            <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
-                              {selectedLanguage === 'Arabic' ? 'اكتب موديل السيارة مخصصاً:' : 'Type custom model name:'}
-                            </Text>
-                            <View style={[styles.customInputRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                              <TextInput 
-                                style={[styles.wizardInput, { flex: 1 }, isRtl && { textAlign: 'right' }]}
-                                placeholder={selectedLanguage === 'Arabic' ? 'مثال: كوبيه' : 'e.g. Coupe'}
-                                placeholderTextColor={colors.textMuted}
-                                value={model}
-                                onChangeText={setModel}
-                              />
-                            </View>
-                          </View>
-                        )
+                      {filteredModels.length === 0 && (
+                        <Text style={styles.emptySearchText}>
+                          {selectedLanguage === 'Arabic' ? 'لا توجد موديلات مطابقة للبحث.' : 'No matching models found.'}
+                        </Text>
                       )}
                     </ScrollView>
                   </View>
@@ -3109,6 +3154,8 @@ export default function GarageScreen({
                     <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
                       {selectedLanguage === 'Arabic' ? 'رقم لوحة السيارة (اختياري):' : 'Plate Number (Optional):'}
                     </Text>
+
+                    {/* Interactive Egyptian Metal Plate Preview */}
                     <View style={styles.plateInputContainer}>
                       <View style={styles.metalPlate}>
                         <View style={[styles.plateHeaderBand, isRtl && { flexDirection: 'row-reverse' }]}>
@@ -3116,49 +3163,239 @@ export default function GarageScreen({
                           <Text style={styles.plateHeaderCountryAr}>مِصْر</Text>
                         </View>
 
-                        <View style={[styles.plateInputsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                          <TextInput 
-                            style={styles.wizardPlateInputHalf}
-                            placeholder={selectedLanguage === 'Arabic' ? '١٢٣٤' : '1234'}
-                            placeholderTextColor="rgba(30, 41, 59, 0.2)"
-                            value={plateNumbers}
-                            onChangeText={(val) => {
-                              const cleanVal = val.replace(/[^0-9\u0660-\u0669]/g, '');
-                              setPlateNumbers(cleanVal);
-                              setPlateNumber(cleanVal + ' ' + plateLetters);
-                            }}
-                            keyboardType="numeric"
-                            maxLength={4}
-                          />
+                        <View style={styles.plateInputsRow}>
+                          {/* Numbers Half (Left) */}
+                          <TouchableOpacity
+                            style={[
+                              styles.plateInteractiveHalf,
+                              plateInputMode === 'numbers' && styles.plateInteractiveHalfActive
+                            ]}
+                            activeOpacity={0.8}
+                            onPress={() => setPlateInputMode('numbers')}
+                          >
+                            {plateNumbers ? (
+                              <View style={styles.plateCharsRow}>
+                                {Array.from(plateNumbers).map((digit, idx) => (
+                                  <Text key={idx} style={styles.plateInteractiveNumberChar}>
+                                    {digit}
+                                  </Text>
+                                ))}
+                              </View>
+                            ) : (
+                              <Text style={styles.platePlaceholderText}>١ ٢ ٣ ٤</Text>
+                            )}
+                          </TouchableOpacity>
+
                           <View style={styles.plateInputDivider} />
-                          <TextInput 
-                            style={styles.wizardPlateInputHalf}
-                            placeholder={selectedLanguage === 'Arabic' ? 'أ ب ج' : 'A B C'}
-                            placeholderTextColor="rgba(30, 41, 59, 0.2)"
-                            value={plateLetters}
-                            onChangeText={(val) => {
-                              setPlateLetters(val);
-                              setPlateNumber(plateNumbers + ' ' + val);
-                            }}
-                            autoCapitalize="characters"
-                            maxLength={4}
-                          />
+
+                          {/* Letters Half (Right) - Each letter is rendered in its own isolated slot */}
+                          <TouchableOpacity
+                            style={[
+                              styles.plateInteractiveHalf,
+                              plateInputMode === 'letters' && styles.plateInteractiveHalfActive
+                            ]}
+                            activeOpacity={0.8}
+                            onPress={() => setPlateInputMode('letters')}
+                          >
+                            {(() => {
+                              const lettersArr = plateLetters.split(' ').filter(Boolean);
+                              if (lettersArr.length === 0) {
+                                return (
+                                  <View style={styles.plateLettersSlotsRow}>
+                                    {['أ', 'ب', 'ج'].map((placeholderChar, idx) => (
+                                      <View key={idx} style={styles.plateLetterSlotPlaceholder}>
+                                        <Text style={styles.platePlaceholderCharText}>{placeholderChar}</Text>
+                                      </View>
+                                    ))}
+                                  </View>
+                                );
+                              }
+                              return (
+                                <View style={styles.plateLettersSlotsRow}>
+                                  {lettersArr.map((char, idx) => (
+                                    <View key={idx} style={styles.plateLetterSlot}>
+                                      <Text style={styles.plateInteractiveLetterChar}>{char}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              );
+                            })()}
+                          </TouchableOpacity>
                         </View>
                       </View>
                     </View>
-                  </View>
 
-                  <View style={[styles.formGroup, { marginTop: 5 }]}>
-                    <Text style={[styles.inputLabel, isRtl && { textAlign: 'right' }]}>
-                      {selectedLanguage === 'Arabic' ? 'سعة المحرك (اختياري):' : 'Engine CC (Optional):'}
-                    </Text>
-                    <TextInput 
-                      style={[styles.wizardInput, isRtl && { textAlign: 'right' }]}
-                      placeholder="e.g. 1600 CC"
-                      placeholderTextColor={colors.textMuted}
-                      value={cc}
-                      onChangeText={setCc}
-                    />
+                    {/* Custom Arabic Plate Input Keypad */}
+                    <View style={styles.customPlateKeypadContainer}>
+                      {/* Keypad Mode Switcher (Numbers vs Letters) */}
+                      <View style={[styles.plateKeypadTabs, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <TouchableOpacity
+                          style={[
+                            styles.plateKeypadTab,
+                            plateInputMode === 'numbers' && styles.plateKeypadTabActive
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => setPlateInputMode('numbers')}
+                        >
+                          <Text style={[
+                            styles.plateKeypadTabText,
+                            plateInputMode === 'numbers' && styles.plateKeypadTabTextActive
+                          ]}>
+                            {selectedLanguage === 'Arabic' ? 'الأرقام (١ - ٩)' : 'Arabic Numbers (١ - ٩)'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.plateKeypadTab,
+                            plateInputMode === 'letters' && styles.plateKeypadTabActive
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => setPlateInputMode('letters')}
+                        >
+                          <Text style={[
+                            styles.plateKeypadTabText,
+                            plateInputMode === 'letters' && styles.plateKeypadTabTextActive
+                          ]}>
+                            {selectedLanguage === 'Arabic' ? 'الحروف (أ - ي)' : 'Arabic Letters (أ - ي)'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {plateInputMode === 'numbers' ? (
+                        <View style={styles.plateNumbersGrid}>
+                          {['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'].map((digit) => (
+                            <TouchableOpacity
+                              key={digit}
+                              style={styles.plateNumberKey}
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                if (plateNumbers.length < 4) {
+                                  const nextNums = plateNumbers + digit;
+                                  setPlateNumbers(nextNums);
+                                  setPlateNumber((nextNums + ' ' + plateLetters).trim());
+                                  if (nextNums.length === 4) {
+                                    setPlateInputMode('letters');
+                                  }
+                                }
+                              }}
+                            >
+                              <Text style={styles.plateNumberKeyText}>{digit}</Text>
+                            </TouchableOpacity>
+                          ))}
+
+                          {/* Switch to Letters Key */}
+                          <TouchableOpacity
+                            style={[styles.plateNumberKey, styles.plateActionKey]}
+                            activeOpacity={0.75}
+                            onPress={() => setPlateInputMode('letters')}
+                          >
+                            <Text style={styles.plateActionKeyText}>
+                              {selectedLanguage === 'Arabic' ? 'الحروف' : 'Letters'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          {/* Zero Key */}
+                          <TouchableOpacity
+                            style={styles.plateNumberKey}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (plateNumbers.length < 4) {
+                                const nextNums = plateNumbers + '٠';
+                                setPlateNumbers(nextNums);
+                                setPlateNumber((nextNums + ' ' + plateLetters).trim());
+                                if (nextNums.length === 4) {
+                                  setPlateInputMode('letters');
+                                }
+                              }
+                            }}
+                          >
+                            <Text style={styles.plateNumberKeyText}>٠</Text>
+                          </TouchableOpacity>
+
+                          {/* Backspace Key */}
+                          <TouchableOpacity
+                            style={[styles.plateNumberKey, styles.plateBackspaceKey]}
+                            activeOpacity={0.75}
+                            onPress={() => {
+                              const nextNums = Array.from(plateNumbers).slice(0, -1).join('');
+                              setPlateNumbers(nextNums);
+                              setPlateNumber((nextNums + ' ' + plateLetters).trim());
+                            }}
+                          >
+                            <Ionicons name="backspace-outline" size={20} color={colors.textDark} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View>
+                          <View style={styles.plateLettersGrid}>
+                            {[
+                              'أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ',
+                              'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص',
+                              'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق',
+                              'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'
+                            ].map((letter) => (
+                              <TouchableOpacity
+                                key={letter}
+                                style={styles.plateLetterKey}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  const currentArr = plateLetters.split(' ').filter(Boolean);
+                                  if (currentArr.length < 3) {
+                                    const nextArr = [...currentArr, letter];
+                                    const nextLetters = nextArr.join(' ');
+                                    setPlateLetters(nextLetters);
+                                    setPlateNumber((plateNumbers + ' ' + nextLetters).trim());
+                                  }
+                                }}
+                              >
+                                <Text style={styles.plateLetterKeyText}>{letter}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+
+                          {/* Letters Bottom Actions Row */}
+                          <View style={[styles.plateLettersActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <TouchableOpacity
+                              style={styles.plateLettersClearBtn}
+                              activeOpacity={0.75}
+                              onPress={() => {
+                                setPlateLetters('');
+                                setPlateNumbers('');
+                                setPlateNumber('');
+                                setPlateInputMode('numbers');
+                              }}
+                            >
+                              <Ionicons name="refresh-outline" size={15} color={colors.textMuted} style={{ marginRight: 5 }} />
+                              <Text style={styles.plateLettersClearBtnText}>
+                                {selectedLanguage === 'Arabic' ? 'مسح الكل' : 'Clear Plate'}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.plateLettersBackspaceBtn}
+                              activeOpacity={0.75}
+                              onPress={() => {
+                                const currentArr = plateLetters.split(' ').filter(Boolean);
+                                if (currentArr.length > 0) {
+                                  const nextArr = currentArr.slice(0, -1);
+                                  const nextLetters = nextArr.join(' ');
+                                  setPlateLetters(nextLetters);
+                                  setPlateNumber((plateNumbers + ' ' + nextLetters).trim());
+                                } else if (plateNumbers.length > 0) {
+                                  setPlateInputMode('numbers');
+                                }
+                              }}
+                            >
+                              <Ionicons name="backspace-outline" size={18} color={colors.textDark} style={{ marginRight: 6 }} />
+                              <Text style={styles.plateLettersBackspaceBtnText}>
+                                {selectedLanguage === 'Arabic' ? 'حذف حرف' : 'Delete'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </ScrollView>
               )}
@@ -3193,7 +3430,10 @@ export default function GarageScreen({
                   <TouchableOpacity 
                     style={styles.wizardFooterNextBtn}
                     activeOpacity={0.8}
-                    onPress={() => setWizardStep(4)}
+                    onPress={() => {
+                      setPlateInputMode('numbers');
+                      setWizardStep(4);
+                    }}
                   >
                     <Text style={styles.wizardFooterNextBtnText}>
                       {selectedLanguage === 'Arabic' ? 'التالي' : 'Next'}
@@ -3246,7 +3486,7 @@ export default function GarageScreen({
           >
             {userVehicles.map(car => {
               const isActive = car.id === activeVehicleId;
-              const { numbers, letters } = splitPlate(car.plateNumberArabic || car.plateNumber);
+              const { numbers, letters, lettersList } = splitPlate(car.plateNumberArabic || car.plateNumber);
               
               return (
                 <TouchableOpacity 
@@ -3306,10 +3546,14 @@ export default function GarageScreen({
                           <View style={styles.selectCardPlateHeader} />
                           <View style={styles.selectCardPlateContent}>
                             <Text style={styles.selectCardPlateNumbers}>{numbers}</Text>
-                            {letters ? (
+                            {lettersList && lettersList.length > 0 ? (
                               <>
                                 <View style={styles.selectCardPlateDivider} />
-                                <Text style={styles.selectCardPlateLetters}>{letters}</Text>
+                                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 3 }}>
+                                  {lettersList.map((char, cIdx) => (
+                                    <Text key={cIdx} style={styles.selectCardPlateLetters}>{char}</Text>
+                                  ))}
+                                </View>
                               </>
                             ) : null}
                           </View>
@@ -5331,9 +5575,9 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '85%',
-    height: 50,
-    marginTop: 18,
+    width: '92%',
+    height: 54,
+    marginTop: 20,
   },
   wizardPlateInputHalf: {
     flex: 1,
@@ -5344,11 +5588,208 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: 2,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
+  plateInteractiveHalf: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(30, 41, 59, 0.03)',
+    paddingHorizontal: 6,
+  },
+  plateInteractiveHalfActive: {
+    borderColor: colors.bgBrand,
+    backgroundColor: 'rgba(77, 110, 79, 0.08)',
+  },
+  plateCharsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  plateInteractiveNumberChar: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  platePlaceholderText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgba(30, 41, 59, 0.25)',
+    letterSpacing: 1,
+  },
+  plateLettersSlotsRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  plateLetterSlot: {
+    minWidth: 28,
+    height: 34,
+    borderRadius: 6,
+    backgroundColor: 'rgba(30, 41, 59, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(30, 41, 59, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  plateLetterSlotPlaceholder: {
+    minWidth: 28,
+    height: 34,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(30, 41, 59, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  platePlaceholderCharText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'rgba(30, 41, 59, 0.25)',
+  },
+  plateInteractiveLetterChar: {
+    fontSize: 21,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
   plateInputDivider: {
     width: 2,
-    height: '60%',
-    backgroundColor: 'rgba(30, 41, 59, 0.15)',
-    marginHorizontal: 15,
+    height: '65%',
+    backgroundColor: 'rgba(30, 41, 59, 0.18)',
+    marginHorizontal: 10,
+  },
+  customPlateKeypadContainer: {
+    backgroundColor: colors.white,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 6,
+  },
+  plateKeypadTabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.bgBrandLight,
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
+  },
+  plateKeypadTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plateKeypadTabActive: {
+    backgroundColor: colors.bgBrand,
+  },
+  plateKeypadTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  plateKeypadTabTextActive: {
+    color: '#FFFFFF',
+  },
+  plateNumbersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  plateNumberKey: {
+    width: '31%',
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plateNumberKeyText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  plateActionKey: {
+    backgroundColor: colors.bgBrandLight,
+    borderColor: colors.bgBrand + '40',
+  },
+  plateActionKeyText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  plateBackspaceKey: {
+    backgroundColor: 'rgba(181, 77, 79, 0.08)',
+    borderColor: 'rgba(181, 77, 79, 0.25)',
+  },
+  plateLettersGrid: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  plateLetterKey: {
+    width: '12.5%',
+    minWidth: 38,
+    height: 42,
+    borderRadius: 9,
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plateLetterKeyText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  plateLettersActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 10,
+  },
+  plateLettersClearBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plateLettersClearBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  plateLettersBackspaceBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(181, 77, 79, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(181, 77, 79, 0.25)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plateLettersBackspaceBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textDark,
   },
   brandLogoImage: {
     alignSelf: 'center',

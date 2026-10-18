@@ -63,7 +63,6 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
   
   // Transition / Swap State
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [registerStep, setRegisterStep] = useState(1); // 1: Create Account, 2: Add Your Car
   const shiftAnim = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
 
@@ -73,16 +72,16 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
-  // Form States (Register Step 1)
+  // Form States (Register - 3 Steps)
+  const [registerStep, setRegisterStep] = useState(1);
   const [fullName, setFullName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPhone, setRegisterPhone] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
-
-  // Form States (Register Step 2)
-  const [carBrand, setCarBrand] = useState('');
-  const [carModel, setCarModel] = useState('');
-  const [carYear, setCarYear] = useState('');
 
   // Dynamic layout measurements
   const [creamHeight, setCreamHeight] = useState(535);
@@ -135,11 +134,12 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
       setRegisterStep(1);
       setFullName('');
       setRegisterEmail('');
+      setRegisterPhone('');
       setRegisterPassword('');
+      setConfirmPassword('');
+      setShowRegisterPassword(false);
+      setShowConfirmPassword(false);
       setAgreeToTerms(false);
-      setCarBrand('');
-      setCarModel('');
-      setCarYear('');
       setEmail('');
       setPassword('');
       shiftAnim.setValue(0);
@@ -171,8 +171,8 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
         useNativeDriver: true,
       })
     ]).start(() => {
-      setIsRegisterMode(true);
       setRegisterStep(1);
+      setIsRegisterMode(true);
       Animated.timing(contentOpacity, {
         toValue: 1,
         duration: 200,
@@ -205,51 +205,30 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
     });
   };
 
-  const handleNextStep = () => {
-    if (!fullName.trim()) {
-      Alert.alert('Validation Error', 'Please enter your full name.');
-      return;
-    }
-    if (!registerEmail.trim() || !registerEmail.includes('@')) {
-      Alert.alert('Validation Error', 'Please enter a valid email address.');
-      return;
-    }
-    if (registerPassword.length < 8) {
-      Alert.alert('Validation Error', 'Password must be at least 8 characters long.');
-      return;
-    }
-    if (!agreeToTerms) {
-      Alert.alert('Validation Error', 'You must agree to the Terms of Service to continue.');
-      return;
-    }
-
-    Animated.timing(contentOpacity, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
+  const handleNextRegisterStep = () => {
+    if (registerStep === 1) {
+      if (!fullName.trim()) {
+        Alert.alert('Validation Error', 'Please enter your full name.');
+        return;
+      }
       setRegisterStep(2);
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }).start();
-    });
+    } else if (registerStep === 2) {
+      if (!registerEmail.trim() || !registerEmail.includes('@')) {
+        Alert.alert('Validation Error', 'Please enter a valid email address.');
+        return;
+      }
+      if (!registerPhone.trim()) {
+        Alert.alert('Validation Error', 'Please enter your phone number.');
+        return;
+      }
+      setRegisterStep(3);
+    }
   };
 
-  const handlePrevStep = () => {
-    Animated.timing(contentOpacity, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      setRegisterStep(1);
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }).start();
-    });
+  const handlePrevRegisterStep = () => {
+    if (registerStep > 1) {
+      setRegisterStep(prev => prev - 1);
+    }
   };
 
   const handleSignInSubmit = async () => {
@@ -300,11 +279,34 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
   };
 
   const handleRegisterSubmit = async () => {
-    if (!fullName.trim() || !registerEmail.trim() || !registerPassword.trim()) {
-      Alert.alert('Validation Error', 'Please complete step 1 details first.');
+    if (!fullName.trim()) {
+      Alert.alert('Validation Error', 'Please enter your full name.');
       setRegisterStep(1);
       return;
     }
+    if (!registerEmail.trim() || !registerEmail.includes('@')) {
+      Alert.alert('Validation Error', 'Please enter a valid email address.');
+      setRegisterStep(2);
+      return;
+    }
+    if (!registerPhone.trim()) {
+      Alert.alert('Validation Error', 'Please enter your phone number.');
+      setRegisterStep(2);
+      return;
+    }
+    if (registerPassword.length < 8) {
+      Alert.alert('Validation Error', 'Password must be at least 8 characters long.');
+      return;
+    }
+    if (registerPassword !== confirmPassword) {
+      Alert.alert('Validation Error', 'Passwords do not match.');
+      return;
+    }
+    if (!agreeToTerms) {
+      Alert.alert('Validation Error', 'You must agree to the Terms of Service to continue.');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/register`, {
@@ -313,10 +315,8 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
         body: JSON.stringify({
           fullName: fullName.trim(),
           email: registerEmail.trim(),
+          phone: registerPhone.trim(),
           password: registerPassword.trim(),
-          carBrand: carBrand.trim(),
-          carModel: carModel.trim(),
-          carYear: carYear.trim()
         })
       });
       const data = await response.json();
@@ -324,7 +324,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
       if (response.ok && data.success) {
         Alert.alert('Success', 'Your account has been registered successfully! Welcome to Werash.');
         if (onSignInSuccess) {
-          onSignInSuccess(data.user);
+          onSignInSuccess({ ...data.user, phone: data.user?.phone || registerPhone.trim() });
         }
         handleClose();
       } else {
@@ -346,10 +346,8 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
         id: Date.now().toString(),
         fullName: fullName.trim(),
         email: emailNormalized,
+        phone: registerPhone.trim(),
         password: registerPassword.trim(),
-        carBrand: carBrand.trim(),
-        carModel: carModel.trim(),
-        carYear: carYear.trim()
       };
       
       localUsersDb.push(newUser);
@@ -413,10 +411,11 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Close button ── */}
+          {/* ── Browse as Guest button ── */}
           <View style={styles.topBar}>
             <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color={CREAM} />
+              <Text style={styles.closeButtonText}>Browse as Guest</Text>
+              <Ionicons name="arrow-forward" size={14} color={CREAM} style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
 
@@ -593,152 +592,202 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                   ]}
                 >
                   <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
-                    {registerStep === 1 ? (
-                      // STEP 1: CREATE ACCOUNT CONTENT (MATCHING IMAGE)
-                      <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, justifyContent: 'space-between' }}>
+                      <View>
                         <Text style={styles.cardTitle}>CREATE ACCOUNT</Text>
-                        <Text style={styles.cardSubtitle}>
-                          Join us to start personalizing your{'\n'}environment today.
+                        <Text style={[styles.cardSubtitle, { marginBottom: 14 }]}>
+                          {registerStep === 1
+                            ? 'Step 1 of 3 — Tell us your name'
+                            : registerStep === 2
+                            ? 'Step 2 of 3 — Your contact details'
+                            : 'Step 3 of 3 — Secure your account'}
                         </Text>
 
-                        {/* Full Name */}
-                        <Text style={styles.label}>FULL NAME</Text>
-                        <View style={styles.inputRow}>
-                          <Ionicons name="person-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="John Doe"
-                            placeholderTextColor="#ADADAD"
-                            autoCapitalize="words"
-                            value={fullName}
-                            onChangeText={setFullName}
-                          />
+                        {/* 3-Step Progress Indicator */}
+                        <View style={styles.stepIndicatorRow}>
+                          {[1, 2, 3].map((step) => {
+                            const isActive = registerStep === step;
+                            const isCompleted = registerStep > step;
+                            return (
+                              <View
+                                key={step}
+                                style={[
+                                  styles.stepBar,
+                                  isActive && styles.stepBarActive,
+                                  isCompleted && styles.stepBarCompleted,
+                                ]}
+                              />
+                            );
+                          })}
                         </View>
 
-                        {/* Email */}
-                        <Text style={[styles.label, { marginTop: 14 }]}>EMAIL ADDRESS</Text>
-                        <View style={styles.inputRow}>
-                          <Ionicons name="mail-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="name@example.com"
-                            placeholderTextColor="#ADADAD"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            value={registerEmail}
-                            onChangeText={setRegisterEmail}
-                          />
-                        </View>
-
-                        {/* Password */}
-                        <Text style={[styles.label, { marginTop: 14 }]}>PASSWORD</Text>
-                        <View style={styles.inputRow}>
-                          <Ionicons name="lock-closed-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Min. 8 characters"
-                            placeholderTextColor="#ADADAD"
-                            secureTextEntry
-                            value={registerPassword}
-                            onChangeText={setRegisterPassword}
-                          />
-                        </View>
-
-                        {/* Terms Checkbox */}
-                        <View style={[styles.optionsRow, { marginTop: 16, marginBottom: 20 }]}>
-                          <TouchableOpacity
-                            style={styles.rememberRow}
-                            onPress={() => setAgreeToTerms(v => !v)}
-                            activeOpacity={0.8}
-                          >
-                            <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
-                              {agreeToTerms && <Ionicons name="checkmark" size={11} color={CREAM} />}
+                        {/* STEP 1: Full Name */}
+                        {registerStep === 1 && (
+                          <View style={{ marginTop: 18 }}>
+                            <Text style={styles.label}>FULL NAME</Text>
+                            <View style={styles.inputRow}>
+                              <Ionicons name="person-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="John Doe"
+                                placeholderTextColor="#ADADAD"
+                                autoCapitalize="words"
+                                value={fullName}
+                                onChangeText={setFullName}
+                                returnKeyType="next"
+                                onSubmitEditing={handleNextRegisterStep}
+                              />
                             </View>
-                            <Text style={styles.rememberText}>I agree to the Terms of Service</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Next Step button */}
-                        <TouchableOpacity style={styles.signInBtn} activeOpacity={0.85} onPress={handleNextStep}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={styles.signInBtnText}>Next Step</Text>
-                            <Ionicons name="arrow-forward" size={16} color={CREAM} style={{ marginLeft: 6 }} />
                           </View>
-                        </TouchableOpacity>
+                        )}
+
+                        {/* STEP 2: Email Address & Phone Number */}
+                        {registerStep === 2 && (
+                          <View style={{ marginTop: 10 }}>
+                            <Text style={styles.label}>EMAIL ADDRESS</Text>
+                            <View style={styles.inputRow}>
+                              <Ionicons name="mail-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="name@example.com"
+                                placeholderTextColor="#ADADAD"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                value={registerEmail}
+                                onChangeText={setRegisterEmail}
+                              />
+                            </View>
+
+                            <Text style={[styles.label, { marginTop: 16 }]}>PHONE NUMBER</Text>
+                            <View style={styles.inputRow}>
+                              <Ionicons name="call-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="01X XXXX XXXX"
+                                placeholderTextColor="#ADADAD"
+                                keyboardType="phone-pad"
+                                value={registerPhone}
+                                onChangeText={setRegisterPhone}
+                                returnKeyType="next"
+                                onSubmitEditing={handleNextRegisterStep}
+                              />
+                            </View>
+                          </View>
+                        )}
+
+                        {/* STEP 3: Password, Confirm Password & Terms */}
+                        {registerStep === 3 && (
+                          <View style={{ marginTop: 6 }}>
+                            <Text style={styles.label}>PASSWORD</Text>
+                            <View style={styles.inputRow}>
+                              <Ionicons name="lock-closed-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="Min. 8 characters"
+                                placeholderTextColor="#ADADAD"
+                                secureTextEntry={!showRegisterPassword}
+                                value={registerPassword}
+                                onChangeText={setRegisterPassword}
+                              />
+                              <TouchableOpacity
+                                onPress={() => setShowRegisterPassword(v => !v)}
+                                style={styles.eyeBtn}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Ionicons
+                                  name={showRegisterPassword ? 'eye-outline' : 'eye-off-outline'}
+                                  size={18}
+                                  color={LABEL_COLOR}
+                                />
+                              </TouchableOpacity>
+                            </View>
+
+                            <Text style={[styles.label, { marginTop: 14 }]}>CONFIRM PASSWORD</Text>
+                            <View style={styles.inputRow}>
+                              <Ionicons name="shield-checkmark-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.input}
+                                placeholder="Re-enter password"
+                                placeholderTextColor="#ADADAD"
+                                secureTextEntry={!showConfirmPassword}
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                              />
+                              <TouchableOpacity
+                                onPress={() => setShowConfirmPassword(v => !v)}
+                                style={styles.eyeBtn}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Ionicons
+                                  name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+                                  size={18}
+                                  color={LABEL_COLOR}
+                                />
+                              </TouchableOpacity>
+                            </View>
+
+                            <View style={[styles.optionsRow, { marginTop: 14, marginBottom: 8 }]}>
+                              <TouchableOpacity
+                                style={styles.rememberRow}
+                                onPress={() => setAgreeToTerms(v => !v)}
+                                activeOpacity={0.8}
+                              >
+                                <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
+                                  {agreeToTerms && <Ionicons name="checkmark" size={11} color={CREAM} />}
+                                </View>
+                                <Text style={styles.rememberText}>I agree to the Terms of Service</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
                       </View>
-                    ) : (
-                      // STEP 2: ADD YOUR CAR CONTENT (MATCHING IMAGE)
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.cardTitle}>ADD YOUR CAR</Text>
-                        <Text style={styles.cardSubtitle}>
-                          Add a Warsha for your car to access{'\n'}related content.
-                        </Text>
 
-                        {/* Car Make / Brand */}
-                        <Text style={styles.label}>CAR MAKE / BRAND</Text>
-                        <View style={styles.inputRow}>
-                          <Ionicons name="car-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="e.g. Porsche, BMW"
-                            placeholderTextColor="#ADADAD"
-                            value={carBrand}
-                            onChangeText={setCarBrand}
-                          />
-                        </View>
-
-                        {/* Model */}
-                        <Text style={[styles.label, { marginTop: 14 }]}>MODEL</Text>
-                        <View style={styles.inputRow}>
-                          <Ionicons name="build-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="e.g. 911, M3"
-                            placeholderTextColor="#ADADAD"
-                            value={carModel}
-                            onChangeText={setCarModel}
-                          />
-                        </View>
-
-                        {/* Year */}
-                        <Text style={[styles.label, { marginTop: 14 }]}>YEAR</Text>
-                        <View style={styles.inputRow}>
-                          <Ionicons name="calendar-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.input}
-                            placeholder="e.g. 2024"
-                            placeholderTextColor="#ADADAD"
-                            keyboardType="numeric"
-                            value={carYear}
-                            onChangeText={setCarYear}
-                          />
-                        </View>
-
-                        {/* Complete Registration button */}
-                        <TouchableOpacity 
-                          style={[styles.signInBtn, { marginTop: 22 }]} 
-                          activeOpacity={0.85} 
-                          onPress={handleRegisterSubmit}
-                          disabled={loading}
-                        >
-                          {loading ? (
-                            <ActivityIndicator size="small" color={CREAM} />
-                          ) : (
-                            <Text style={styles.signInBtnText}>Complete Registration</Text>
-                          )}
-                        </TouchableOpacity>
-
-                        {/* Back & Skip Footer */}
-                        <View style={styles.step2Footer}>
-                          <TouchableOpacity onPress={handlePrevStep} activeOpacity={0.7}>
-                            <Text style={styles.footerLink}>← Back</Text>
+                      {/* Step Navigation Buttons */}
+                      <View style={styles.stepActionRow}>
+                        {registerStep > 1 && (
+                          <TouchableOpacity
+                            style={styles.backStepBtn}
+                            activeOpacity={0.8}
+                            onPress={handlePrevRegisterStep}
+                            disabled={loading}
+                          >
+                            <Ionicons
+                              name="arrow-back"
+                              size={17}
+                              color={isDarkMode ? colors.textDark : DARK_GREEN}
+                              style={{ marginRight: 5 }}
+                            />
+                            <Text style={styles.backStepBtnText}>Back</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
-                            <Text style={styles.footerLink}>Skip for Now</Text>
+                        )}
+
+                        {registerStep < 3 ? (
+                          <TouchableOpacity
+                            style={[styles.signInBtn, { flex: 1 }]}
+                            activeOpacity={0.85}
+                            onPress={handleNextRegisterStep}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={styles.signInBtnText}>Continue</Text>
+                              <Ionicons name="arrow-forward" size={16} color={CREAM} style={{ marginLeft: 6 }} />
+                            </View>
                           </TouchableOpacity>
-                        </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.signInBtn, { flex: 1 }]}
+                            activeOpacity={0.85}
+                            onPress={handleRegisterSubmit}
+                            disabled={loading}
+                          >
+                            {loading ? (
+                              <ActivityIndicator size="small" color={CREAM} />
+                            ) : (
+                              <Text style={styles.signInBtnText}>Create Account</Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
                       </View>
-                    )}
+                    </View>
                   </Animated.View>
                 </Animated.View>
               </>
@@ -772,12 +821,21 @@ const createStyles = (colors, isDarkMode) => {
     marginBottom: 20,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(253,251,247,0.18)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(253,251,247,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(253,251,247,0.28)',
+  },
+  closeButtonText: {
+    color: CREAM,
+    fontSize: 12.5,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 
   /* Card wrapper — holds card + bottom section as one block */
@@ -797,8 +855,8 @@ const createStyles = (colors, isDarkMode) => {
     backgroundColor: isDarkMode ? colors.white : CARD_BG,
     borderRadius: 24,
     height: 535,
-    paddingTop: 36,
-    paddingBottom: 36,
+    paddingTop: 32,
+    paddingBottom: 32,
     paddingHorizontal: 24,
   },
   cardTitle: {
@@ -814,6 +872,51 @@ const createStyles = (colors, isDarkMode) => {
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 28,
+  },
+
+  /* 3-Step Indicator */
+  stepIndicatorRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  stepBar: {
+    height: 5,
+    width: 36,
+    borderRadius: 3,
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.14)' : '#DCE4D6',
+  },
+  stepBarActive: {
+    width: 52,
+    backgroundColor: isDarkMode ? colors.bgBrand : DARK_GREEN,
+  },
+  stepBarCompleted: {
+    backgroundColor: isDarkMode ? colors.bgBrand : GREEN,
+    opacity: 0.65,
+  },
+  stepActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  backStepBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1.3,
+    borderColor: isDarkMode ? colors.borderGreen : BORDER,
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.04)' : '#F5F7F2',
+  },
+  backStepBtnText: {
+    color: isDarkMode ? colors.textDark : DARK_GREEN,
+    fontSize: 14,
+    fontWeight: '700',
   },
 
   /* Inputs */
@@ -934,17 +1037,6 @@ const createStyles = (colors, isDarkMode) => {
     fontSize: 15,
     fontWeight: '600',
   },
-  step2Footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 22,
-    paddingHorizontal: 4,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: isDarkMode ? colors.bgBrand : DARK_GREEN,
-  },
 });
 }
+
