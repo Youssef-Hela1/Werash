@@ -83,8 +83,8 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
 
-  // Dynamic layout measurements
-  const [creamHeight, setCreamHeight] = useState(535);
+  // Dynamic layout measurements (sized to match Step 3 Confirm Password page)
+  const [creamHeight, setCreamHeight] = useState(436);
   const [greenHeight, setGreenHeight] = useState(150);
 
   // Keyboard Animation State
@@ -406,10 +406,62 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
     >
       <StatusBar barStyle="light-content" backgroundColor={isDarkMode ? colors.bgCreamy : GREEN} />
       <Animated.View style={[styles.screen, { transform: [{ translateX: slideAnim }] }]}>
+        {/* Hidden measurement view to lock card height to the exact content size of the Confirm Password page (Step 3) */}
+        <View
+          pointerEvents="none"
+          onLayout={(e) => {
+            const measured = Math.ceil(e.nativeEvent.layout.height);
+            if (measured > 0 && Math.abs(measured - creamHeight) > 1) {
+              setCreamHeight(measured);
+            }
+          }}
+          style={[
+            styles.card,
+            {
+              position: 'absolute',
+              left: 20,
+              right: 20,
+              top: 0,
+              opacity: 0,
+              zIndex: -1,
+            },
+          ]}
+        >
+          <View>
+            <Text style={styles.cardTitle}>CREATE ACCOUNT</Text>
+            <Text style={[styles.cardSubtitle, { marginBottom: 12 }]}>
+              Step 3 of 3 — Secure your account
+            </Text>
+            <View style={styles.stepIndicatorRow}>
+              <View style={styles.stepBar} />
+              <View style={styles.stepBar} />
+              <View style={[styles.stepBar, styles.stepBarActive]} />
+            </View>
+            <View style={{ marginTop: 4 }}>
+              <Text style={styles.label}>PASSWORD</Text>
+              <View style={styles.inputRow} />
+              <Text style={[styles.label, { marginTop: 12 }]}>CONFIRM PASSWORD</Text>
+              <View style={styles.inputRow} />
+              <View style={[styles.optionsRow, { marginTop: 12, marginBottom: 6 }]}>
+                <View style={styles.rememberRow}>
+                  <View style={styles.checkbox} />
+                  <Text style={styles.rememberText}>I agree to the Terms of Service</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.stepActionRow}>
+              <View style={[styles.signInBtn, { flex: 1 }]} />
+            </View>
+          </View>
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          scrollEnabled={false}
+          bounces={false}
+          overScrollMode="never"
         >
           {/* ── Browse as Guest button ── */}
           <View style={styles.topBar}>
@@ -428,10 +480,10 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                 {/* Creamy White Card */}
                 <Animated.View 
                   key="cream-card"
-                  onLayout={(e) => setCreamHeight(e.nativeEvent.layout.height)}
                   style={[
                     styles.card, 
                     { 
+                      height: creamHeight,
                       transform: [{ translateY: whiteTranslateY }],
                       zIndex: 10,
                       elevation: 10,
@@ -439,63 +491,65 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                   ]}
                 >
                   <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>Welcome Back</Text>
-                      <Text style={styles.cardSubtitle}>
-                        Please enter your credentials{'\n'}to access your space.
-                      </Text>
+                    <View style={{ flex: 1, justifyContent: 'space-between' }}>
+                      <View>
+                        <Text style={styles.cardTitle}>Welcome Back</Text>
+                        <Text style={[styles.cardSubtitle, { marginBottom: 18 }]}>
+                          Please enter your credentials{'\n'}to access your space.
+                        </Text>
 
-                      {/* Email */}
-                      <Text style={styles.label}>EMAIL ADDRESS</Text>
-                      <View style={styles.inputRow}>
-                        <Ionicons name="mail-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                        <TextInput
-                          style={styles.input}
-                          placeholder="name@example.com"
-                          placeholderTextColor="#ADADAD"
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          value={email}
-                          onChangeText={setEmail}
-                        />
-                      </View>
-
-                      {/* Password */}
-                      <Text style={[styles.label, { marginTop: 26 }]}>PASSWORD</Text>
-                      <View style={styles.inputRow}>
-                        <Ionicons name="lock-closed-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { flex: 1 }]}
-                          placeholder="••••••••"
-                          placeholderTextColor="#ADADAD"
-                          secureTextEntry={!showPassword}
-                          value={password}
-                          onChangeText={setPassword}
-                        />
-                        <TouchableOpacity onPress={() => setShowPassword(v => !v)} activeOpacity={0.7} style={styles.eyeBtn}>
-                          <Ionicons
-                            name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                            size={18}
-                            color={LABEL_COLOR}
+                        {/* Email */}
+                        <Text style={styles.label}>EMAIL ADDRESS</Text>
+                        <View style={styles.inputRow}>
+                          <Ionicons name="mail-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="name@example.com"
+                            placeholderTextColor="#ADADAD"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            value={email}
+                            onChangeText={setEmail}
                           />
-                        </TouchableOpacity>
-                      </View>
+                        </View>
 
-                      {/* Remember me + Forgot password */}
-                      <View style={styles.optionsRow}>
-                        <TouchableOpacity
-                          style={styles.rememberRow}
-                          onPress={() => setRememberMe(v => !v)}
-                          activeOpacity={0.8}
-                        >
-                          <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                            {rememberMe && <Ionicons name="checkmark" size={11} color={CREAM} />}
-                          </View>
-                          <Text style={styles.rememberText}>Remember me</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity activeOpacity={0.7}>
-                          <Text style={styles.forgotText}>Forgot password?</Text>
-                        </TouchableOpacity>
+                        {/* Password */}
+                        <Text style={[styles.label, { marginTop: 16 }]}>PASSWORD</Text>
+                        <View style={styles.inputRow}>
+                          <Ionicons name="lock-closed-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
+                          <TextInput
+                            style={[styles.input, { flex: 1 }]}
+                            placeholder="••••••••"
+                            placeholderTextColor="#ADADAD"
+                            secureTextEntry={!showPassword}
+                            value={password}
+                            onChangeText={setPassword}
+                          />
+                          <TouchableOpacity onPress={() => setShowPassword(v => !v)} activeOpacity={0.7} style={styles.eyeBtn}>
+                            <Ionicons
+                              name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                              size={18}
+                              color={LABEL_COLOR}
+                            />
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Remember me + Forgot password */}
+                        <View style={[styles.optionsRow, { marginTop: 14, marginBottom: 8 }]}>
+                          <TouchableOpacity
+                            style={styles.rememberRow}
+                            onPress={() => setRememberMe(v => !v)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                              {rememberMe && <Ionicons name="checkmark" size={11} color={CREAM} />}
+                            </View>
+                            <Text style={styles.rememberText}>Remember me</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity activeOpacity={0.7}>
+                            <Text style={styles.forgotText}>Forgot password?</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
                       {/* Sign In button */}
@@ -581,10 +635,10 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                 {/* Creamy White Card */}
                 <Animated.View 
                   key="cream-card"
-                  onLayout={(e) => setCreamHeight(e.nativeEvent.layout.height)}
                   style={[
                     styles.card, 
                     { 
+                      height: creamHeight,
                       transform: [{ translateY: whiteTranslateY }],
                       zIndex: 10,
                       elevation: 10,
@@ -595,7 +649,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                     <View style={{ flex: 1, justifyContent: 'space-between' }}>
                       <View>
                         <Text style={styles.cardTitle}>CREATE ACCOUNT</Text>
-                        <Text style={[styles.cardSubtitle, { marginBottom: 14 }]}>
+                        <Text style={[styles.cardSubtitle, { marginBottom: 12 }]}>
                           {registerStep === 1
                             ? 'Step 1 of 3 — Tell us your name'
                             : registerStep === 2
@@ -623,7 +677,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
 
                         {/* STEP 1: Full Name */}
                         {registerStep === 1 && (
-                          <View style={{ marginTop: 18 }}>
+                          <View style={{ marginTop: 14 }}>
                             <Text style={styles.label}>FULL NAME</Text>
                             <View style={styles.inputRow}>
                               <Ionicons name="person-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
@@ -643,7 +697,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
 
                         {/* STEP 2: Email Address & Phone Number */}
                         {registerStep === 2 && (
-                          <View style={{ marginTop: 10 }}>
+                          <View style={{ marginTop: 6 }}>
                             <Text style={styles.label}>EMAIL ADDRESS</Text>
                             <View style={styles.inputRow}>
                               <Ionicons name="mail-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
@@ -658,7 +712,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                               />
                             </View>
 
-                            <Text style={[styles.label, { marginTop: 16 }]}>PHONE NUMBER</Text>
+                            <Text style={[styles.label, { marginTop: 14 }]}>PHONE NUMBER</Text>
                             <View style={styles.inputRow}>
                               <Ionicons name="call-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
                               <TextInput
@@ -677,7 +731,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
 
                         {/* STEP 3: Password, Confirm Password & Terms */}
                         {registerStep === 3 && (
-                          <View style={{ marginTop: 6 }}>
+                          <View style={{ marginTop: 4 }}>
                             <Text style={styles.label}>PASSWORD</Text>
                             <View style={styles.inputRow}>
                               <Ionicons name="lock-closed-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
@@ -702,7 +756,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                               </TouchableOpacity>
                             </View>
 
-                            <Text style={[styles.label, { marginTop: 14 }]}>CONFIRM PASSWORD</Text>
+                            <Text style={[styles.label, { marginTop: 12 }]}>CONFIRM PASSWORD</Text>
                             <View style={styles.inputRow}>
                               <Ionicons name="shield-checkmark-outline" size={17} color={LABEL_COLOR} style={styles.inputIcon} />
                               <TextInput
@@ -726,7 +780,7 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
                               </TouchableOpacity>
                             </View>
 
-                            <View style={[styles.optionsRow, { marginTop: 14, marginBottom: 8 }]}>
+                            <View style={[styles.optionsRow, { marginTop: 12, marginBottom: 6 }]}>
                               <TouchableOpacity
                                 style={styles.rememberRow}
                                 onPress={() => setAgreeToTerms(v => !v)}
@@ -809,9 +863,10 @@ const createStyles = (colors, isDarkMode) => {
     backgroundColor: isDarkMode ? colors.bgCreamy : GREEN,
   },
   scroll: {
+    flexGrow: 1,
     paddingTop: 54,
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
 
   /* Top bar */
@@ -854,9 +909,8 @@ const createStyles = (colors, isDarkMode) => {
   card: {
     backgroundColor: isDarkMode ? colors.white : CARD_BG,
     borderRadius: 24,
-    height: 535,
-    paddingTop: 32,
-    paddingBottom: 32,
+    paddingTop: 26,
+    paddingBottom: 26,
     paddingHorizontal: 24,
   },
   cardTitle: {
