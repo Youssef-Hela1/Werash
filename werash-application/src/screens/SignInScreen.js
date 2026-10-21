@@ -24,6 +24,37 @@ const API_URL = Platform.select({
   default: 'http://localhost:3000',
 });
 
+const DEFAULT_MECHANIC_USER = {
+  id: 'mechanic-1',
+  role: 'mechanic',
+  fullName: 'Eng. Hamdy El-Sayed',
+  fullNameAr: 'م. حمدي السيد',
+  workshopName: 'Hamdy Hyundai Workshop',
+  workshopNameAr: 'ورشة حمدي هيونداي المعتمدة',
+  email: 'admin@werash.com',
+  password: '123456789',
+  rating: '4.8',
+  reviewsCount: 64,
+  customersCount: 48,
+  totalEarnings: 34500,
+};
+
+const DEFAULT_CUSTOMER_USER = {
+  id: 'customer-admin',
+  role: 'customer',
+  fullName: 'Youssef Helal',
+  email: 'customer@werash.com',
+  password: '123456789',
+  phone: '010 12345678',
+  carBrand: 'Hyundai',
+  carModel: 'Coupe',
+  carYear: '2005',
+  plateNumber: '1873 RW',
+  plateNumberArabic: '١٨٧٣ ر و',
+  cc: '2000 CC',
+  odometer: 290000,
+};
+
 // Local in-memory database fallback for offline testing or Expo Go connection issues
 // Load local users DB from AsyncStorage on launch
 AsyncStorage.getItem(STORAGE_KEY_LOCAL_USERS).then(stored => {
@@ -31,7 +62,14 @@ AsyncStorage.getItem(STORAGE_KEY_LOCAL_USERS).then(stored => {
     try {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        localUsersDb = parsed;
+        let updated = [...parsed];
+        if (!updated.some(u => u.email === DEFAULT_MECHANIC_USER.email)) {
+          updated.push(DEFAULT_MECHANIC_USER);
+        }
+        if (!updated.some(u => u.email === DEFAULT_CUSTOMER_USER.email)) {
+          updated.push(DEFAULT_CUSTOMER_USER);
+        }
+        localUsersDb = updated;
       }
     } catch (_) {}
   }
@@ -48,7 +86,9 @@ let localUsersDb = [
     carYear: '2005',
     plateNumber: '1873 RW',
     plateNumberArabic: '١٨٧٣ ر و'
-  }
+  },
+  DEFAULT_MECHANIC_USER,
+  DEFAULT_CUSTOMER_USER
 ];
 
 export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
@@ -236,6 +276,32 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
       Alert.alert('Validation Error', 'Please fill in both email and password.');
       return;
     }
+
+    const emailNormalized = email.trim().toLowerCase();
+    if (
+      emailNormalized === DEFAULT_MECHANIC_USER.email &&
+      password.trim() === DEFAULT_MECHANIC_USER.password
+    ) {
+      const { password: _, ...mechanicWithoutPassword } = DEFAULT_MECHANIC_USER;
+      if (onSignInSuccess) {
+        onSignInSuccess(mechanicWithoutPassword);
+      }
+      handleClose();
+      return;
+    }
+
+    if (
+      emailNormalized === DEFAULT_CUSTOMER_USER.email &&
+      password.trim() === DEFAULT_CUSTOMER_USER.password
+    ) {
+      const { password: _, ...customerWithoutPassword } = DEFAULT_CUSTOMER_USER;
+      if (onSignInSuccess) {
+        onSignInSuccess(customerWithoutPassword);
+      }
+      handleClose();
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/login`, {

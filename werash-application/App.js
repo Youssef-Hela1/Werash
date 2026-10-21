@@ -12,6 +12,8 @@ import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
 import SettingsScreen from './src/screens/SettingsScreen';
+import MechanicAppScreen from './src/screens/MechanicAppScreen';
+import CertifiedMechanicPage from './src/screens/CertifiedMechanicPage';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -21,38 +23,40 @@ const STORAGE_KEY_CURRENT_USER = '@werash_current_user';
 const STORAGE_KEY_LANGUAGE = '@werash_selected_language';
 const STORAGE_KEY_LOCAL_USERS = '@werash_local_users_db';
 
+const CUSTOMER_ADMIN_COUPE = {
+  id: 'customer-coupe-2005',
+  brand: 'Hyundai',
+  model: 'Coupe',
+  year: '2005',
+  plateNumber: '1873 RW',
+  plateNumberArabic: '١٨٧٣ ر و',
+  cc: '2000 CC',
+  odometer: 290000,
+  isManual: false,
+  is4WD: false,
+  hasHydraulicPS: true,
+  hasTimingBelt: true,
+  services: {
+    engineOil: { lastService: 282000, lifespan: 10000 },
+    oilFilter: { lastService: 282000, lifespan: 10000 },
+    airFilter: { lastService: 276000, lifespan: 20000 },
+    cabinAirFilter: { lastService: 276000, lifespan: 20000 },
+    sparkPlugs: { lastService: 265000, lifespan: 40000 },
+    transmissionFluid: { lastService: 250000, lifespan: 60000 },
+    coolant: { lastService: 268000, lifespan: 40000 },
+    brakeFluid: { lastService: 272000, lifespan: 30000 },
+    brakePads: { lastService: 275000, lifespan: 30000 },
+    tires: { lastService: 260000, lifespan: 50000 },
+  },
+  notes: 'Hyundai Coupe 2005 (2.0L) — Odometer at 290,000 km.\n• Engine oil & filter changed at 282,000 km (2,000 km remaining).\n• Brake pads inspected and in good shape.\n• Timing belt & tensioner checked at Hamdy Hyundai Workshop.',
+  noteDate: '2026-10-19',
+  noteImages: [],
+};
+
 const MOCK_VEHICLES = [
   {
+    ...CUSTOMER_ADMIN_COUPE,
     id: 'mock-coupe',
-    brand: 'Hyundai',
-    model: 'Coupe',
-    year: '2005',
-    plateNumber: '1873 RW',
-    plateNumberArabic: '١٨٧٣ ر و',
-    cc: '2000 CC',
-    odometer: 284000,
-    isManual: false,
-    is4WD: false,
-    hasHydraulicPS: true,
-    hasTimingBelt: true,
-    services: {
-      engineOil: { lastService: 274350, lifespan: 10000 },
-      oilFilter: { lastService: 274350, lifespan: 10000 },
-      airFilter: { lastService: 270000, lifespan: 20000 },
-      cabinAirFilter: { lastService: 270000, lifespan: 20000 },
-      sparkPlugs: { lastService: 260000, lifespan: 40000 },
-      transmissionFluid: { lastService: 240000, lifespan: 60000 },
-      coolant: { lastService: 260000, lifespan: 40000 },
-      brakeFluid: { lastService: 270000, lifespan: 30000 },
-      brakePads: { lastService: 270000, lifespan: 30000 },
-      tires: { lastService: 250000, lifespan: 50000 }
-    },
-    notes: 'Welcome to Werash Notes! 📝\nمرحباً بك في ملاحظات وِرَش!\n\n• Use the arrows (◀/▶) above to flip pages.\n• استخدم الأسهم (◀/▶) في الأعلى للتنقل.\n\n• Tap the Date Chip to set a log date.\n• اضغط على شريحة التاريخ لتحديد يوم.\n• Add photos (🖼️) to attach sticky notes.\n• أضف صوراً (🖼️) لتظهر كملصقات على الورقة.\n• Text auto-wraps around the sticky notes!\n• يلتف النص تلقائياً حول الملصقات اللاصقة!',
-    noteDate: '2026-07-10',
-    noteImages: [
-      'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?w=500&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=500&auto=format&fit=crop'
-    ],
   },
   {
     id: 'mock-bmw',
@@ -344,7 +348,10 @@ function AppContent() {
           ]).catch(() => {});
         } else {
           // Authenticated user: restore their vehicles
-          if (storedVehicles) {
+          if (loadedUser.email === 'customer@werash.com' || loadedUser.id === 'customer-admin') {
+            setUserVehicles([CUSTOMER_ADMIN_COUPE]);
+            setActiveVehicleId(CUSTOMER_ADMIN_COUPE.id);
+          } else if (storedVehicles) {
             try {
               const parsedVehicles = JSON.parse(storedVehicles);
               if (Array.isArray(parsedVehicles) && parsedVehicles.length > 0) {
@@ -441,7 +448,10 @@ function AppContent() {
   const handleSetCurrentUser = (user) => {
     setCurrentUser(user);
     if (user) {
-      if (user.id === 'mock-youssef') {
+      if (user.email === 'customer@werash.com' || user.id === 'customer-admin') {
+        setUserVehicles([CUSTOMER_ADMIN_COUPE]);
+        setActiveVehicleId(CUSTOMER_ADMIN_COUPE.id);
+      } else if (user.id === 'mock-youssef') {
         setUserVehicles(MOCK_VEHICLES);
         setActiveVehicleId(MOCK_VEHICLES[0].id);
       } else if (user.carBrand && user.carModel) {
@@ -511,6 +521,23 @@ function AppContent() {
           </Text>
         </View>
       </View>
+    );
+  }
+
+  // If logged in as a scouted Mechanic, render the dedicated Mechanic interface
+  if (currentUser && (currentUser.role === 'mechanic' || currentUser.email === 'admin@werash.com')) {
+    return (
+      <MechanicAppScreen
+        currentUser={currentUser}
+        onUpdateUser={handleSetCurrentUser}
+        onLogOut={() => {
+          handleLogOut();
+          setCurrentTab('home');
+          setSignInVisible(true);
+        }}
+        selectedLanguage={selectedLanguage}
+        onSelectLanguage={handleSelectLanguage}
+      />
     );
   }
 
@@ -622,14 +649,24 @@ function AppContent() {
         />
       )}
 
-      {/* Specialist Detail Modal (renders over top header and bottom navbar, keeping them mounted) */}
+      {/* Specialist Detail: Full Page for Certified Mechanics, Popup Modal for Non-Certified */}
       {activeSpecialist && (
-        <SpecialistDetailModal 
-          specialist={activeSpecialist} 
-          onClose={() => setActiveSpecialist(null)} 
-          selectedLanguage={selectedLanguage}
-          activeVehicle={activeVehicle}
-        />
+        activeSpecialist.isCertified ? (
+          <CertifiedMechanicPage
+            specialist={activeSpecialist}
+            onClose={() => setActiveSpecialist(null)}
+            selectedLanguage={selectedLanguage}
+            currentUser={currentUser}
+            activeVehicle={activeVehicle}
+          />
+        ) : (
+          <SpecialistDetailModal 
+            specialist={activeSpecialist} 
+            onClose={() => setActiveSpecialist(null)} 
+            selectedLanguage={selectedLanguage}
+            activeVehicle={activeVehicle}
+          />
+        )
       )}
 
       {/* Ad Detail Modal */}

@@ -160,6 +160,45 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
 
           {/* Workshop Cover Image */}
           {(() => {
+            if (specialist.isCertified) {
+              return (
+                <View style={[styles.expandedCover, { position: 'relative' }]}>
+                  <Image
+                    source={require('../../assets/Banner wallpaper.png')}
+                    resizeMode="cover"
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                  {/* Centered Profile Picture Circle */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      bottom: -34,
+                      alignSelf: 'center',
+                      width: 78,
+                      height: 78,
+                      borderRadius: 39,
+                      borderWidth: 3,
+                      borderColor: colors.white,
+                      backgroundColor: '#37633B',
+                      overflow: 'hidden',
+                      zIndex: 10,
+                      elevation: 5,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 3 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 5,
+                    }}
+                  >
+                    <Image
+                      source={require('../../assets/Mechanic profile picture.png')}
+                      resizeMode="cover"
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </View>
+                </View>
+              );
+            }
+
             const showBrand = specialist._filterByVehicle !== false;
             const brandLogo = showBrand ? getMechanicBrandLogo(specialist, activeVehicle) : null;
             const specialtyIcon = getSpecialistCategoryIcon(specialist, specialist._selectedCategory);
@@ -220,7 +259,7 @@ export default function SpecialistDetailModal({ specialist, onClose, selectedLan
           })()}
 
           {/* Card Content Area */}
-          <View style={styles.expandedDetails}>
+          <View style={[styles.expandedDetails, specialist.isCertified && { paddingTop: 32 }]}>
             {/* Top Info Area */}
             <View style={[
               styles.expandedTopDetails,

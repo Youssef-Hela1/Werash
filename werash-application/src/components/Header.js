@@ -1,13 +1,51 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import SignInScreen from '../screens/SignInScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import NotificationsModal from './NotificationsModal';
 import ChatsModal from './ChatsModal';
+import { STORAGE_KEY_MECHANIC_SHARED } from '../screens/CertifiedMechanicPage';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+const BASE_NOTIFICATIONS = [
+  {
+    id: 'n1',
+    type: 'maintenance',
+    title: 'Service Due Alert',
+    titleAr: 'تنبيه موعد الصيانة',
+    body: 'Your Hyundai Coupe is due for Engine Oil replacement in 350 km.',
+    bodyAr: 'سيارتك هيونداي كوبيه مستحقة لتغيير زيت المحرك خلال 350 كم.',
+    date: '2 hours ago',
+    dateAr: 'منذ ساعتين',
+    read: false
+  },
+  {
+    id: 'n2',
+    type: 'message',
+    title: 'New Message',
+    titleAr: 'رسالة جديدة',
+    body: 'Samir Fahmy sent you a message: "Is the price negotiable for the BBS LM rims?"',
+    bodyAr: 'سمير فهمي أرسل لك رسالة: "هل السعر قابل للتفاوض لجنوط BBS LM؟"',
+    date: '1 day ago',
+    dateAr: 'منذ يوم',
+    read: false
+  },
+  {
+    id: 'n3',
+    type: 'offer',
+    title: 'Exclusive Offer',
+    titleAr: 'عرض حصري',
+    body: 'Specialist Elena offered a 15% discount on computerized diagnostics today.',
+    bodyAr: 'الأخصائية إيلينا قدمت خصماً بقيمة 15% على الفحص بالكمبيوتر اليوم.',
+    date: '2 days ago',
+    dateAr: 'منذ يومين',
+    read: false
+  }
+];
 
 export default function Header({ 
   currentTab,
@@ -20,46 +58,46 @@ export default function Header({
   onOpenSettings
 }) {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'n1',
-      type: 'maintenance',
-      title: 'Service Due Alert',
-      titleAr: 'تنبيه موعد الصيانة',
-      body: 'Your Hyundai Coupe is due for Engine Oil replacement in 350 km.',
-      bodyAr: 'سيارتك هيونداي كوبيه مستحقة لتغيير زيت المحرك خلال 350 كم.',
-      date: '2 hours ago',
-      dateAr: 'منذ ساعتين',
-      read: false
-    },
-    {
-      id: 'n2',
-      type: 'message',
-      title: 'New Message',
-      titleAr: 'رسالة جديدة',
-      body: 'Samir Fahmy sent you a message: "Is the price negotiable for the BBS LM rims?"',
-      bodyAr: 'سمير فهمي أرسل لك رسالة: "هل السعر قابل للتفاوض لجنوط BBS LM؟"',
-      date: '1 day ago',
-      dateAr: 'منذ يوم',
-      read: false
-    },
-    {
-      id: 'n3',
-      type: 'offer',
-      title: 'Exclusive Offer',
-      titleAr: 'عرض حصري',
-      body: 'Specialist Elena offered a 15% discount on computerized diagnostics today.',
-      bodyAr: 'الأخصائية إيلينا قدمت خصماً بقيمة 15% على الفحص بالكمبيوتر اليوم.',
-      date: '2 days ago',
-      dateAr: 'منذ يومين',
-      read: false
-    }
-  ]);
+  const [notifications, setNotifications] = useState(BASE_NOTIFICATIONS);
+  const alertedIdsRef = useRef(new Set());
 
   const [chatsVisible, setChatsVisible] = useState(false);
 
   const [localLanguage, setLocalLanguage] = useState('English');
   const selectedLanguage = propSelectedLanguage || localLanguage;
+
+  useEffect(() => {
+    const syncReceiptNotifications = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.customerNotifications) && parsed.customerNotifications.length > 0) {
+          setNotifications((prev) => {
+            const existingMap = new Map(prev.map((n) => [n.id, n]));
+            const incoming = parsed.customerNotifications.map((n) =>
+              existingMap.has(n.id) ? existingMap.get(n.id) : n
+            );
+            const incomingIds = new Set(incoming.map((n) => n.id));
+            return [...incoming, ...prev.filter((n) => !incomingIds.has(n.id))];
+          });
+
+          const latest = parsed.customerNotifications[0];
+          if (latest && !latest.read && !alertedIdsRef.current.has(latest.id)) {
+            alertedIdsRef.current.add(latest.id);
+            const isAr = selectedLanguage === 'Arabic';
+            Alert.alert(
+              isAr ? latest.titleAr : latest.title,
+              isAr ? latest.bodyAr : latest.body
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('Error syncing receipt notifications:', e);
+      }
+    };
+    syncReceiptNotifications();
+  }, [currentUser, currentTab, notificationsVisible, selectedLanguage]);
   const setSelectedLanguage = onSelectLanguage || setLocalLanguage;
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);

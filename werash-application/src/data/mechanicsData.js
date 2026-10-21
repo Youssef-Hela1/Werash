@@ -2,25 +2,28 @@
 export const ALL_MECHANICS = [
   {
     "id": "m-1",
+    "isCertified": true,
+    "mechanicName": "Eng. Hamdy El-Sayed",
+    "mechanicNameAr": "م. حمدي السيد",
     "name": "Hamdy Hyundai Workshop",
     "nameAr": "ورشة حمدي هيونداي",
-    "specialty": "Car Body Mechanic",
-    "specialtyAr": "ميكانيكي هياكل السيارات",
-    "rating": "4.6",
+    "specialty": "Certified Hyundai Specialist",
+    "specialtyAr": "متخصص هيونداي معتمد",
+    "rating": "4.8",
     "reviews": "64",
     "location": "October & Sheikh Zayed",
     "locationAr": "أكتوبر والشيخ زايد",
     "phone": "012 26220221",
     "url": "https://www.google.com/maps/place/%D9%88%D8%B1%D8%B4%D8%A9+%D8%AD%D9%85%D8%AF%D9%8A+%D9%87%D9%8A%D9%88%D9%86%D8%AF%D8%A7%D9%8A%E2%80%AD/data=!4m7!3m6!1s0x14585798b32bf7c1:0x1efb586aebd8bbdf!8m2!3d29.9624339!4d30.9157445!16s%2Fg%2F11ny0tbyhw!19sChIJwfcrs5hXWBQR37vY62pY-x4?authuser=0&hl=en&rclk=1",
     "carOrigin": "Korean",
-    "category": "body",
+    "category": "mechanical",
     "categories": [
-      "body"
+      "mechanical"
     ],
     "region": "october_zayed",
     "area": "October & Sheikh Zayed",
-    "description": "Hamdy Hyundai Workshop - Car Body Mechanic. October & Sheikh Zayed (Korean).",
-    "descriptionAr": "ورشة حمدي هيونداي - ميكانيكي هياكل السيارات (أكتوبر والشيخ زايد - كوري)."
+    "description": "Certified Hyundai & Korean Car Specialist (Eng. Hamdy El-Sayed) in October & Sheikh Zayed.",
+    "descriptionAr": "متخصص هيونداي وسيارات كوري معتمد (م. حمدي السيد) في أكتوبر والشيخ زايد."
   },
   {
     "id": "m-2",

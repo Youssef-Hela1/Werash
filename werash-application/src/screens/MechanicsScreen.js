@@ -275,6 +275,8 @@ export default function MechanicsScreen({
   const distanceCache = {};
 
   filteredSpecialists.sort((a, b) => {
+    if (a.isCertified && !b.isCertified) return -1;
+    if (!a.isCertified && b.isCertified) return 1;
     if (selectedLocation === 'nearest' && userCoords) {
       const getDistanceFor = (spec) => {
         if (distanceCache[spec.id] !== undefined) return distanceCache[spec.id];
@@ -477,6 +479,7 @@ export default function MechanicsScreen({
   };
 
   const renderSpecialistItem = ({ item: specialist, index }) => {
+    const isCertified = Boolean(specialist.isCertified);
     const cardOpacity = index < 8 ? listAnim.interpolate({
       inputRange: [0, index * 0.1, Math.min(1, index * 0.1 + 0.3)],
       outputRange: [0, 0, 1],
@@ -508,17 +511,86 @@ export default function MechanicsScreen({
               width: '100%',
               height: '100%',
               marginBottom: 0
+            },
+            isCertified && {
+              backgroundColor: '#37633B',
+              borderColor: '#2A4E2E',
+              borderWidth: 1.5,
             }
           ]}
         >
-          <BlurView
-            intensity={65}
-            tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
-            style={StyleSheet.absoluteFill}
-          />
+          {!isCertified && (
+            <BlurView
+              intensity={65}
+              tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
 
           {/* Workshop Cover Image */}
           {(() => {
+            if (isCertified) {
+              return (
+                <View style={[styles.cardCover, { height: 90, position: 'relative' }]}>
+                  <Image
+                    source={require('../../assets/Banner wallpaper.png')}
+                    resizeMode="cover"
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                  {/* Certified Badge */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: 7,
+                      left: 7,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: 'rgba(55, 99, 59, 0.88)',
+                      paddingHorizontal: 6.5,
+                      paddingVertical: 2.5,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: 'rgba(247, 245, 240, 0.35)',
+                      gap: 3,
+                    }}
+                  >
+                    <Ionicons name="checkmark-circle" size={11} color="#F7F5F0" />
+                    <Text style={{ fontSize: 8.5, fontFamily: isRtl ? 'AlkhalilArabic-Bold' : 'PlusJakartaSans-ExtraBold', color: '#F7F5F0', letterSpacing: 0.4 }}>
+                      {isRtl ? 'معتمد' : 'CERTIFIED'}
+                    </Text>
+                  </View>
+
+                  {/* Centered Profile Picture Circle */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      bottom: -22,
+                      alignSelf: 'center',
+                      width: 54,
+                      height: 54,
+                      borderRadius: 27,
+                      borderWidth: 2.5,
+                      borderColor: '#F7F5F0',
+                      backgroundColor: '#37633B',
+                      overflow: 'hidden',
+                      zIndex: 5,
+                      elevation: 5,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.28,
+                      shadowRadius: 4,
+                    }}
+                  >
+                    <Image
+                      source={require('../../assets/Mechanic profile picture.png')}
+                      resizeMode="cover"
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </View>
+                </View>
+              );
+            }
+
             const brandLogo = filterByVehicle ? getMechanicBrandLogo(specialist, activeVehicle) : null;
             const specialtyIcon = getSpecialistCategoryIcon(specialist, selectedCategory);
 
@@ -578,23 +650,50 @@ export default function MechanicsScreen({
           })()}
 
           {/* Card Content Area */}
-          <View style={styles.cardDetails}>
+          <View style={[styles.cardDetails, isCertified && { paddingTop: 26, paddingBottom: 10 }]}>
             {/* Top Info Area */}
             <View style={isRtl && { alignItems: 'flex-end' }}>
               {/* Name */}
-              <Text style={[styles.cardName, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.5 }]} numberOfLines={1} ellipsizeMode="tail">
+              <Text
+                style={[
+                  styles.cardName,
+                  isCertified && { color: '#F7F5F0' },
+                  isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.5 }
+                ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {isRtl ? (specialist.nameAr || specialist.name) : specialist.name}
               </Text>
 
               {/* Specialty */}
-              <Text style={[styles.cardSpecialty, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.cardSpecialty,
+                  isCertified && { color: 'rgba(247, 245, 240, 0.88)' },
+                  isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }
+                ]}
+                numberOfLines={1}
+              >
                 {isRtl ? (specialist.specialtyAr || specialist.specialty) : specialist.specialty}
               </Text>
 
               {/* Location Row */}
               <View style={[styles.locationRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                <Ionicons name="location-sharp" size={12} color={colors.textMuted} style={[styles.locationIcon, isRtl ? { marginLeft: 2, marginRight: 0 } : { marginRight: 2 }]} />
-                <Text style={[styles.cardLocation, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]} numberOfLines={1}>
+                <Ionicons
+                  name="location-sharp"
+                  size={12}
+                  color={isCertified ? 'rgba(247, 245, 240, 0.78)' : colors.textMuted}
+                  style={[styles.locationIcon, isRtl ? { marginLeft: 2, marginRight: 0 } : { marginRight: 2 }]}
+                />
+                <Text
+                  style={[
+                    styles.cardLocation,
+                    isCertified && { color: 'rgba(247, 245, 240, 0.78)' },
+                    isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }
+                  ]}
+                  numberOfLines={1}
+                >
                   {isRtl ? (specialist.locationAr || specialist.location) : specialist.location}
                 </Text>
               </View>
@@ -603,16 +702,24 @@ export default function MechanicsScreen({
             {/* Bottom Info Area */}
             <View>
               {/* Thin Divider Line */}
-              <View style={styles.cardDivider} />
+              <View style={[styles.cardDivider, isCertified && { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]} />
 
               {/* Rating Row */}
               <View style={styles.statsRow}>
                 {/* Rating */}
                 <View style={[styles.ratingContainer, isRtl && { flexDirection: 'row-reverse' }]}>
                   <Ionicons name="star" size={12} color={colors.gold} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                  <Text style={[styles.ratingText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+                  <Text
+                    style={[
+                      styles.ratingText,
+                      isCertified && { color: '#F7F5F0' },
+                      isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }
+                    ]}
+                  >
                     {specialist.rating || '4.5'}{' '}
-                    <Text style={styles.reviewsText}>({isRtl ? `${specialist.reviews || '0'} تقييم` : `${specialist.reviews || '0'}`})</Text>
+                    <Text style={[styles.reviewsText, isCertified && { color: 'rgba(247, 245, 240, 0.75)' }]}>
+                      ({isRtl ? `${specialist.reviews || '0'} تقييم` : `${specialist.reviews || '0'}`})
+                    </Text>
                   </Text>
                 </View>
               </View>

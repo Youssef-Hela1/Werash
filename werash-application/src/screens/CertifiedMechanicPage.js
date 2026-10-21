@@ -1,0 +1,1076 @@
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Alert,
+  Modal,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme, useThemeStyles } from '../styles/ThemeContext';
+import {
+  openSpecialistLocation,
+  callSpecialist,
+  messageSpecialist,
+} from '../data/specialistHelpers';
+
+export const STORAGE_KEY_MECHANIC_SHARED = '@werash_mechanic_shared_state';
+
+const CERTIFIED_REVIEWS = [
+  {
+    id: 'rev-1',
+    customerName: 'Youssef Helal',
+    customerNameAr: 'يوسف هلال',
+    carModel: 'Hyundai Coupe • 2005',
+    carModelAr: 'هيونداي كوبيه • ٢٠٠٥',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop',
+    rating: 5,
+    date: '2 days ago',
+    dateAr: 'منذ يومين',
+    comment: 'Best Hyundai specialist in Cairo! Diagnosed the engine issue in 10 minutes and fixed it with original parts.',
+    commentAr: 'أفضل متخصص هيونداي في القاهرة! شخص مشكلة المحرك في ١٠ دقائق وأصلحها بقطع غيار أصلية.',
+  },
+  {
+    id: 'rev-2',
+    customerName: 'Mostafa Kamel',
+    customerNameAr: 'مصطفى كامل',
+    carModel: 'Hyundai Tucson • 2021',
+    carModelAr: 'هيونداي توسان • ٢٠٢١',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop',
+    rating: 5,
+    date: '1 week ago',
+    dateAr: 'منذ أسبوع',
+    comment: 'Very honest workshop and fair prices. The car feels brand new after the full service.',
+    commentAr: 'ورشة أمينة جداً وأسعارهم ممتازة. السيارة رجعت كأنها جديدة بعد الصيانة الكاملة.',
+  },
+  {
+    id: 'rev-3',
+    customerName: 'Sherif Hany',
+    customerNameAr: 'شريف هاني',
+    carModel: 'Kia Sportage • 2019',
+    carModelAr: 'كيا سبورتاج • ٢٠١٩',
+    avatar: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200&auto=format&fit=crop',
+    rating: 4,
+    date: '2 weeks ago',
+    dateAr: 'منذ أسبوعين',
+    comment: 'Great workmanship on the suspension and brakes. Was a bit busy on Saturday but totally worth the wait.',
+    commentAr: 'شغل ممتاز في العفشة والفرامل. كانت الورشة مزدحمة قليلاً يوم السبت لكن تستحق الانتظار.',
+  },
+  {
+    id: 'rev-4',
+    customerName: 'Amr Diab',
+    customerNameAr: 'عمرو دياب',
+    carModel: 'Hyundai Elantra • 2022',
+    carModelAr: 'هيونداي إلنترا • ٢٠٢٢',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop',
+    rating: 5,
+    date: '1 month ago',
+    dateAr: 'منذ شهر',
+    comment: 'Super clean workshop and punctual delivery. Highly recommend Eng. Hamdy!',
+    commentAr: 'ورشة نظيفة جداً والتزام تام بموعد التسليم. أنصح بالتعامل مع م. حمدي بشدة!',
+  },
+];
+
+export default function CertifiedMechanicPage({ specialist, onClose, selectedLanguage, currentUser, activeVehicle }) {
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
+  const isAr = selectedLanguage === 'Arabic';
+  const [customerRequest, setCustomerRequest] = useState(null);
+  const [receiptVisible, setReceiptVisible] = useState(false);
+
+  const customerEmail = currentUser?.email || 'customer@werash.com';
+
+  useEffect(() => {
+    const loadSharedRequest = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const found = (parsed.requests || []).find(
+            (r) => r.customerEmail === customerEmail || r.id === 'req-customer-admin'
+          );
+          if (found) {
+            setCustomerRequest(found);
+          }
+        }
+      } catch (e) {
+        console.warn('Error loading mechanic shared state:', e);
+      }
+    };
+    loadSharedRequest();
+  }, [customerEmail]);
+
+  if (!specialist) return null;
+
+  const hasReceipt = Boolean(customerRequest && customerRequest.requestedAmount > 0);
+  const baseAmount = hasReceipt ? Number(customerRequest.requestedAmount) : 0;
+  const serviceFee = Number((baseAmount * 0.025).toFixed(2));
+  const totalAmount = Number((baseAmount + serviceFee).toFixed(2));
+
+  const handlePrimaryRequestAction = async () => {
+    if (hasReceipt) {
+      setReceiptVisible(true);
+      return;
+    }
+
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const existingRequests = Array.isArray(parsed.requests) ? parsed.requests : [];
+
+      const carLabelEn = activeVehicle
+        ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}`
+        : 'Hyundai Coupe • 2005';
+      const carLabelAr =
+        activeVehicle &&
+        `${activeVehicle.brand}`.toLowerCase() === 'hyundai' &&
+        `${activeVehicle.model}`.toLowerCase() === 'coupe'
+          ? 'هيونداي كوبيه • ٢٠٠٥'
+          : carLabelEn;
+
+      const newReq = {
+        id: 'req-customer-admin',
+        customerEmail,
+        customerName: currentUser?.fullName || 'Youssef Helal',
+        customerNameAr: currentUser?.fullNameAr || 'يوسف هلال',
+        carModel: carLabelEn,
+        carModelAr: carLabelAr,
+        avatar:
+          currentUser?.avatar ||
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop',
+        requestedAmount: null,
+        isPaid: false,
+      };
+
+      const filtered = existingRequests.filter(
+        (r) => r.id !== 'req-customer-admin' && r.customerEmail !== customerEmail
+      );
+      const updatedRequests = [newReq, ...filtered];
+
+      await AsyncStorage.setItem(
+        STORAGE_KEY_MECHANIC_SHARED,
+        JSON.stringify({
+          ...parsed,
+          requests: updatedRequests,
+        })
+      );
+
+      setCustomerRequest(newReq);
+      Alert.alert(
+        isAr ? 'تم إرسال الطلب' : 'Request Sent',
+        isAr
+          ? 'تم إرسال طلبك بنجاح إلى م. حمدي السيد.'
+          : 'Your request has been sent to Eng. Hamdy El-Sayed.'
+      );
+    } catch (e) {
+      console.warn('Failed to save request:', e);
+    }
+  };
+
+  const handlePayNow = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const existingRequests = Array.isArray(parsed.requests) ? parsed.requests : [];
+      const updatedRequests = existingRequests.map((r) =>
+        r.id === 'req-customer-admin' || r.customerEmail === customerEmail
+          ? { ...r, isPaid: true }
+          : r
+      );
+
+      await AsyncStorage.setItem(
+        STORAGE_KEY_MECHANIC_SHARED,
+        JSON.stringify({
+          ...parsed,
+          requests: updatedRequests,
+        })
+      );
+
+      setCustomerRequest((prev) => (prev ? { ...prev, isPaid: true } : prev));
+      setReceiptVisible(false);
+      Alert.alert(
+        isAr ? 'تم الدفع بنجاح' : 'Payment Successful',
+        isAr
+          ? `تم دفع مبلغ ${totalAmount.toLocaleString()} ج.م بنجاح.`
+          : `Your payment of ${totalAmount.toLocaleString()} EGP has been completed successfully.`
+      );
+    } catch (e) {
+      console.warn('Failed to complete payment:', e);
+    }
+  };
+
+  const mechanicName = isAr
+    ? specialist.mechanicNameAr || 'م. حمدي السيد'
+    : specialist.mechanicName || 'Eng. Hamdy El-Sayed';
+
+  const workshopName = isAr
+    ? specialist.nameAr || 'ورشة حمدي هيونداي المعتمدة'
+    : specialist.name || 'Hamdy Hyundai Workshop';
+
+  const specialtyText = isAr
+    ? specialist.specialtyAr || 'متخصص هيونداي معتمد'
+    : specialist.specialty || 'Certified Hyundai Specialist';
+
+  const locationText = isAr
+    ? specialist.locationAr || specialist.location
+    : specialist.location;
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* 1. Full-Width Workshop Banner at the Top */}
+        <View style={styles.bannerContainer}>
+          <Image
+            source={require('../../assets/Banner wallpaper.png')}
+            style={styles.bannerImage}
+            resizeMode="cover"
+          />
+          <View style={styles.bannerOverlay} />
+
+          {/* Back Button */}
+          <TouchableOpacity
+            style={[styles.backButton, { top: Math.max(insets.top, 14) + 6 }]}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color="#F7F5F0" />
+          </TouchableOpacity>
+
+          {/* Certified Badge */}
+          <View style={[styles.certifiedBadge, { top: Math.max(insets.top, 14) + 10 }]}>
+            <Ionicons name="checkmark-circle" size={14} color="#F7F5F0" />
+            <Text style={[styles.certifiedBadgeText, isAr && styles.arabicBoldText]}>
+              {isAr ? 'ميكانيكي معتمد' : 'CERTIFIED MECHANIC'}
+            </Text>
+          </View>
+        </View>
+
+        {/* 2. Overlapping Profile Picture & Mechanic Details */}
+        <View style={styles.profileHeaderSection}>
+          <View style={styles.avatarWrapper}>
+            <Image
+              source={require('../../assets/Mechanic profile picture.png')}
+              style={styles.mechanicAvatar}
+            />
+          </View>
+
+          <Text style={[styles.mechanicName, isAr && styles.arabicBoldText]}>
+            {mechanicName}
+          </Text>
+          <Text style={[styles.workshopName, isAr && styles.arabicBoldText]}>
+            {workshopName}
+          </Text>
+          <Text style={[styles.specialtyBadge, isAr && styles.arabicBoldText]}>
+            {specialtyText}
+          </Text>
+
+          <View style={styles.locationRow}>
+            <Ionicons name="location-sharp" size={14} color={colors.textMuted} />
+            <Text style={[styles.locationText, isAr && styles.arabicBoldText]}>
+              {locationText}
+            </Text>
+          </View>
+        </View>
+
+        {/* 3. Contact & Location Action Buttons */}
+        <View style={styles.actionsSection}>
+          <TouchableOpacity
+            style={styles.actionBtnOutline}
+            activeOpacity={0.8}
+            onPress={() => openSpecialistLocation(specialist)}
+          >
+            <Ionicons name="location-outline" size={22} color="#37633B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtnOutline}
+            activeOpacity={0.8}
+            onPress={() => callSpecialist(specialist, isAr)}
+          >
+            <Ionicons name="call-outline" size={22} color="#37633B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtnSolid}
+            activeOpacity={0.85}
+            onPress={() => messageSpecialist(specialist, isAr)}
+          >
+            <Ionicons name="logo-whatsapp" size={22} color="#F7F5F0" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Send a Request / View Receipt Button */}
+        <View style={styles.sendRequestSection}>
+          <TouchableOpacity
+            style={[
+              styles.sendRequestButton,
+              customerRequest && !hasReceipt && styles.sendRequestButtonSent,
+            ]}
+            activeOpacity={0.85}
+            onPress={handlePrimaryRequestAction}
+          >
+            <Ionicons
+              name={
+                hasReceipt
+                  ? 'receipt-outline'
+                  : customerRequest
+                  ? 'checkmark-circle'
+                  : 'paper-plane-outline'
+              }
+              size={19}
+              color="#F7F5F0"
+            />
+            <Text style={[styles.sendRequestButtonText, isAr && styles.arabicBoldText]}>
+              {hasReceipt
+                ? isAr
+                  ? 'عرض الإيصال'
+                  : 'View Receipt'
+                : customerRequest
+                ? isAr
+                  ? 'تم إرسال الطلب'
+                  : 'Request Sent'
+                : isAr
+                ? 'إرسال طلب'
+                : 'Send a Request'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 4. Ratings & Reviews Section */}
+        <View style={styles.bodySection}>
+          {/* Overall Rating Card */}
+          <View style={styles.ratingSummaryCard}>
+            <View style={styles.ratingLeftRow}>
+              <View style={styles.ratingIconCircle}>
+                <Ionicons name="star" size={20} color="#E6A817" />
+              </View>
+              <View>
+                <Text style={[styles.ratingTitle, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'تقييم الورشة' : 'Workshop Rating'}
+                </Text>
+                <View style={styles.starsInlineRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Ionicons
+                      key={star}
+                      name="star"
+                      size={13}
+                      color="#E6A817"
+                      style={{ marginRight: 2 }}
+                    />
+                  ))}
+                  <Text style={[styles.reviewsCountText, isAr && styles.arabicBoldText]}>
+                    {isAr ? `(${specialist.reviews || '64'} تقييم)` : `(${specialist.reviews || '64'} reviews)`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.ratingScoreBig}>{specialist.rating || '4.8'}</Text>
+          </View>
+
+          {/* Customer Reviews List */}
+          <Text style={[styles.sectionHeaderTitle, isAr && styles.arabicBoldText]}>
+            {isAr ? 'آراء وتقييمات العملاء' : 'Customer Reviews'}
+          </Text>
+
+          {CERTIFIED_REVIEWS.map((rev) => (
+            <View key={rev.id} style={styles.reviewCard}>
+              <View style={styles.reviewTopRow}>
+                <Image source={{ uri: rev.avatar }} style={styles.reviewerAvatar} />
+                <View style={styles.reviewerInfoCol}>
+                  <View style={styles.reviewerNameRow}>
+                    <Text style={[styles.reviewerName, isAr && styles.arabicBoldText]}>
+                      {isAr ? rev.customerNameAr : rev.customerName}
+                    </Text>
+                    <Text style={[styles.reviewDate, isAr && styles.arabicBoldText]}>
+                      {isAr ? rev.dateAr : rev.date}
+                    </Text>
+                  </View>
+                  <Text style={[styles.reviewerCar, isAr && styles.arabicBoldText]}>
+                    {isAr ? rev.carModelAr : rev.carModel}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.reviewStarsRow}>
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Ionicons
+                    key={s}
+                    name={s <= rev.rating ? 'star' : 'star-outline'}
+                    size={14}
+                    color="#E6A817"
+                    style={{ marginRight: 3 }}
+                  />
+                ))}
+              </View>
+
+              <Text style={[styles.reviewComment, isAr && styles.arabicBoldText]}>
+                {isAr ? rev.commentAr : rev.comment}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* ==================== WERASH RECEIPT MODAL ==================== */}
+      <Modal
+        visible={receiptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReceiptVisible(false)}
+      >
+        <View style={styles.receiptBackdrop}>
+          <View style={styles.receiptPaper}>
+            {/* Close Button */}
+            <TouchableOpacity
+              style={styles.receiptCloseBtn}
+              onPress={() => setReceiptVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={20} color="#555" />
+            </TouchableOpacity>
+
+            {/* Top Header: Werash Logo & Arabic Brand Name (Always in Arabic even when app is in English) */}
+            <View style={styles.receiptBrandHeader}>
+              <Image
+                source={require('../../assets/logo_green.png')}
+                style={styles.receiptLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.receiptArabicBrand}>وِرَش</Text>
+            </View>
+
+            <Text style={[styles.receiptTitleLabel, isAr && styles.arabicBoldText]}>
+              {isAr ? 'إيصال خدمة رسمي' : 'OFFICIAL SERVICE RECEIPT'}
+            </Text>
+            <Text style={styles.receiptNumberText}>#WR-2026-084</Text>
+
+            {/* Perforated Cutout Notches & Dashed Line */}
+            <View style={styles.perforationWrapper}>
+              <View style={styles.notchLeft} />
+              <View style={styles.dashedDivider} />
+              <View style={styles.notchRight} />
+            </View>
+
+            {/* Receipt Details Info */}
+            <View style={styles.receiptInfoSection}>
+              <View style={styles.receiptMetaRow}>
+                <Text style={[styles.receiptMetaLabel, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'الورشة' : 'Workshop'}
+                </Text>
+                <Text style={[styles.receiptMetaValue, isAr && styles.arabicBoldText]}>
+                  {workshopName}
+                </Text>
+              </View>
+
+              <View style={styles.receiptMetaRow}>
+                <Text style={[styles.receiptMetaLabel, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'الميكانيكي' : 'Mechanic'}
+                </Text>
+                <Text style={[styles.receiptMetaValue, isAr && styles.arabicBoldText]}>
+                  {mechanicName}
+                </Text>
+              </View>
+
+              <View style={styles.receiptMetaRow}>
+                <Text style={[styles.receiptMetaLabel, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'العميل' : 'Customer'}
+                </Text>
+                <Text style={[styles.receiptMetaValue, isAr && styles.arabicBoldText]}>
+                  {isAr
+                    ? customerRequest?.customerNameAr || 'يوسف هلال'
+                    : customerRequest?.customerName || 'Youssef Helal'}
+                </Text>
+              </View>
+
+              <View style={styles.receiptMetaRow}>
+                <Text style={[styles.receiptMetaLabel, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'السيارة' : 'Vehicle'}
+                </Text>
+                <Text style={[styles.receiptMetaValue, isAr && styles.arabicBoldText]}>
+                  {isAr
+                    ? customerRequest?.carModelAr || 'هيونداي كوبيه • ٢٠٠٥'
+                    : customerRequest?.carModel || 'Hyundai Coupe • 2005'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.dashedDividerInner} />
+
+            {/* Itemized Charges Breakdown */}
+            <View style={styles.receiptChargesSection}>
+              <View style={styles.receiptChargeRow}>
+                <Text style={[styles.receiptChargeLabel, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'المبلغ المطلوب من الميكانيكي' : 'Mechanic Requested Amount'}
+                </Text>
+                <Text style={[styles.receiptChargeAmount, isAr && styles.arabicBoldText]}>
+                  {baseAmount.toLocaleString()} {isAr ? 'ج.م' : 'EGP'}
+                </Text>
+              </View>
+
+              <View style={styles.receiptChargeRow}>
+                <Text style={[styles.receiptChargeLabel, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'رسوم الخدمة (٢.٥٪)' : 'Service Fee (2.5%)'}
+                </Text>
+                <Text style={[styles.receiptChargeAmount, isAr && styles.arabicBoldText]}>
+                  +{serviceFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                  {isAr ? 'ج.م' : 'EGP'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.dashedDividerInner} />
+
+            {/* Total Row */}
+            <View style={styles.receiptTotalRow}>
+              <Text style={[styles.receiptTotalLabel, isAr && styles.arabicBoldText]}>
+                {isAr ? 'الإجمالي المستحق' : 'TOTAL DUE'}
+              </Text>
+              <Text style={[styles.receiptTotalValue, isAr && styles.arabicBoldText]}>
+                {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                {isAr ? 'ج.م' : 'EGP'}
+              </Text>
+            </View>
+
+            {/* Bottom Pay Now Button */}
+            <TouchableOpacity
+              style={[
+                styles.payNowButton,
+                customerRequest?.isPaid && styles.payNowButtonPaid,
+              ]}
+              activeOpacity={0.85}
+              onPress={handlePayNow}
+            >
+              <Ionicons
+                name={customerRequest?.isPaid ? 'checkmark-circle' : 'card-outline'}
+                size={20}
+                color="#F7F5F0"
+              />
+              <Text style={[styles.payNowButtonText, isAr && styles.arabicBoldText]}>
+                {customerRequest?.isPaid
+                  ? isAr
+                    ? 'تم الدفع'
+                    : 'Paid'
+                  : isAr
+                  ? 'ادفع الآن'
+                  : 'Pay Now'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: colors.bgCreamy,
+      zIndex: 1100,
+    },
+    scrollContent: {
+      paddingBottom: 48,
+    },
+    bannerContainer: {
+      width: '100%',
+      height: 155,
+      backgroundColor: '#243C27',
+      position: 'relative',
+    },
+    bannerImage: {
+      width: '100%',
+      height: '100%',
+    },
+    bannerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(20, 35, 22, 0.22)',
+    },
+    backButton: {
+      position: 'absolute',
+      left: 16,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: 'rgba(25, 42, 27, 0.72)',
+      borderWidth: 1,
+      borderColor: 'rgba(247, 245, 240, 0.35)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10,
+    },
+    certifiedBadge: {
+      position: 'absolute',
+      right: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(55, 99, 59, 0.92)',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(247, 245, 240, 0.4)',
+      gap: 5,
+      zIndex: 10,
+    },
+    certifiedBadgeText: {
+      color: '#F7F5F0',
+      fontSize: 10.5,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      letterSpacing: 0.4,
+    },
+    profileHeaderSection: {
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      marginTop: -54,
+      marginBottom: 18,
+    },
+    avatarWrapper: {
+      width: 108,
+      height: 108,
+      borderRadius: 54,
+      backgroundColor: colors.bgCreamy,
+      padding: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      elevation: 8,
+      marginBottom: 10,
+    },
+    mechanicAvatar: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 50,
+      backgroundColor: '#37633B',
+    },
+    mechanicName: {
+      fontSize: 21,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: colors.textDark,
+      textAlign: 'center',
+      marginBottom: 2,
+    },
+    workshopName: {
+      fontSize: 14.5,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#37633B',
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    specialtyBadge: {
+      fontSize: 11.5,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    locationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    locationText: {
+      fontSize: 12.5,
+      fontFamily: 'PlusJakartaSans-Medium',
+      color: colors.textMuted,
+    },
+    actionsSection: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      gap: 10,
+      marginBottom: 12,
+    },
+    actionBtnOutline: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 44,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: '#37633B',
+      backgroundColor: colors.white,
+      gap: 6,
+    },
+    actionBtnOutlineText: {
+      fontSize: 13,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#37633B',
+    },
+    actionBtnSolid: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: '#37633B',
+      gap: 6,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    actionBtnSolidText: {
+      fontSize: 13,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#F7F5F0',
+    },
+    sendRequestSection: {
+      paddingHorizontal: 20,
+      marginBottom: 22,
+    },
+    sendRequestButton: {
+      width: '100%',
+      height: 48,
+      borderRadius: 16,
+      backgroundColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      elevation: 5,
+    },
+    sendRequestButtonSent: {
+      backgroundColor: '#2A4E2E',
+    },
+    sendRequestButtonText: {
+      fontSize: 14.5,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#F7F5F0',
+      letterSpacing: 0.3,
+    },
+    bodySection: {
+      paddingHorizontal: 20,
+    },
+    ratingSummaryCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.white,
+      borderRadius: 18,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderWidth: 1.2,
+      borderColor: colors.borderGreen,
+      marginBottom: 20,
+      shadowColor: '#1E2D1F',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    ratingLeftRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    ratingIconCircle: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: 'rgba(230, 168, 23, 0.14)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ratingTitle: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: colors.textDark,
+      marginBottom: 3,
+    },
+    starsInlineRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    reviewsCountText: {
+      fontSize: 11.5,
+      fontFamily: 'PlusJakartaSans-Medium',
+      color: colors.textMuted,
+      marginLeft: 5,
+    },
+    ratingScoreBig: {
+      fontSize: 26,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: colors.textDark,
+    },
+    sectionHeaderTitle: {
+      fontSize: 16,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: colors.textDark,
+      marginBottom: 12,
+    },
+    reviewCard: {
+      backgroundColor: colors.white,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.borderGreen,
+      shadowColor: '#1E2D1F',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    reviewTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    reviewerAvatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      marginRight: 12,
+      backgroundColor: colors.borderGreen,
+    },
+    reviewerInfoCol: {
+      flex: 1,
+    },
+    reviewerNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 2,
+    },
+    reviewerName: {
+      fontSize: 14.5,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: colors.textDark,
+    },
+    reviewDate: {
+      fontSize: 11.5,
+      fontFamily: 'PlusJakartaSans-Medium',
+      color: colors.textMuted,
+    },
+    reviewerCar: {
+      fontSize: 12,
+      fontFamily: 'PlusJakartaSans-SemiBold',
+      color: '#37633B',
+    },
+    reviewStarsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    reviewComment: {
+      fontSize: 13.5,
+      fontFamily: 'PlusJakartaSans-Medium',
+      color: colors.textDark,
+      lineHeight: 20,
+    },
+    arabicBoldText: {
+      fontFamily: 'AlkhalilArabic-Bold',
+    },
+    receiptBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 24, 16, 0.72)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    receiptPaper: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: '#FCFBF8',
+      borderRadius: 22,
+      paddingTop: 22,
+      paddingBottom: 22,
+      paddingHorizontal: 22,
+      borderWidth: 1,
+      borderColor: 'rgba(55, 99, 59, 0.18)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 14 },
+      shadowOpacity: 0.28,
+      shadowRadius: 24,
+      elevation: 14,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    receiptCloseBtn: {
+      position: 'absolute',
+      top: 14,
+      right: 14,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: 'rgba(0, 0, 0, 0.06)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10,
+    },
+    receiptBrandHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      marginBottom: 4,
+    },
+    receiptLogo: {
+      width: 44,
+      height: 44,
+    },
+    receiptArabicBrand: {
+      fontFamily: 'ZafranArabic-Bold',
+      fontSize: 64,
+      color: '#37633B',
+      marginTop: -6,
+    },
+    receiptTitleLabel: {
+      textAlign: 'center',
+      fontSize: 11,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#37633B',
+      letterSpacing: 1.4,
+      marginBottom: 3,
+    },
+    receiptNumberText: {
+      textAlign: 'center',
+      fontSize: 11.5,
+      fontFamily: 'PlusJakartaSans-Medium',
+      color: '#7A867B',
+      marginBottom: 14,
+    },
+    perforationWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: -22,
+      marginBottom: 16,
+    },
+    notchLeft: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: 'rgba(15, 24, 16, 0.72)',
+      marginLeft: -9,
+    },
+    notchRight: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: 'rgba(15, 24, 16, 0.72)',
+      marginRight: -9,
+    },
+    dashedDivider: {
+      flex: 1,
+      height: 1,
+      borderWidth: 1,
+      borderColor: 'rgba(55, 99, 59, 0.25)',
+      borderStyle: 'dashed',
+      marginHorizontal: 6,
+    },
+    dashedDividerInner: {
+      width: '100%',
+      height: 1,
+      borderWidth: 1,
+      borderColor: 'rgba(55, 99, 59, 0.22)',
+      borderStyle: 'dashed',
+      marginVertical: 14,
+    },
+    receiptInfoSection: {
+      gap: 9,
+    },
+    receiptMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    receiptMetaLabel: {
+      fontSize: 12.5,
+      fontFamily: 'PlusJakartaSans-Medium',
+      color: '#6C786D',
+    },
+    receiptMetaValue: {
+      fontSize: 13,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#1E2D1F',
+    },
+    receiptChargesSection: {
+      gap: 10,
+    },
+    receiptChargeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    receiptChargeLabel: {
+      fontSize: 13,
+      fontFamily: 'PlusJakartaSans-SemiBold',
+      color: '#3A473B',
+    },
+    receiptChargeAmount: {
+      fontSize: 13.5,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#1E2D1F',
+    },
+    receiptTotalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+      backgroundColor: 'rgba(55, 99, 59, 0.08)',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+    },
+    receiptTotalLabel: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#37633B',
+      letterSpacing: 0.5,
+    },
+    receiptTotalValue: {
+      fontSize: 18,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#37633B',
+    },
+    payNowButton: {
+      width: '100%',
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    payNowButtonPaid: {
+      backgroundColor: '#2A4E2E',
+    },
+    payNowButtonText: {
+      fontSize: 15,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#F7F5F0',
+      letterSpacing: 0.3,
+    },
+  });
