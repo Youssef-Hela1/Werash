@@ -328,11 +328,12 @@ export default function MechanicAppScreen({
     }
 
     const updatedRequests = requests.map((r) =>
-      r.id === selectedRequest.id ? { ...r, requestedAmount: numericAmount } : r
+      r.id === selectedRequest.id ? { ...r, requestedAmount: numericAmount, isPaid: false } : r
     );
     const updatedEarnings = [
       {
         id: `pay-${Date.now()}`,
+        requestId: selectedRequest.id,
         customerName: selectedRequest.customerName,
         customerNameAr: selectedRequest.customerNameAr,
         carModel: selectedRequest.carModel,
@@ -347,6 +348,7 @@ export default function MechanicAppScreen({
     const updatedCustomers = [
       {
         id: `cust-${Date.now()}`,
+        requestId: selectedRequest.id,
         customerName: selectedRequest.customerName,
         customerNameAr: selectedRequest.customerNameAr,
         carModel: selectedRequest.carModel,
@@ -379,6 +381,11 @@ export default function MechanicAppScreen({
       const newNotif = {
         id: `notif-receipt-${Date.now()}`,
         type: 'offer',
+        isReceipt: true,
+        requestId: selectedRequest.id,
+        amount: numericAmount,
+        totalWithFee,
+        status: 'pending',
         title: 'Receipt Ready — Request Accepted',
         titleAr: 'تم قبول الطلب — الإيصال جاهز',
         body: `Eng. Hamdy El-Sayed accepted your request and issued a receipt for ${totalWithFee.toLocaleString()} EGP (incl. 2.5% service fee).`,
@@ -657,25 +664,41 @@ export default function MechanicAppScreen({
                 </View>
               </View>
 
-              {/* Bottom Button: Request Money */}
+              {/* Bottom Button: Request Money / Paid Status */}
               <TouchableOpacity
                 style={[
                   styles.requestMoneyButton,
                   item.requestedAmount && styles.requestMoneyButtonDone,
+                  item.isPaid && styles.requestMoneyButtonPaid,
                 ]}
-                onPress={() => handleOpenRequestMoney(item)}
+                onPress={() => {
+                  if (item.isPaid) {
+                    Alert.alert(
+                      isAr ? 'تم سداد الدفعة' : 'Payment Settled',
+                      isAr
+                        ? 'قام العميل بدفع هذا المبلغ بالفعل.'
+                        : 'The customer has already completed payment for this request.'
+                    );
+                    return;
+                  }
+                  handleOpenRequestMoney(item);
+                }}
                 activeOpacity={0.85}
               >
                 <Ionicons
-                  name={item.requestedAmount ? 'checkmark-circle' : 'cash-outline'}
+                  name={item.isPaid ? 'checkmark-circle' : item.requestedAmount ? 'time-outline' : 'cash-outline'}
                   size={18}
                   color="#F7F5F0"
                 />
                 <Text style={[styles.requestMoneyButtonText, isAr && styles.arabicBoldText]}>
-                  {item.requestedAmount
+                  {item.isPaid
                     ? isAr
-                      ? `تم طلب ${item.requestedAmount.toLocaleString()} ج.م`
-                      : `Requested ${item.requestedAmount.toLocaleString()} EGP`
+                      ? `تم سداد ${item.requestedAmount.toLocaleString()} ج.م`
+                      : `Paid: ${item.requestedAmount.toLocaleString()} EGP`
+                    : item.requestedAmount
+                    ? isAr
+                      ? `تم طلب ${item.requestedAmount.toLocaleString()} ج.م (بانتظار الدفع)`
+                      : `Requested ${item.requestedAmount.toLocaleString()} EGP (Pending)`
                     : isAr
                     ? 'طلب دفعة مالية'
                     : 'Request Money'}
@@ -1363,6 +1386,9 @@ const createStyles = (colors) =>
     },
     requestMoneyButtonDone: {
       backgroundColor: '#5D8260',
+    },
+    requestMoneyButtonPaid: {
+      backgroundColor: '#205E28',
     },
     requestMoneyButtonText: {
       color: '#F7F5F0',

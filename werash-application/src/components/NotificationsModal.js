@@ -2,11 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import { 
   StyleSheet, View, Text, TouchableOpacity, 
   Modal, ScrollView, Animated, Dimensions, Easing,
-  PanResponder
+  PanResponder, Alert
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
+import { STORAGE_KEY_MECHANIC_SHARED } from '../screens/CertifiedMechanicPage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.82; // Slightly wider for notifications detail text
@@ -81,6 +83,164 @@ export default function NotificationsModal({
 
   const handleDeleteNotification = (id) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handlePayNotification = async (item) => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const existingRequests = Array.isArray(parsed.requests) ? parsed.requests : [];
+
+      const updatedRequests = existingRequests.map((r) =>
+        r.id === item.requestId || r.id === 'req-customer-admin'
+          ? { ...r, isPaid: true }
+          : r
+      );
+
+      const prevNotifs = Array.isArray(parsed.customerNotifications)
+        ? parsed.customerNotifications
+        : [];
+      const updatedNotifs = prevNotifs.map((n) =>
+        n.id === item.id || (item.requestId && n.requestId === item.requestId)
+          ? { ...n, read: true, status: 'paid' }
+          : n
+      );
+
+      await AsyncStorage.setItem(
+        STORAGE_KEY_MECHANIC_SHARED,
+        JSON.stringify({
+          ...parsed,
+          requests: updatedRequests,
+          customerNotifications: updatedNotifs,
+        })
+      );
+
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === item.id ? { ...n, read: true, status: 'paid' } : n
+        )
+      );
+
+      const isAr = selectedLanguage === 'Arabic';
+      const payAmt = item.totalWithFee || item.amount || 0;
+      Alert.alert(
+        isAr ? 'تم الدفع بنجاح' : 'Payment Successful',
+        isAr
+          ? `تم دفع مبلغ ${payAmt.toLocaleString()} ج.م بنجاح.`
+          : `Your payment of ${payAmt.toLocaleString()} EGP has been completed successfully.`
+      );
+    } catch (e) {
+      console.warn('Failed to pay from notification:', e);
+    }
+  };
+
+  const handleDeclineNotification = (item) => {
+    const isAr = selectedLanguage === 'Arabic';
+    Alert.alert(
+      isAr ? 'تأكيد الرفض' : 'Decline Request',
+      isAr
+        ? 'هل أنت متأكد من رغبتك في رفض طلب الدفع وإلغاء المعاملة؟'
+        : 'Are you sure you want to decline this payment request?',
+      [
+        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isAr ? 'رفض' : 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+              const parsed = raw ? JSON.parse(raw) : {};
+              const existingRequests = Array.isArray(parsed.requests) ? parsed.requests : [];
+              const targetReq = existingRequests.find(
+                (r) => r.id === item.requestId || r.id === 'req-customer-admin'
+              );
+              const updatedRequests = existingRequests.filter(
+                (r) => r.id !== item.requestId && r.id !== 'req-customer-admin'
+              );
+
+              const baseAmount = item.amount || 0;
+              let updatedEarnings = Array.isArray(parsed.earningsHistory)
+                ? [...parsed.earningsHistory]
+                : undefined;
+              let updatedCustomers = Array.isArray(parsed.customersHistory)
+                ? [...parsed.customersHistory]
+                : undefined;
+              let nextTotalEarnings = parsed.totalEarnings;
+              let nextCustomersCount = parsed.customersCount;
+
+              if (updatedEarnings && updatedEarnings.length > 0 && baseAmount > 0) {
+                const earnIdx = updatedEarnings.findIndex(
+                  (e) =>
+                    (targetReq && e.requestId === targetReq.id) ||
+                    (e.date === 'Today' && Number(e.amount) === baseAmount)
+                );
+                if (earnIdx !== -1) {
+                  updatedEarnings.splice(earnIdx, 1);
+                  if (typeof nextTotalEarnings === 'number') {
+                    nextTotalEarnings = Math.max(0, nextTotalEarnings - baseAmount);
+                  }
+                }
+              }
+
+              if (updatedCustomers && updatedCustomers.length > 0) {
+                const custIdx = updatedCustomers.findIndex(
+                  (c) =>
+                    (targetReq && c.requestId === targetReq.id) ||
+                    c.lastVisit === 'Today'
+                );
+                if (custIdx !== -1) {
+                  updatedCustomers.splice(custIdx, 1);
+                  if (typeof nextCustomersCount === 'number') {
+                    nextCustomersCount = Math.max(0, nextCustomersCount - 1);
+                  }
+                }
+              }
+
+              const prevNotifs = Array.isArray(parsed.customerNotifications)
+                ? parsed.customerNotifications
+                : [];
+              const updatedNotifs = prevNotifs.map((n) =>
+                n.id === item.id || (item.requestId && n.requestId === item.requestId)
+                  ? { ...n, read: true, status: 'declined' }
+                  : n
+              );
+
+              await AsyncStorage.setItem(
+                STORAGE_KEY_MECHANIC_SHARED,
+                JSON.stringify({
+                  ...parsed,
+                  requests: updatedRequests,
+                  ...(updatedEarnings ? { earningsHistory: updatedEarnings } : {}),
+                  ...(updatedCustomers ? { customersHistory: updatedCustomers } : {}),
+                  ...(typeof nextTotalEarnings === 'number'
+                    ? { totalEarnings: nextTotalEarnings }
+                    : {}),
+                  ...(typeof nextCustomersCount === 'number'
+                    ? { customersCount: nextCustomersCount }
+                    : {}),
+                  customerNotifications: updatedNotifs,
+                })
+              );
+
+              setNotifications((prev) =>
+                prev.map((n) =>
+                  n.id === item.id ? { ...n, read: true, status: 'declined' } : n
+                )
+              );
+
+              Alert.alert(
+                isAr ? 'تم رفض الطلب' : 'Request Declined',
+                isAr
+                  ? 'تم رفض طلب الدفع وإلغاء المعاملة بنجاح.'
+                  : 'You have declined the request and the transaction has been cancelled.'
+              );
+            } catch (e) {
+              console.warn('Failed to decline from notification:', e);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Helper to choose notification icon based on type
@@ -216,6 +376,49 @@ export default function NotificationsModal({
                       <Text style={[styles.cardBody, isRTL && { textAlign: 'right' }]} numberOfLines={3}>
                         {bodyText}
                       </Text>
+
+                      {/* Mechanic Request: Pay or Decline Actions */}
+                      {item.isReceipt && (
+                        item.status === 'paid' ? (
+                          <View style={[styles.receiptBadgeRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <View style={[styles.statusBadge, styles.statusBadgePaid]}>
+                              <Ionicons name="checkmark-circle" size={13} color="#2A7336" style={{ marginRight: 4 }} />
+                              <Text style={styles.statusBadgePaidText}>{isRTL ? 'تم الدفع بنجاح' : 'Paid'}</Text>
+                            </View>
+                          </View>
+                        ) : item.status === 'declined' ? (
+                          <View style={[styles.receiptBadgeRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <View style={[styles.statusBadge, styles.statusBadgeDeclined]}>
+                              <Ionicons name="close-circle" size={13} color="#C0392B" style={{ marginRight: 4 }} />
+                              <Text style={styles.statusBadgeDeclinedText}>{isRTL ? 'تم الرفض' : 'Declined'}</Text>
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={[styles.notifActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <TouchableOpacity
+                              style={styles.notifPayBtn}
+                              onPress={() => handlePayNotification(item)}
+                              activeOpacity={0.85}
+                            >
+                              <Ionicons name="card-outline" size={13} color="#F7F5F0" style={{ marginRight: 4 }} />
+                              <Text style={styles.notifPayBtnText}>
+                                {isRTL ? 'دفع الآن' : 'Pay'}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.notifDeclineBtn}
+                              onPress={() => handleDeclineNotification(item)}
+                              activeOpacity={0.85}
+                            >
+                              <Ionicons name="close-circle-outline" size={13} color="#C0392B" style={{ marginRight: 4 }} />
+                              <Text style={styles.notifDeclineBtnText}>
+                                {isRTL ? 'رفض' : 'Decline'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )
+                      )}
                       
                       {/* Footer Row: Date & Delete button */}
                       <View style={[styles.cardFooter, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -438,5 +641,68 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
-  }
+  },
+  notifActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    width: '100%',
+  },
+  notifPayBtn: {
+    flex: 1,
+    height: 32,
+    backgroundColor: '#37633B',
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifPayBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#F7F5F0',
+  },
+  notifDeclineBtn: {
+    flex: 1,
+    height: 32,
+    backgroundColor: 'rgba(220, 53, 69, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(220, 53, 69, 0.3)',
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifDeclineBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#C0392B',
+  },
+  receiptBadgeRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  statusBadgePaid: {
+    backgroundColor: 'rgba(42, 115, 54, 0.12)',
+  },
+  statusBadgePaidText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2A7336',
+  },
+  statusBadgeDeclined: {
+    backgroundColor: 'rgba(192, 57, 43, 0.12)',
+  },
+  statusBadgeDeclinedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#C0392B',
+  },
 });

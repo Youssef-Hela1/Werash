@@ -18,6 +18,8 @@ import {
   Animated
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEY_MECHANIC_SHARED } from './CertifiedMechanicPage';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -305,8 +307,9 @@ const TRANSLATIONS = {
     confirmRemoveMsg: (brand, model) => `Are you sure you want to remove your ${brand} ${model} from My Warsha?`,
     confirmRemoveYes: 'Remove',
     confirmRemoveNo: 'Cancel',
-    serviceStatusTab: 'Service Status',
+    serviceStatusTab: 'Status',
     logBookTab: 'Notes',
+    receiptsTab: 'Receipts',
   },
   Arabic: {
     title: 'وِرَش الخاص بي',
@@ -358,8 +361,9 @@ const TRANSLATIONS = {
     confirmRemoveMsg: (brand, model) => `هل أنت متأكد أنك تريد حذف سيارتك ${brand} ${model} من وِرَش الخاص بك؟`,
     confirmRemoveYes: 'حذف',
     confirmRemoveNo: 'إلغاء',
-    serviceStatusTab: 'حالة الصيانة',
+    serviceStatusTab: 'الحالة',
     logBookTab: 'ملاحظاتي',
+    receiptsTab: 'الإيصالات',
   }
 };
 
@@ -445,6 +449,9 @@ const SERVICE_ITEMS_METADATA = [
     defaultLifespan: 50000,
   },
 ];
+
+
+const FILTER_YEARS = [2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035, 2036, 2037];
 
 export default function GarageScreen({
   currentUser,
@@ -636,6 +643,140 @@ export default function GarageScreen({
   const [remainingText, setRemainingText] = useState('');
   const [paperWidth, setPaperWidth] = useState(0);
   const notebookInputRef = useRef(null);
+
+  const [sharedReceipts, setSharedReceipts] = useState([]);
+  const [selectedReceiptForModal, setSelectedReceiptForModal] = useState(null);
+  const [receiptModalVisible, setReceiptModalVisible] = useState(false);
+  const [receiptDateFilter, setReceiptDateFilter] = useState({
+    mode: 'overall',
+    year: 2027,
+  });
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [tempFilterMode, setTempFilterMode] = useState('overall');
+  const [tempFilterYear, setTempFilterYear] = useState(2027);
+
+  const filteredReceipts = sharedReceipts.filter((item) => {
+    if (receiptDateFilter.mode === 'overall') return true;
+    if (item.year && item.year !== receiptDateFilter.year) return false;
+    return true;
+  });
+
+  const getFilterButtonLabel = () => {
+    if (receiptDateFilter.mode === 'overall') {
+      return isRtl ? 'الكل' : 'Overall';
+    }
+    return `${receiptDateFilter.year}`;
+  };
+
+  const loadReceipts = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+      const parsed = raw ? JSON.parse(raw) : {};
+
+      const list = [];
+      const liveRequests = Array.isArray(parsed.requests) ? parsed.requests : [];
+      const notifs = Array.isArray(parsed.customerNotifications) ? parsed.customerNotifications : [];
+
+      liveRequests.forEach((req) => {
+        if (req.requestedAmount && Number(req.requestedAmount) > 0) {
+          const matchingNotif = notifs.find((n) => n.requestId === req.id || n.isReceipt);
+          const baseAmt = Number(req.requestedAmount);
+          const sFee = Number((baseAmt * 0.025).toFixed(2));
+          const totalAmt = Number((baseAmt + sFee).toFixed(2));
+
+          list.push({
+            id: req.id || `receipt-${Date.now()}`,
+            receiptNumber: '#WR-2027-084',
+            workshopName: isRtl ? 'ورشة حمدي هيونداي المعتمدة' : 'Hamdy Hyundai Workshop',
+            mechanicName: isRtl ? 'م. حمدي السيد' : 'Eng. Hamdy El-Sayed',
+            customerName: isRtl
+              ? req.customerNameAr || currentUser?.fullNameAr || 'يوسف هلال'
+              : req.customerName || currentUser?.fullName || 'Youssef Helal',
+            carModel: isRtl
+              ? req.carModelAr || (activeVehicle ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}` : 'هيونداي كوبيه • ٢٠٠٥')
+              : req.carModel || (activeVehicle ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}` : 'Hyundai Coupe • 2005'),
+            serviceNameEn: req.titleEn || req.serviceName || 'Scheduled Maintenance & Diagnostic Inspection',
+            serviceNameAr: req.titleAr || req.serviceNameAr || 'صيانة دورية وفحص شامل للمحرك',
+            dateEn: 'Oct 24, 2027',
+            dateAr: '٢٤ أكتوبر ٢٠٢٧',
+            baseAmount: baseAmt,
+            serviceFee: sFee,
+            totalAmount: totalAmt,
+            year: 2027,
+            month: 10,
+            isPaid: !!(matchingNotif?.isPaid || req.isPaid),
+            isDeclined: !!(matchingNotif?.isDeclined || req.isDeclined),
+            isLive: true,
+          });
+        }
+      });
+
+      const savedReceipts = Array.isArray(parsed.savedReceipts) ? parsed.savedReceipts : [];
+      savedReceipts.forEach((sr) => {
+        const existingIdx = list.findIndex(item => item.id === sr.id);
+        if (existingIdx !== -1) {
+          list[existingIdx] = { ...list[existingIdx], ...sr, isPaid: true };
+        } else {
+          list.unshift(sr);
+        }
+      });
+
+      list.push({
+        id: 'hist-receipt-2',
+        receiptNumber: '#WR-2027-019',
+        workshopName: isRtl ? 'المركز الألماني لتشخيص الأعطال' : 'German Diagnostic & Brake Center',
+        mechanicName: isRtl ? 'م. أحمد شكري' : 'Eng. Ahmed Shokry',
+        customerName: isRtl ? currentUser?.fullNameAr || 'يوسف هلال' : currentUser?.fullName || 'Youssef Helal',
+        carModel: isRtl
+          ? (activeVehicle ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}` : 'هيونداي كوبيه • ٢٠٠٥')
+          : (activeVehicle ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}` : 'Hyundai Coupe • 2005'),
+        serviceNameEn: 'OBD-II Computerized Diagnostics & Front Brake Pads',
+        serviceNameAr: 'فحص كمبيوتر شامل وتغيير تيل الفرامل الأمامي',
+        dateEn: 'Sep 02, 2027',
+        dateAr: '٢ سبتمبر ٢٠٢٧',
+        baseAmount: 1450,
+        serviceFee: 36.25,
+        totalAmount: 1486.25,
+        year: 2027,
+        month: 9,
+        isPaid: true,
+        isDeclined: false,
+        isLive: false,
+      });
+
+      list.push({
+        id: 'hist-receipt-3',
+        receiptNumber: '#WR-2028-089',
+        workshopName: isRtl ? 'مركز العبور للكهرباء والتكييف' : 'El-Obour Auto Electric & A/C Center',
+        mechanicName: isRtl ? 'م. طارق عبد الرحمن' : 'Eng. Tarek Abdelrahman',
+        customerName: isRtl ? currentUser?.fullNameAr || 'يوسف هلال' : currentUser?.fullName || 'Youssef Helal',
+        carModel: isRtl
+          ? (activeVehicle ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}` : 'هيونداي كوبيه • ٢٠٠٥')
+          : (activeVehicle ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}` : 'Hyundai Coupe • 2005'),
+        serviceNameEn: 'A/C Freon Recharge & Cabin Filter Inspection',
+        serviceNameAr: 'شحن فريون وفحص فلتر التكييف',
+        dateEn: 'Nov 18, 2028',
+        dateAr: '١٨ نوفمبر ٢٠٢٨',
+        baseAmount: 650,
+        serviceFee: 16.25,
+        totalAmount: 666.25,
+        year: 2028,
+        month: 11,
+        isPaid: true,
+        isDeclined: false,
+        isLive: false,
+      });
+
+      setSharedReceipts(list);
+    } catch (e) {
+      console.warn('loadReceipts error in GarageScreen:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadReceipts();
+  }, [activeVehicleId, cardMode]);
+
 
   const activeVehicle = (currentUser && userVehicles && userVehicles.length > 0)
     ? (userVehicles.find(v => v.id === activeVehicleId) || userVehicles[0])
@@ -2036,6 +2177,26 @@ export default function GarageScreen({
               {t.logBookTab}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { setCardMode('receipts'); loadReceipts(); }}
+            style={[styles.vehicleFilterTab, cardMode === 'receipts' && styles.vehicleFilterTabActive]}
+          >
+            <Ionicons 
+              name="receipt-outline" 
+              size={16} 
+              color={cardMode === 'receipts' ? colors.bgBrand : colors.textMuted} 
+              style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} 
+            />
+            <Text style={[
+              styles.vehicleFilterText, 
+              cardMode === 'receipts' ? styles.vehicleFilterTextActive : styles.vehicleFilterTextUnselected,
+              isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
+            ]}>
+              {t.receiptsTab}
+            </Text>
+          </TouchableOpacity>
         </Animated.View>
       )}
 
@@ -2181,7 +2342,7 @@ export default function GarageScreen({
                   {/* Left Side: Title */}
                   <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
                     <Ionicons 
-                      name={cardMode === 'services' ? "speedometer-outline" : "book-outline"} 
+                      name={cardMode === 'services' ? "speedometer-outline" : cardMode === 'receipts' ? "receipt-outline" : "book-outline"} 
                       size={20} 
                       color={colors.bgBrand} 
                       style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} 
@@ -2189,9 +2350,48 @@ export default function GarageScreen({
                     <Text style={[styles.statusCardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0, lineHeight: 19 }]}>
                       {cardMode === 'services' 
                         ? (selectedLanguage === 'Arabic' ? "إحصائيات وحالة\nالصيانة" : "Service & Mileage\nStatus")
+                        : cardMode === 'receipts'
+                        ? (selectedLanguage === 'Arabic' ? "إيصالات الصيانة\nوالفواتير" : "Service Receipts\n& Invoices")
                         : (selectedLanguage === 'Arabic' ? "ملاحظاتي" : "My Notes")}
                     </Text>
                   </View>
+
+                  {/* Top Right: Filter Button (Receipts Mode) */}
+                  {cardMode === 'receipts' && (
+                    <TouchableOpacity
+                      style={[
+                        styles.receiptFilterBtn,
+                        receiptDateFilter.mode !== 'overall' && styles.receiptFilterBtnActive,
+                        isRtl && { flexDirection: 'row-reverse' }
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setTempFilterMode(receiptDateFilter.mode);
+                        setTempFilterYear(receiptDateFilter.year);
+                        setFilterModalVisible(true);
+                      }}
+                    >
+                      <Ionicons 
+                        name="funnel-outline" 
+                        size={12.5} 
+                        color={receiptDateFilter.mode !== 'overall' ? '#FFFFFF' : '#37633B'} 
+                      />
+                      <Text 
+                        style={[
+                          styles.receiptFilterBtnText,
+                          receiptDateFilter.mode !== 'overall' && styles.receiptFilterBtnTextActive,
+                          isRtl && styles.arabicBoldText
+                        ]}
+                      >
+                        {getFilterButtonLabel()}
+                      </Text>
+                      <Ionicons 
+                        name="chevron-down" 
+                        size={11.5} 
+                        color={receiptDateFilter.mode !== 'overall' ? '#FFFFFF' : '#37633B'} 
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Service Status Mode */}
@@ -2615,15 +2815,128 @@ export default function GarageScreen({
                   </View>
                 )}
 
-                {/* 3D Glossy Bevel Highlight Overlay */}
-                <View style={{
-                  ...StyleSheet.absoluteFillObject,
-                  borderRadius: 24,
-                  borderWidth: 1.5,
-                  borderColor: 'transparent',
-                  borderTopColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                  borderLeftColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)',
-                }} pointerEvents="none" />
+                {/* Receipts Mode */}
+                {cardMode === 'receipts' && (
+                  <View style={styles.receiptsContainer}>
+                    {/* Receipts Subtitle Bar with Count */}
+                    <View style={[styles.receiptsHeaderSubRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Text style={[styles.receiptsSubTitleText, isRtl && styles.arabicBoldText]} numberOfLines={1} ellipsizeMode="tail">
+                        {selectedLanguage === 'Arabic' 
+                          ? 'الفواتير والإيصالات المعتمدة' 
+                          : 'Official Stamped Invoices'}
+                      </Text>
+
+                      {/* Count Pill */}
+                      <View style={styles.receiptsCountPill}>
+                        <Text style={styles.receiptsCountPillText}>
+                          {filteredReceipts.length} {selectedLanguage === 'Arabic' ? 'إيصالات' : 'Receipts'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {filteredReceipts.length === 0 ? (
+                      <View style={styles.receiptsEmptyBox}>
+                        <Ionicons 
+                          name={receiptDateFilter.mode !== 'overall' ? 'funnel-outline' : 'receipt-outline'} 
+                          size={42} 
+                          color={colors.textMuted} 
+                          style={{ marginBottom: 10, opacity: 0.5 }} 
+                        />
+                        <Text style={[styles.receiptsEmptyTitle, isRtl && styles.arabicBoldText]}>
+                          {receiptDateFilter.mode !== 'overall'
+                            ? (selectedLanguage === 'Arabic' ? 'لا توجد إيصالات في هذه الفترة' : 'No Receipts Found')
+                            : (selectedLanguage === 'Arabic' ? 'لا توجد إيصالات حالياً' : 'No Receipts Available')}
+                        </Text>
+                        <Text style={[styles.receiptsEmptySub, isRtl && styles.arabicRegularText]}>
+                          {receiptDateFilter.mode !== 'overall'
+                            ? (selectedLanguage === 'Arabic' 
+                                ? `لم يتم العثور على أي إيصالات مسجلة لـ ${getFilterButtonLabel()}.` 
+                                : `No service receipts recorded for ${getFilterButtonLabel()}.`)
+                            : (selectedLanguage === 'Arabic' 
+                                ? 'أي إيصال خدمة تصدره الورش المعتمدة سيظهر هنا تلقائياً.' 
+                                : 'Receipts issued by certified workshops will appear here automatically.')}
+                        </Text>
+                        {receiptDateFilter.mode !== 'overall' && (
+                          <TouchableOpacity
+                            style={styles.resetFilterEmptyBtn}
+                            onPress={() => setReceiptDateFilter({ mode: 'overall', year: 2027 })}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="refresh-outline" size={14} color="#37633B" />
+                            <Text style={[styles.resetFilterEmptyBtnText, isRtl && styles.arabicBoldText]}>
+                              {selectedLanguage === 'Arabic' ? 'عرض جميع الإيصالات' : 'Show All Receipts'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ) : (
+                      filteredReceipts.map((item) => (
+                        <View key={item.id} style={styles.receiptCleanCard}>
+                          {/* Receipt ID & Date */}
+                          <View style={[styles.receiptCleanHeaderRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.receiptCleanIdText}>{item.receiptNumber}</Text>
+                            <Text style={[styles.receiptCleanDateText, isRtl && styles.arabicRegularText]}>
+                              {isRtl ? item.dateAr : item.dateEn}
+                            </Text>
+                          </View>
+
+                          {/* Workshop Name */}
+                          <Text
+                            style={[
+                              styles.receiptCleanWorkshopText,
+                              isRtl && styles.arabicBoldText,
+                              isRtl && { textAlign: 'right' }
+                            ]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {item.workshopName}
+                          </Text>
+
+                          {/* Mechanic Name */}
+                          <Text
+                            style={[
+                              styles.receiptCleanMechanicText,
+                              isRtl && styles.arabicRegularText,
+                              isRtl && { textAlign: 'right' }
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.mechanicName}
+                          </Text>
+
+                          {/* Price */}
+                          <View style={[styles.receiptCleanPriceRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <Text style={[styles.receiptCleanPriceLabel, isRtl && styles.arabicRegularText]}>
+                              {selectedLanguage === 'Arabic' ? 'السعر' : 'Price'}
+                            </Text>
+                            <Text style={[styles.receiptCleanPriceValue, isRtl && styles.arabicBoldText]}>
+                              {Number(item.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                              <Text style={styles.receiptCleanEgp}>{selectedLanguage === 'Arabic' ? 'ج.م' : 'EGP'}</Text>
+                            </Text>
+                          </View>
+
+                          {/* View Receipt Button at the very bottom */}
+                          <TouchableOpacity
+                            style={[styles.receiptCleanViewBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                              setSelectedReceiptForModal(item);
+                              setReceiptModalVisible(true);
+                            }}
+                          >
+                            <Ionicons name="receipt-outline" size={16} color="#37633B" />
+                            <Text style={[styles.receiptCleanViewBtnText, isRtl && styles.arabicBoldText]}>
+                              {selectedLanguage === 'Arabic' ? 'عرض الإيصال' : 'View Receipt'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                )}
+
+
               </View>
             );
           })()
@@ -3582,6 +3895,298 @@ export default function GarageScreen({
 
       {renderEditNotesModal()}
       {renderEditStatusModal()}
+
+      {/* Official Werash Receipt Modal (Exact Mechanic Design) */}
+      <Modal
+        visible={receiptModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReceiptModalVisible(false)}
+      >
+        <View style={styles.receiptBackdrop}>
+          <View style={styles.receiptPaper}>
+            {/* Close Button */}
+            <TouchableOpacity
+              style={styles.receiptCloseBtn}
+              onPress={() => setReceiptModalVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={20} color="#555" />
+            </TouchableOpacity>
+
+            {/* Top Header: Werash Logo & Arabic Brand Name */}
+            <View style={styles.receiptBrandHeader}>
+              <Image
+                source={require('../../assets/logo_green.png')}
+                style={styles.receiptLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.receiptArabicBrand}>وِرَش</Text>
+            </View>
+
+            <Text style={[styles.receiptTitleLabel, isRtl && styles.arabicBoldText]}>
+              {selectedLanguage === 'Arabic' ? 'إيصال خدمة رسمي' : 'OFFICIAL SERVICE RECEIPT'}
+            </Text>
+            <Text style={styles.receiptNumberText}>
+              {selectedReceiptForModal?.receiptNumber || '#WR-2027-084'}
+            </Text>
+
+            {/* Perforated Cutout Notches & Dashed Line */}
+            <View style={styles.perforationWrapper}>
+              <View style={styles.notchLeft} />
+              <View style={styles.dashedDivider} />
+              <View style={styles.notchRight} />
+            </View>
+
+            {/* Receipt Details Info */}
+            {selectedReceiptForModal && (
+              <>
+                <View style={styles.receiptInfoSection}>
+                  <View style={[styles.receiptMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptMetaLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'الورشة' : 'Workshop'}
+                    </Text>
+                    <Text style={[styles.receiptMetaValue, isRtl && styles.arabicBoldText]}>
+                      {selectedReceiptForModal.workshopName}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptMetaLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'الميكانيكي' : 'Mechanic'}
+                    </Text>
+                    <Text style={[styles.receiptMetaValue, isRtl && styles.arabicBoldText]}>
+                      {selectedReceiptForModal.mechanicName}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptMetaLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'العميل' : 'Customer'}
+                    </Text>
+                    <Text style={[styles.receiptMetaValue, isRtl && styles.arabicBoldText]}>
+                      {selectedReceiptForModal.customerName}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptMetaLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'السيارة' : 'Vehicle'}
+                    </Text>
+                    <Text style={[styles.receiptMetaValue, isRtl && styles.arabicBoldText]}>
+                      {selectedReceiptForModal.carModel}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptMetaLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'التاريخ' : 'Date'}
+                    </Text>
+                    <Text style={[styles.receiptMetaValue, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? selectedReceiptForModal.dateAr : selectedReceiptForModal.dateEn}
+                    </Text>
+                  </View>
+
+                </View>
+
+                <View style={styles.dashedDividerInner} />
+
+                {/* Itemized Charges Breakdown */}
+                <View style={styles.receiptChargesSection}>
+                  <View style={[styles.receiptChargeRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptChargeLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'المبلغ المطلوب من الميكانيكي' : 'Mechanic Requested Amount'}
+                    </Text>
+                    <Text style={[styles.receiptChargeAmount, isRtl && styles.arabicBoldText]}>
+                      {Number(selectedReceiptForModal.baseAmount).toLocaleString()} {selectedLanguage === 'Arabic' ? 'ج.م' : 'EGP'}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptChargeRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.receiptChargeLabel, isRtl && styles.arabicRegularText]}>
+                      {selectedLanguage === 'Arabic' ? 'رسوم الخدمة (٢.٥٪)' : 'Service Fee (2.5%)'}
+                    </Text>
+                    <Text style={[styles.receiptChargeAmount, isRtl && styles.arabicBoldText]}>
+                      +{Number(selectedReceiptForModal.serviceFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                      {selectedLanguage === 'Arabic' ? 'ج.م' : 'EGP'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.dashedDividerInner} />
+
+                {/* Total Row */}
+                <View style={[styles.receiptTotalRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <Text style={[styles.receiptTotalLabel, isRtl && styles.arabicBoldText]}>
+                    {selectedLanguage === 'Arabic' ? 'الإجمالي المستحق' : 'TOTAL DUE'}
+                  </Text>
+                  <Text style={[styles.receiptTotalValue, isRtl && styles.arabicBoldText]}>
+                    {Number(selectedReceiptForModal.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                    {selectedLanguage === 'Arabic' ? 'ج.م' : 'EGP'}
+                  </Text>
+                </View>
+
+                {/* Payment Status Badge */}
+                {selectedReceiptForModal.isPaid ? (
+                  <View style={[styles.payNowButton, styles.payNowButtonPaid]}>
+                    <Ionicons name="checkmark-circle" size={20} color="#F7F5F0" />
+                    <Text style={[styles.payNowButtonText, isRtl && styles.arabicBoldText]}>
+                      {selectedLanguage === 'Arabic' ? 'تم الدفع بنجاح' : 'Payment Completed'}
+                    </Text>
+                  </View>
+                ) : selectedReceiptForModal.isDeclined ? (
+                  <View style={[styles.payNowButton, { backgroundColor: '#C0392B' }]}>
+                    <Ionicons name="close-circle" size={20} color="#F7F5F0" />
+                    <Text style={[styles.payNowButtonText, isRtl && styles.arabicBoldText]}>
+                      {selectedLanguage === 'Arabic' ? 'تم رفض الإيصال' : 'Receipt Declined'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[styles.payNowButton, { backgroundColor: '#E65100' }]}>
+                    <Ionicons name="time-outline" size={20} color="#F7F5F0" />
+                    <Text style={[styles.payNowButtonText, isRtl && styles.arabicBoldText]}>
+                      {selectedLanguage === 'Arabic' ? 'قيد الانتظار' : 'Pending Payment'}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Receipts Date Filter Modal */}
+      <Modal
+        visible={filterModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={styles.filterModalBackdrop}>
+          <View style={styles.filterModalCard}>
+            {/* Header */}
+            <View style={[styles.filterModalHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+              <View style={[styles.filterModalTitleRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                <Ionicons name="calendar-outline" size={18} color="#37633B" />
+                <Text style={[styles.filterModalTitle, isRtl && styles.arabicBoldText]}>
+                  {selectedLanguage === 'Arabic' ? 'تصفية الإيصالات بالسنة' : 'Filter Receipts by Year'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.filterModalCloseBtn}
+                onPress={() => setFilterModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color="#555" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Overall Option */}
+            <TouchableOpacity
+              style={[
+                styles.filterOverallBtn,
+                tempFilterMode === 'overall' && styles.filterOverallBtnActive,
+                isRtl && { flexDirection: 'row-reverse' }
+              ]}
+              activeOpacity={0.85}
+              onPress={() => {
+                setTempFilterMode('overall');
+              }}
+            >
+              <View style={[styles.filterOverallLeft, isRtl && { flexDirection: 'row-reverse' }]}>
+                <Ionicons
+                  name="infinite-outline"
+                  size={18}
+                  color={tempFilterMode === 'overall' ? '#FFFFFF' : '#37633B'}
+                />
+                <Text
+                  style={[
+                    styles.filterOverallBtnText,
+                    tempFilterMode === 'overall' && styles.filterOverallBtnTextActive,
+                    isRtl && styles.arabicBoldText
+                  ]}
+                >
+                  {selectedLanguage === 'Arabic' ? 'الكل (جميع السنوات)' : 'Overall (All Years)'}
+                </Text>
+              </View>
+              {tempFilterMode === 'overall' && (
+                <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.filterModalDivider} />
+
+            {/* Year Selection Section (2027 till 2037) */}
+            <Text style={[styles.filterSectionLabel, isRtl && styles.arabicBoldText, isRtl && { textAlign: 'right' }]}>
+              {selectedLanguage === 'Arabic' ? 'اختر السنة' : 'Select Year'}
+            </Text>
+            <View style={[styles.filterYearsGrid, isRtl && { flexDirection: 'row-reverse' }]}>
+              {FILTER_YEARS.map((yr) => (
+                <TouchableOpacity
+                  key={yr}
+                  style={[
+                    styles.filterYearPill,
+                    tempFilterMode === 'year' && tempFilterYear === yr && styles.filterPillActive
+                  ]}
+                  onPress={() => {
+                    setTempFilterMode('year');
+                    setTempFilterYear(yr);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.filterYearPillText,
+                      tempFilterMode === 'year' && tempFilterYear === yr && styles.filterPillTextActive,
+                      isRtl && styles.arabicBoldText
+                    ]}
+                  >
+                    {yr}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={[styles.filterModalActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+              <TouchableOpacity
+                style={styles.filterResetBtn}
+                onPress={() => {
+                  setTempFilterMode('overall');
+                  setTempFilterYear(2027);
+                  setReceiptDateFilter({ mode: 'overall', year: 2027 });
+                  setFilterModalVisible(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh-outline" size={15} color="#37633B" />
+                <Text style={[styles.filterResetBtnText, isRtl && styles.arabicBoldText]}>
+                  {selectedLanguage === 'Arabic' ? 'إعادة ضبط' : 'Reset'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.filterApplyBtn}
+                onPress={() => {
+                  setReceiptDateFilter({
+                    mode: tempFilterMode,
+                    year: tempFilterYear,
+                  });
+                  setFilterModalVisible(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                <Text style={[styles.filterApplyBtnText, isRtl && styles.arabicBoldText]}>
+                  {selectedLanguage === 'Arabic' ? 'تطبيق التصفية' : 'Apply Filter'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       </Animated.ScrollView>
     </View>
   );
@@ -5793,5 +6398,1091 @@ const createStyles = (colors) => StyleSheet.create({
   },
   brandLogoImage: {
     alignSelf: 'center',
+  },
+
+  arabicBoldText: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  arabicRegularText: {
+    fontFamily: 'AlkhalilArabic-Regular',
+  },
+  receiptsContainer: {
+    paddingTop: 12,
+    paddingBottom: 24,
+    paddingHorizontal: 12,
+  },
+  receiptsHeaderSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 8,
+  },
+  receiptsSubTitleText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#7A867B',
+    flex: 1,
+  },
+  receiptsRightControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  receiptFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.22)',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  receiptFilterBtnActive: {
+    backgroundColor: '#37633B',
+    borderColor: '#37633B',
+  },
+  receiptFilterBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  receiptFilterBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  resetFilterEmptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(55, 99, 59, 0.1)',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+  resetFilterEmptyBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  receiptsCountPill: {
+    backgroundColor: 'rgba(55, 99, 59, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  receiptsCountPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  receiptsEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 42,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.15)',
+    borderStyle: 'dashed',
+  },
+  receiptsEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#2A3B2C',
+    marginBottom: 6,
+  },
+  receiptsEmptySub: {
+    fontSize: 12,
+    color: '#7A867B',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  receiptCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.14)',
+    shadowColor: '#37633B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  receiptCardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  receiptCardNumGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  receiptNumberText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#37633B',
+    letterSpacing: 0.5,
+  },
+  liveBadgePill: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+  },
+  liveBadgePillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#2E7D32',
+  },
+  receiptBadgePaid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+  },
+  receiptBadgePaidText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#2E7D32',
+  },
+  receiptBadgeDeclined: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+  },
+  receiptBadgeDeclinedText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#D32F2F',
+  },
+  receiptBadgePending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+  },
+  receiptBadgePendingText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#E65100',
+  },
+  receiptWorkshopName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1F2922',
+  },
+  receiptMechanicName: {
+    fontSize: 11.5,
+    color: '#6E7C70',
+    marginTop: 2,
+  },
+  receiptServiceBox: {
+    backgroundColor: 'rgba(55, 99, 59, 0.05)',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  receiptServiceLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#7A867B',
+    marginBottom: 2,
+  },
+  receiptServiceName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#2A3B2C',
+    lineHeight: 17,
+  },
+  receiptBottomActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(55, 99, 59, 0.08)',
+  },
+  receiptTotalLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#7A867B',
+    textTransform: 'uppercase',
+  },
+  receiptTotalAmount: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#37633B',
+  },
+  receiptEgpUnit: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6E7C70',
+  },
+  receiptViewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#37633B',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    shadowColor: '#37633B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  receiptViewBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  officialReceiptBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  officialReceiptScrollWrapper: {
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '92%',
+  },
+  perforatedReceiptCard: {
+    backgroundColor: '#FAF9F5',
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderWidth: 1.5,
+    borderColor: '#D4DEC9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  perforationHolesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  perforationHolesRowBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 14,
+  },
+  perforationHole: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  receiptWatermarkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  receiptWatermarkText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#37633B',
+    letterSpacing: 0.5,
+  },
+  receiptInnerHeader: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  officialWorkshopTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#1E2923',
+    textAlign: 'center',
+  },
+  officialMechanicSub: {
+    fontSize: 12.5,
+    color: '#657367',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  officialReceiptIdBadge: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#37633B',
+    marginTop: 4,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  dashedReceiptSeparator: {
+    height: 1,
+    borderWidth: 1,
+    borderColor: '#C6D2BA',
+    borderStyle: 'dashed',
+    marginVertical: 12,
+  },
+  receiptDetailGrid: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  receiptDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  receiptDetailKey: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6E7C70',
+  },
+  receiptDetailVal: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#1F2922',
+  },
+  receiptFinancialBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8DC',
+    gap: 6,
+    marginTop: 4,
+  },
+  receiptFinancialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  receiptFinancialKey: {
+    fontSize: 11.5,
+    color: '#6E7C70',
+  },
+  receiptFinancialVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1F2922',
+  },
+  financialDivider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 4,
+  },
+  receiptGrandTotalKey: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#1F2922',
+  },
+  receiptGrandTotalVal: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#2E7D32',
+  },
+  stampSealContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  stampSealCircle: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 2.5,
+    borderColor: '#2E7D32',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-8deg' }],
+    backgroundColor: 'rgba(46, 125, 50, 0.04)',
+  },
+  stampSealWord: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#2E7D32',
+    letterSpacing: 1,
+    marginTop: 1,
+  },
+  stampSealSub: {
+    fontSize: 7.5,
+    fontWeight: '800',
+    color: '#2E7D32',
+    letterSpacing: 0.5,
+  },
+  receiptBarcodeMock: {
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  barcodeLinesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 34,
+  },
+  barcodeRefText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#7A867B',
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  closeReceiptBtn: {
+    backgroundColor: '#37633B',
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+    shadowColor: '#37633B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  closeReceiptBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  filterModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  filterModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FCFBF8',
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  filterModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterModalTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E2923',
+  },
+  filterModalCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterOverallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(55, 99, 59, 0.25)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 14,
+  },
+  filterOverallBtnActive: {
+    backgroundColor: '#37633B',
+    borderColor: '#37633B',
+  },
+  filterOverallLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterOverallBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  filterOverallBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  filterModalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(55, 99, 59, 0.12)',
+    marginBottom: 12,
+  },
+  filterSectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#7A867B',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  filterYearsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterYearPill: {
+    width: '31%',
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(55, 99, 59, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterYearPillText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  filterPillActive: {
+    backgroundColor: '#37633B',
+    borderColor: '#37633B',
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
+  },
+  filterMonthSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  filterAllMonthsLink: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#7A867B',
+  },
+  filterAllMonthsLinkActive: {
+    color: '#37633B',
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+  },
+  filterMonthsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 18,
+  },
+  filterMonthPill: {
+    width: '23%',
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(55, 99, 59, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterMonthPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#37633B',
+  },
+  filterModalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  filterResetBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.25)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  filterResetBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  filterApplyBtn: {
+    flex: 1.4,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#37633B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    shadowColor: '#37633B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  filterApplyBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  /* Mechanic-matched Receipt Overview Styles (Fitted & Responsive) */
+  paymentSummaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 13,
+    borderWidth: 1.2,
+    borderColor: 'rgba(55, 99, 59, 0.18)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 12,
+  },
+  receiptOverviewTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+  receiptNumGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  receiptNumberPillText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#37633B',
+    letterSpacing: 0.5,
+  },
+  paymentCardWorkshopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  paymentCardWorkshopText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1E2D1F',
+  },
+  paymentCardDateText: {
+    fontSize: 11,
+    color: '#7A867B',
+    flexShrink: 0,
+  },
+  paymentCardMechanicText: {
+    fontSize: 11.5,
+    color: '#657367',
+    marginBottom: 7,
+  },
+  paymentCardServiceBox: {
+    backgroundColor: 'rgba(55, 99, 59, 0.05)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 9,
+    marginBottom: 10,
+  },
+  paymentCardServiceText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2A3B2C',
+    lineHeight: 16,
+  },
+  paymentCardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(55, 99, 59, 0.08)',
+  },
+  paymentCardTotalWrap: {
+    flex: 1,
+  },
+  paymentCardTotalLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#7A867B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 1,
+  },
+  paymentSummaryTotal: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#37633B',
+  },
+  viewReceiptCompactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1.3,
+    borderColor: '#37633B',
+    backgroundColor: 'rgba(55, 99, 59, 0.07)',
+  },
+  viewReceiptCompactBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#37633B',
+  },
+  statusBadgeInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+  },
+  statusBadgeInlinePaid: {
+    backgroundColor: 'rgba(42, 115, 54, 0.12)',
+  },
+  statusBadgeInlinePaidText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#2A7336',
+  },
+  statusBadgeInlineDeclined: {
+    backgroundColor: 'rgba(192, 57, 43, 0.12)',
+  },
+  statusBadgeInlineDeclinedText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#C0392B',
+  },
+  statusBadgeInlinePending: {
+    backgroundColor: 'rgba(230, 81, 0, 0.12)',
+  },
+  statusBadgeInlinePendingText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#E65100',
+  },
+
+  /* Clean Uncluttered Receipt Card (Receipt ID, Workshop, Mechanic, Price, Date & View Receipt button) */
+  receiptCleanCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.16)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 12,
+  },
+  receiptCleanHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  receiptCleanIdText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: '#37633B',
+    letterSpacing: 0.3,
+  },
+  receiptCleanDateText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Medium',
+    color: '#7A867B',
+  },
+  receiptCleanWorkshopText: {
+    fontSize: 15,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: '#1E2D1F',
+    marginBottom: 4,
+  },
+  receiptCleanMechanicText: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Medium',
+    color: '#657367',
+    marginBottom: 12,
+  },
+  receiptCleanPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(55, 99, 59, 0.08)',
+    marginBottom: 14,
+  },
+  receiptCleanPriceLabel: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Medium',
+    color: '#7A867B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  receiptCleanPriceValue: {
+    fontSize: 17,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontWeight: '900',
+    color: '#37633B',
+  },
+  receiptCleanEgp: {
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontWeight: '600',
+    color: '#657367',
+  },
+  receiptCleanViewBtn: {
+    width: '100%',
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#37633B',
+    backgroundColor: 'rgba(55, 99, 59, 0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  receiptCleanViewBtnText: {
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: '#37633B',
+  },
+
+/* Perforated Receipt Modal Styles (Exact match to CertifiedMechanicPage) */
+  receiptBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 24, 16, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  receiptPaper: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FCFBF8',
+    borderRadius: 22,
+    paddingTop: 22,
+    paddingBottom: 22,
+    paddingHorizontal: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.18)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    elevation: 14,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  receiptCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  receiptBrandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  receiptLogo: {
+    width: 44,
+    height: 44,
+  },
+  receiptArabicBrand: {
+    fontFamily: 'ZafranArabic-Bold',
+    fontSize: 64,
+    color: '#37633B',
+    marginTop: -6,
+  },
+  receiptTitleLabel: {
+    textAlign: 'center',
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    color: '#37633B',
+    letterSpacing: 1.4,
+    marginBottom: 3,
+  },
+  receiptNumberText: {
+    textAlign: 'center',
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Medium',
+    color: '#7A867B',
+    marginBottom: 14,
+  },
+  perforationWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: -22,
+    marginBottom: 16,
+  },
+  notchLeft: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(15, 24, 16, 0.72)',
+    marginLeft: -9,
+  },
+  notchRight: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(15, 24, 16, 0.72)',
+    marginRight: -9,
+  },
+  dashedDivider: {
+    flex: 1,
+    height: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.25)',
+    borderStyle: 'dashed',
+    marginHorizontal: 6,
+  },
+  dashedDividerInner: {
+    width: '100%',
+    height: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.22)',
+    borderStyle: 'dashed',
+    marginVertical: 14,
+  },
+  receiptInfoSection: {
+    gap: 9,
+  },
+  receiptMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  receiptMetaLabel: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Medium',
+    color: '#6C786D',
+  },
+  receiptMetaValue: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#1E2D1F',
+  },
+  receiptChargesSection: {
+    gap: 10,
+  },
+  receiptChargeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  receiptChargeLabel: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    color: '#3A473B',
+  },
+  receiptChargeAmount: {
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#1E2D1F',
+  },
+  receiptTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  receiptTotalLabel: {
+    fontSize: 14,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    color: '#37633B',
+    letterSpacing: 0.5,
+  },
+  receiptTotalValue: {
+    fontSize: 18,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    color: '#37633B',
+  },
+  payNowButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#37633B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#37633B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  payNowButtonPaid: {
+    backgroundColor: '#2A4E2E',
+  },
+  payNowButtonText: {
+    fontSize: 15,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    color: '#F7F5F0',
+    letterSpacing: 0.3,
   },
 });

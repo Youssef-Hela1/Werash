@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
+  Animated,
   StatusBar,
   Alert,
   Modal,
@@ -114,12 +115,7 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
   const serviceFee = Number((baseAmount * 0.025).toFixed(2));
   const totalAmount = Number((baseAmount + serviceFee).toFixed(2));
 
-  const handlePrimaryRequestAction = async () => {
-    if (hasReceipt) {
-      setReceiptVisible(true);
-      return;
-    }
-
+  const handleSendRequest = async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
       const parsed = raw ? JSON.parse(raw) : {};
@@ -170,7 +166,7 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
           : 'Your request has been sent to Eng. Hamdy El-Sayed.'
       );
     } catch (e) {
-      console.warn('Failed to save request:', e);
+      console.warn('Failed to send request:', e);
     }
   };
 
@@ -184,12 +180,65 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
           ? { ...r, isPaid: true }
           : r
       );
+      const prevNotifs = Array.isArray(parsed.customerNotifications)
+        ? parsed.customerNotifications
+        : [];
+      const updatedNotifs = prevNotifs.map((n) =>
+        n.isReceipt || String(n.id || '').startsWith('notif-receipt-')
+          ? { ...n, read: true, status: 'paid' }
+          : n
+      );
+
+      const carLabelEn = activeVehicle
+        ? `${activeVehicle.brand} ${activeVehicle.model} • ${activeVehicle.year}`
+        : 'Hyundai Coupe • 2005';
+      const carLabelAr =
+        activeVehicle &&
+        `${activeVehicle.brand}`.toLowerCase() === 'hyundai' &&
+        `${activeVehicle.model}`.toLowerCase() === 'coupe'
+          ? 'هيونداي كوبيه • ٢٠٠٥'
+          : carLabelEn;
+
+      const newPaidReceipt = {
+        id: customerRequest?.id || 'req-customer-admin',
+        receiptNumber: '#WR-2027-084',
+        workshopName: isAr
+          ? specialist.nameAr || 'ورشة حمدي هيونداي المعتمدة'
+          : specialist.name || 'Hamdy Hyundai Workshop',
+        mechanicName: isAr
+          ? specialist.mechanicNameAr || 'م. حمدي السيد'
+          : specialist.mechanicName || 'Eng. Hamdy El-Sayed',
+        customerName: isAr
+          ? customerRequest?.customerNameAr || currentUser?.fullNameAr || 'يوسف هلال'
+          : customerRequest?.customerName || currentUser?.fullName || 'Youssef Helal',
+        carModel: isAr ? carLabelAr : carLabelEn,
+        serviceNameEn: customerRequest?.titleEn || customerRequest?.serviceName || 'Scheduled Maintenance & Diagnostic Inspection',
+        serviceNameAr: customerRequest?.titleAr || customerRequest?.serviceNameAr || 'صيانة دورية وفحص شامل للمحرك',
+        dateEn: 'Oct 24, 2027',
+        dateAr: '٢٤ أكتوبر ٢٠٢٧',
+        baseAmount: baseAmount,
+        serviceFee: serviceFee,
+        totalAmount: totalAmount,
+        year: 2027,
+        month: 10,
+        isPaid: true,
+        isDeclined: false,
+        isLive: true,
+      };
+
+      const prevSaved = Array.isArray(parsed.savedReceipts) ? parsed.savedReceipts : [];
+      const updatedSavedReceipts = [
+        newPaidReceipt,
+        ...prevSaved.filter((r) => r.id !== newPaidReceipt.id),
+      ];
 
       await AsyncStorage.setItem(
         STORAGE_KEY_MECHANIC_SHARED,
         JSON.stringify({
           ...parsed,
           requests: updatedRequests,
+          customerNotifications: updatedNotifs,
+          savedReceipts: updatedSavedReceipts,
         })
       );
 
@@ -204,6 +253,101 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
     } catch (e) {
       console.warn('Failed to complete payment:', e);
     }
+  };
+
+  const handleDeclineReceipt = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const existingRequests = Array.isArray(parsed.requests) ? parsed.requests : [];
+      const targetReq = existingRequests.find(
+        (r) => r.id === 'req-customer-admin' || r.customerEmail === customerEmail
+      );
+      const updatedRequests = existingRequests.filter(
+        (r) => r.id !== 'req-customer-admin' && r.customerEmail !== customerEmail
+      );
+
+      let updatedEarnings = Array.isArray(parsed.earningsHistory) ? [...parsed.earningsHistory] : undefined;
+      let updatedCustomers = Array.isArray(parsed.customersHistory) ? [...parsed.customersHistory] : undefined;
+      let nextTotalEarnings = parsed.totalEarnings;
+      let nextCustomersCount = parsed.customersCount;
+
+      if (updatedEarnings && updatedEarnings.length > 0 && baseAmount > 0) {
+        const earnIdx = updatedEarnings.findIndex(
+          (e) =>
+            (targetReq && e.requestId === targetReq.id) ||
+            (e.date === 'Today' && Number(e.amount) === baseAmount)
+        );
+        if (earnIdx !== -1) {
+          updatedEarnings.splice(earnIdx, 1);
+          if (typeof nextTotalEarnings === 'number') {
+            nextTotalEarnings = Math.max(0, nextTotalEarnings - baseAmount);
+          }
+        }
+      }
+
+      if (updatedCustomers && updatedCustomers.length > 0) {
+        const custIdx = updatedCustomers.findIndex(
+          (c) => (targetReq && c.requestId === targetReq.id) || c.lastVisit === 'Today'
+        );
+        if (custIdx !== -1) {
+          updatedCustomers.splice(custIdx, 1);
+          if (typeof nextCustomersCount === 'number') {
+            nextCustomersCount = Math.max(0, nextCustomersCount - 1);
+          }
+        }
+      }
+
+      const prevNotifs = Array.isArray(parsed.customerNotifications)
+        ? parsed.customerNotifications
+        : [];
+      const updatedNotifs = prevNotifs.map((n) =>
+        n.isReceipt || String(n.id || '').startsWith('notif-receipt-')
+          ? { ...n, read: true, status: 'declined' }
+          : n
+      );
+
+      await AsyncStorage.setItem(
+        STORAGE_KEY_MECHANIC_SHARED,
+        JSON.stringify({
+          ...parsed,
+          requests: updatedRequests,
+          ...(updatedEarnings ? { earningsHistory: updatedEarnings } : {}),
+          ...(updatedCustomers ? { customersHistory: updatedCustomers } : {}),
+          ...(typeof nextTotalEarnings === 'number' ? { totalEarnings: nextTotalEarnings } : {}),
+          ...(typeof nextCustomersCount === 'number' ? { customersCount: nextCustomersCount } : {}),
+          customerNotifications: updatedNotifs,
+        })
+      );
+
+      setCustomerRequest(null);
+      setReceiptVisible(false);
+      Alert.alert(
+        isAr ? 'تم رفض الإيصال' : 'Receipt Declined',
+        isAr
+          ? 'تم رفض الإيصال بنجاح وإلغاء الطلب.'
+          : 'You have declined the receipt and the request has been cancelled.'
+      );
+    } catch (e) {
+      console.warn('Failed to decline receipt:', e);
+    }
+  };
+
+  const confirmDeclineReceipt = () => {
+    Alert.alert(
+      isAr ? 'تأكيد الرفض' : 'Decline Request',
+      isAr
+        ? 'هل أنت متأكد من رغبتك في رفض طلب الدفع وإلغاء المعاملة؟'
+        : 'Are you sure you want to decline this payment request?',
+      [
+        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isAr ? 'رفض' : 'Decline',
+          style: 'destructive',
+          onPress: handleDeclineReceipt,
+        },
+      ]
+    );
   };
 
   const mechanicName = isAr
@@ -222,69 +366,128 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
     ? specialist.locationAr || specialist.location
     : specialist.location;
 
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Anchors the top content (banner, avatar, name) at y = 0 when pulling down/bouncing at the top,
+  // so the top content does NOT bounce down.
+  // When scrolling down into the page (scrollY > 0), translateY is 0,
+  // allowing the banner and name to scroll up naturally with the page.
+  const topTranslateY = scrollY.interpolate({
+    inputRange: [-350, 0],
+    outputRange: [-350, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Floating back button that smoothly appears when user scrolls far down
+  const floatingBackOpacity = scrollY.interpolate({
+    inputRange: [150, 190],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <ScrollView
+      {/* Persistent floating back button that fades in when user scrolls down past the banner */}
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          styles.persistentBackWrapper,
+          {
+            top: Math.max(insets.top, 14) + 6,
+            left: isAr ? undefined : 16,
+            right: isAr ? 16 : undefined,
+            opacity: floatingBackOpacity,
+          }
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onClose}
+          activeOpacity={0.8}
+        >
+          <Ionicons name={isAr ? "arrow-forward" : "arrow-back"} size={22} color="#F7F5F0" />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <Animated.ScrollView
+        style={styles.bouncyScroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        bounces={false}
+        bounces={true}
+        alwaysBounceVertical={true}
+        overScrollMode="always"
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
       >
-        {/* 1. Full-Width Workshop Banner at the Top */}
-        <View style={styles.bannerContainer}>
-          <Image
-            source={require('../../assets/Banner wallpaper.png')}
-            style={styles.bannerImage}
-            resizeMode="cover"
-          />
-          <View style={styles.bannerOverlay} />
-
-          {/* Back Button */}
-          <TouchableOpacity
-            style={[styles.backButton, { top: Math.max(insets.top, 14) + 6 }]}
-            onPress={onClose}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={22} color="#F7F5F0" />
-          </TouchableOpacity>
-
-          {/* Certified Badge */}
-          <View style={[styles.certifiedBadge, { top: Math.max(insets.top, 14) + 10 }]}>
-            <Ionicons name="checkmark-circle" size={14} color="#F7F5F0" />
-            <Text style={[styles.certifiedBadgeText, isAr && styles.arabicBoldText]}>
-              {isAr ? 'ميكانيكي معتمد' : 'CERTIFIED MECHANIC'}
-            </Text>
-          </View>
-        </View>
-
-        {/* 2. Overlapping Profile Picture & Mechanic Details */}
-        <View style={styles.profileHeaderSection}>
-          <View style={styles.avatarWrapper}>
+        {/* ── TOP CONTENT: Moves up on scroll down, clamped on pull-down bounce ── */}
+        <Animated.View
+          style={[
+            styles.topContentContainer,
+            { transform: [{ translateY: topTranslateY }] }
+          ]}
+        >
+          {/* Workshop Banner */}
+          <View style={[styles.bannerContainer, { height: 145 + Math.max(insets.top, 20) }]}>
             <Image
-              source={require('../../assets/Mechanic profile picture.png')}
-              style={styles.mechanicAvatar}
+              source={require('../../assets/Banner wallpaper.png')}
+              style={styles.bannerImage}
+              resizeMode="cover"
             />
+            <View style={styles.bannerOverlay} />
+
+            {/* Back Button on Banner */}
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  top: Math.max(insets.top, 14) + 6,
+                  left: isAr ? undefined : 16,
+                  right: isAr ? 16 : undefined,
+                }
+              ]}
+              onPress={onClose}
+              activeOpacity={0.8}
+            >
+              <Ionicons name={isAr ? "arrow-forward" : "arrow-back"} size={22} color="#F7F5F0" />
+            </TouchableOpacity>
           </View>
 
-          <Text style={[styles.mechanicName, isAr && styles.arabicBoldText]}>
-            {mechanicName}
-          </Text>
-          <Text style={[styles.workshopName, isAr && styles.arabicBoldText]}>
-            {workshopName}
-          </Text>
-          <Text style={[styles.specialtyBadge, isAr && styles.arabicBoldText]}>
-            {specialtyText}
-          </Text>
+          {/* Overlapping Profile Picture & Mechanic Details */}
+          <View style={styles.profileHeaderSection}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={require('../../assets/Mechanic profile picture.png')}
+                style={styles.mechanicAvatar}
+              />
+            </View>
 
-          <View style={styles.locationRow}>
-            <Ionicons name="location-sharp" size={14} color={colors.textMuted} />
-            <Text style={[styles.locationText, isAr && styles.arabicBoldText]}>
-              {locationText}
+            <Text style={[styles.mechanicName, isAr && styles.arabicBoldText]}>
+              {mechanicName}
             </Text>
-          </View>
-        </View>
+            <Text style={[styles.workshopName, isAr && styles.arabicBoldText]}>
+              {workshopName}
+            </Text>
+            <Text style={[styles.specialtyBadge, isAr && styles.arabicBoldText]}>
+              {specialtyText}
+            </Text>
 
+            <View style={styles.locationRow}>
+              <Ionicons name="location-sharp" size={14} color={colors.textMuted} />
+              <Text style={[styles.locationText, isAr && styles.arabicBoldText]}>
+                {locationText}
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ── BOUNCY BODY CONTENT (Actions, Requests, Working Hours, Services, Reviews) ── */}
         {/* 3. Contact & Location Action Buttons */}
         <View style={styles.actionsSection}>
           <TouchableOpacity
@@ -314,39 +517,47 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
 
         {/* Send a Request / View Receipt Button */}
         <View style={styles.sendRequestSection}>
-          <TouchableOpacity
-            style={[
-              styles.sendRequestButton,
-              customerRequest && !hasReceipt && styles.sendRequestButtonSent,
-            ]}
-            activeOpacity={0.85}
-            onPress={handlePrimaryRequestAction}
-          >
-            <Ionicons
-              name={
-                hasReceipt
-                  ? 'receipt-outline'
-                  : customerRequest
-                  ? 'checkmark-circle'
-                  : 'paper-plane-outline'
-              }
-              size={19}
-              color="#F7F5F0"
-            />
-            <Text style={[styles.sendRequestButtonText, isAr && styles.arabicBoldText]}>
-              {hasReceipt
-                ? isAr
-                  ? 'عرض الإيصال'
-                  : 'View Receipt'
-                : customerRequest
-                ? isAr
-                  ? 'تم إرسال الطلب'
-                  : 'Request Sent'
-                : isAr
-                ? 'إرسال طلب'
-                : 'Send a Request'}
-            </Text>
-          </TouchableOpacity>
+          {hasReceipt && !customerRequest?.isPaid ? (
+            <TouchableOpacity
+              style={styles.sendRequestButton}
+              activeOpacity={0.85}
+              onPress={() => setReceiptVisible(true)}
+            >
+              <Ionicons name="receipt-outline" size={19} color="#F7F5F0" />
+              <Text style={[styles.sendRequestButtonText, isAr && styles.arabicBoldText]}>
+                {isAr ? 'عرض الإيصال' : 'View Receipt'}
+              </Text>
+            </TouchableOpacity>
+          ) : customerRequest && !customerRequest?.isPaid ? (
+            <TouchableOpacity
+              style={[styles.sendRequestButton, styles.sendRequestButtonSent]}
+              activeOpacity={0.85}
+              onPress={() => {
+                Alert.alert(
+                  isAr ? 'طلبك قيد المراجعة' : 'Request Pending',
+                  isAr
+                    ? 'تم إرسال طلبك إلى م. حمدي بنجاح وفي انتظار تحديد التكلفة.'
+                    : 'Your request has been sent to Eng. Hamdy and is awaiting an estimate.'
+                );
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={19} color="#F7F5F0" />
+              <Text style={[styles.sendRequestButtonText, isAr && styles.arabicBoldText]}>
+                {isAr ? 'تم إرسال الطلب' : 'Request Sent'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.sendRequestButton}
+              activeOpacity={0.85}
+              onPress={handleSendRequest}
+            >
+              <Ionicons name="paper-plane-outline" size={19} color="#F7F5F0" />
+              <Text style={[styles.sendRequestButtonText, isAr && styles.arabicBoldText]}>
+                {isAr ? 'إرسال طلب' : 'Send a Request'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 4. Ratings & Reviews Section */}
@@ -422,7 +633,7 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
             </View>
           ))}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* ==================== WERASH RECEIPT MODAL ==================== */}
       <Modal
@@ -544,30 +755,43 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
               </Text>
             </View>
 
-            {/* Bottom Pay Now Button */}
-            <TouchableOpacity
-              style={[
-                styles.payNowButton,
-                customerRequest?.isPaid && styles.payNowButtonPaid,
-              ]}
-              activeOpacity={0.85}
-              onPress={handlePayNow}
-            >
-              <Ionicons
-                name={customerRequest?.isPaid ? 'checkmark-circle' : 'card-outline'}
-                size={20}
-                color="#F7F5F0"
-              />
-              <Text style={[styles.payNowButtonText, isAr && styles.arabicBoldText]}>
-                {customerRequest?.isPaid
-                  ? isAr
-                    ? 'تم الدفع'
-                    : 'Paid'
-                  : isAr
-                  ? 'ادفع الآن'
-                  : 'Pay Now'}
-              </Text>
-            </TouchableOpacity>
+            {/* Bottom Pay or Decline Button */}
+            {customerRequest?.isPaid ? (
+              <View style={[styles.payNowButton, styles.payNowButtonPaid]}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color="#F7F5F0"
+                />
+                <Text style={[styles.payNowButtonText, isAr && styles.arabicBoldText]}>
+                  {isAr ? 'تم الدفع بنجاح' : 'Payment Completed'}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.receiptButtonsRow, isAr && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity
+                  style={styles.receiptPayBtn}
+                  activeOpacity={0.85}
+                  onPress={handlePayNow}
+                >
+                  <Ionicons name="card-outline" size={19} color="#F7F5F0" />
+                  <Text style={[styles.payNowButtonText, isAr && styles.arabicBoldText]}>
+                    {isAr ? 'ادفع الآن' : 'Pay Now'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.receiptDeclineBtn}
+                  activeOpacity={0.85}
+                  onPress={confirmDeclineReceipt}
+                >
+                  <Ionicons name="close-circle-outline" size={19} color="#C0392B" />
+                  <Text style={[styles.receiptDeclineBtnText, isAr && styles.arabicBoldText]}>
+                    {isAr ? 'رفض الطلب' : 'Decline'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -586,14 +810,27 @@ const createStyles = (colors) =>
       backgroundColor: colors.bgCreamy,
       zIndex: 1100,
     },
+    persistentBackWrapper: {
+      position: 'absolute',
+      zIndex: 110,
+    },
+    topContentContainer: {
+      backgroundColor: colors.bgCreamy,
+      zIndex: 2,
+    },
+    bouncyScroll: {
+      flex: 1,
+    },
     scrollContent: {
-      paddingBottom: 48,
+      paddingTop: 0,
+      paddingBottom: 64,
     },
     bannerContainer: {
       width: '100%',
-      height: 155,
+      height: 180,
       backgroundColor: '#243C27',
       position: 'relative',
+      overflow: 'hidden',
     },
     bannerImage: {
       width: '100%',
@@ -605,7 +842,6 @@ const createStyles = (colors) =>
     },
     backButton: {
       position: 'absolute',
-      left: 16,
       width: 38,
       height: 38,
       borderRadius: 19,
@@ -614,11 +850,10 @@ const createStyles = (colors) =>
       borderColor: 'rgba(247, 245, 240, 0.35)',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 10,
+      zIndex: 100,
     },
     certifiedBadge: {
       position: 'absolute',
-      right: 16,
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: 'rgba(55, 99, 59, 0.92)',
@@ -628,7 +863,7 @@ const createStyles = (colors) =>
       borderWidth: 1,
       borderColor: 'rgba(247, 245, 240, 0.4)',
       gap: 5,
-      zIndex: 10,
+      zIndex: 100,
     },
     certifiedBadgeText: {
       color: '#F7F5F0',
@@ -639,8 +874,8 @@ const createStyles = (colors) =>
     profileHeaderSection: {
       alignItems: 'center',
       paddingHorizontal: 20,
-      marginTop: -54,
-      marginBottom: 18,
+      marginTop: -52,
+      paddingBottom: 10,
     },
     avatarWrapper: {
       width: 108,
@@ -739,6 +974,71 @@ const createStyles = (colors) =>
     sendRequestSection: {
       paddingHorizontal: 20,
       marginBottom: 22,
+    },
+    paidActionsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      width: '100%',
+    },
+    sendNewRequestBtn: {
+      flex: 1.5,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    sendNewRequestBtnText: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#F7F5F0',
+      letterSpacing: 0.2,
+    },
+    viewPaidReceiptBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: 'rgba(55, 99, 59, 0.08)',
+      borderWidth: 1.5,
+      borderColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    viewPaidReceiptBtnText: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#37633B',
+      letterSpacing: 0.2,
+    },
+    paidReceiptActionButton: {
+      width: '100%',
+      height: 48,
+      borderRadius: 16,
+      backgroundColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      elevation: 5,
+    },
+    paidReceiptActionButtonText: {
+      fontSize: 15,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#F7F5F0',
+      letterSpacing: 0.3,
     },
     sendRequestButton: {
       width: '100%',
@@ -1072,5 +1372,165 @@ const createStyles = (colors) =>
       fontFamily: 'PlusJakartaSans-ExtraBold',
       color: '#F7F5F0',
       letterSpacing: 0.3,
+    },
+    receiptButtonsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      width: '100%',
+    },
+    receiptPayBtn: {
+      flex: 1.2,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    receiptDeclineBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: 'rgba(220, 53, 69, 0.08)',
+      borderWidth: 1.5,
+      borderColor: 'rgba(220, 53, 69, 0.35)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    receiptDeclineBtnText: {
+      fontSize: 15,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#C0392B',
+      letterSpacing: 0.3,
+    },
+    paymentSummaryCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1.5,
+      borderColor: 'rgba(55, 99, 59, 0.2)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    paymentSummaryHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    paymentSummaryTitle: {
+      fontSize: 15,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#37633B',
+    },
+    paymentSummarySubtitle: {
+      fontSize: 12,
+      fontFamily: 'PlusJakartaSans-Regular',
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    paymentSummaryTotal: {
+      fontSize: 18,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#37633B',
+    },
+    viewReceiptLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 6,
+      marginBottom: 10,
+    },
+    viewReceiptLinkText: {
+      fontSize: 13,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#37633B',
+      textDecorationLine: 'underline',
+    },
+    paymentActionsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 4,
+    },
+    primaryPayBtn: {
+      flex: 1.2,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: '#37633B',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      shadowColor: '#37633B',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    primaryPayBtnText: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#F7F5F0',
+    },
+    secondaryDeclineBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: 'rgba(220, 53, 69, 0.08)',
+      borderWidth: 1.2,
+      borderColor: 'rgba(220, 53, 69, 0.35)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    secondaryDeclineBtnText: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-ExtraBold',
+      color: '#C0392B',
+    },
+    statusBadgeInline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+    },
+    statusBadgeInlinePaid: {
+      backgroundColor: 'rgba(42, 115, 54, 0.1)',
+    },
+    statusBadgeInlinePaidText: {
+      fontSize: 13,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#2A7336',
+    },
+    viewReceiptOutlineBtn: {
+      height: 42,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: '#37633B',
+      backgroundColor: 'rgba(55, 99, 59, 0.05)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: 8,
+    },
+    viewReceiptOutlineBtnText: {
+      fontSize: 14,
+      fontFamily: 'PlusJakartaSans-Bold',
+      color: '#37633B',
     },
   });
