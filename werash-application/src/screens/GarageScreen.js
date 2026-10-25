@@ -2925,7 +2925,7 @@ export default function GarageScreen({
                               setReceiptModalVisible(true);
                             }}
                           >
-                            <Ionicons name="receipt-outline" size={16} color="#37633B" />
+                            <Ionicons name="receipt-outline" size={16} color={colors.bgBrand} />
                             <Text style={[styles.receiptCleanViewBtnText, isRtl && styles.arabicBoldText]}>
                               {selectedLanguage === 'Arabic' ? 'عرض الإيصال' : 'View Receipt'}
                             </Text>
@@ -3911,7 +3911,7 @@ export default function GarageScreen({
               onPress={() => setReceiptModalVisible(false)}
               activeOpacity={0.8}
             >
-              <Ionicons name="close" size={20} color="#555" />
+              <Ionicons name="close" size={20} color={colors.textDark} />
             </TouchableOpacity>
 
             {/* Top Header: Werash Logo & Arabic Brand Name */}
@@ -4067,7 +4067,7 @@ export default function GarageScreen({
             {/* Header */}
             <View style={[styles.filterModalHeader, isRtl && { flexDirection: 'row-reverse' }]}>
               <View style={[styles.filterModalTitleRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                <Ionicons name="calendar-outline" size={18} color="#37633B" />
+                <Ionicons name="calendar-outline" size={18} color={colors.bgBrand} />
                 <Text style={[styles.filterModalTitle, isRtl && styles.arabicBoldText]}>
                   {selectedLanguage === 'Arabic' ? 'تصفية الإيصالات بالسنة' : 'Filter Receipts by Year'}
                 </Text>
@@ -4078,7 +4078,7 @@ export default function GarageScreen({
                 onPress={() => setFilterModalVisible(false)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="close" size={18} color="#555" />
+                <Ionicons name="close" size={18} color={colors.textDark} />
               </TouchableOpacity>
             </View>
 
@@ -4098,7 +4098,7 @@ export default function GarageScreen({
                 <Ionicons
                   name="infinite-outline"
                   size={18}
-                  color={tempFilterMode === 'overall' ? '#FFFFFF' : '#37633B'}
+                  color={tempFilterMode === 'overall' ? '#FFFFFF' : colors.bgBrand}
                 />
                 <Text
                   style={[
@@ -4160,7 +4160,7 @@ export default function GarageScreen({
                 }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="refresh-outline" size={15} color="#37633B" />
+                <Ionicons name="refresh-outline" size={15} color={colors.bgBrand} />
                 <Text style={[styles.filterResetBtnText, isRtl && styles.arabicBoldText]}>
                   {selectedLanguage === 'Arabic' ? 'إعادة ضبط' : 'Reset'}
                 </Text>
@@ -4192,7 +4192,7 @@ export default function GarageScreen({
   );
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, isDarkMode) => StyleSheet.create({
   vehicleFilterWrapper: {
     flexDirection: 'row',
     padding: 4,
@@ -6434,21 +6434,21 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    backgroundColor: colors.bgBrandLight,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.22)',
+    borderColor: colors.borderGreen,
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 10,
   },
   receiptFilterBtnActive: {
-    backgroundColor: '#37633B',
-    borderColor: '#37633B',
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
   },
   receiptFilterBtnText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   receiptFilterBtnTextActive: {
     color: '#FFFFFF',
@@ -6457,7 +6457,7 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(55, 99, 59, 0.1)',
+    backgroundColor: colors.bgBrandLight,
     paddingVertical: 7,
     paddingHorizontal: 14,
     borderRadius: 10,
@@ -6466,10 +6466,10 @@ const createStyles = (colors) => StyleSheet.create({
   resetFilterEmptyBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   receiptsCountPill: {
-    backgroundColor: 'rgba(55, 99, 59, 0.12)',
+    backgroundColor: colors.bgBrandLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -6477,28 +6477,28 @@ const createStyles = (colors) => StyleSheet.create({
   receiptsCountPillText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   receiptsEmptyBox: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 42,
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: isDarkMode ? colors.white : 'rgba(255, 255, 255, 0.65)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.15)',
+    borderColor: colors.borderGreen,
     borderStyle: 'dashed',
   },
   receiptsEmptyTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#2A3B2C',
+    color: colors.textDark,
     marginBottom: 6,
   },
   receiptsEmptySub: {
     fontSize: 12,
-    color: '#7A867B',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -6884,14 +6884,14 @@ const createStyles = (colors) => StyleSheet.create({
   filterModalCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FCFBF8',
+    backgroundColor: isDarkMode ? '#1E231E' : '#FCFBF8',
     borderRadius: 22,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.2)',
+    borderColor: colors.borderGreen,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: isDarkMode ? 0.35 : 0.2,
     shadowRadius: 10,
     elevation: 6,
   },
@@ -6909,13 +6909,13 @@ const createStyles = (colors) => StyleSheet.create({
   filterModalTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1E2923',
+    color: colors.textDark,
   },
   filterModalCloseBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -6923,17 +6923,17 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    backgroundColor: colors.bgBrandLight,
     borderWidth: 1.5,
-    borderColor: 'rgba(55, 99, 59, 0.25)',
+    borderColor: colors.borderGreen,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
     marginBottom: 14,
   },
   filterOverallBtnActive: {
-    backgroundColor: '#37633B',
-    borderColor: '#37633B',
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
   },
   filterOverallLeft: {
     flexDirection: 'row',
@@ -6943,20 +6943,20 @@ const createStyles = (colors) => StyleSheet.create({
   filterOverallBtnText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   filterOverallBtnTextActive: {
     color: '#FFFFFF',
   },
   filterModalDivider: {
     height: 1,
-    backgroundColor: 'rgba(55, 99, 59, 0.12)',
+    backgroundColor: colors.borderGreen,
     marginBottom: 12,
   },
   filterSectionLabel: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#7A867B',
+    color: colors.textMuted,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -6971,20 +6971,20 @@ const createStyles = (colors) => StyleSheet.create({
     width: '31%',
     height: 38,
     borderRadius: 10,
-    backgroundColor: 'rgba(55, 99, 59, 0.07)',
+    backgroundColor: colors.bgBrandLight,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.18)',
+    borderColor: colors.borderGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterYearPillText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   filterPillActive: {
-    backgroundColor: '#37633B',
-    borderColor: '#37633B',
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
   },
   filterPillTextActive: {
     color: '#FFFFFF',
@@ -6998,10 +6998,10 @@ const createStyles = (colors) => StyleSheet.create({
   filterAllMonthsLink: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#7A867B',
+    color: colors.textMuted,
   },
   filterAllMonthsLinkActive: {
-    color: '#37633B',
+    color: colors.bgBrand,
     fontWeight: '800',
     textDecorationLine: 'underline',
   },
@@ -7015,16 +7015,16 @@ const createStyles = (colors) => StyleSheet.create({
     width: '23%',
     height: 32,
     borderRadius: 8,
-    backgroundColor: 'rgba(55, 99, 59, 0.06)',
+    backgroundColor: colors.bgBrandLight,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.15)',
+    borderColor: colors.borderGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterMonthPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   filterModalActionsRow: {
     flexDirection: 'row',
@@ -7034,9 +7034,9 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     height: 42,
     borderRadius: 12,
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    backgroundColor: colors.bgBrandLight,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.25)',
+    borderColor: colors.borderGreen,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -7045,18 +7045,18 @@ const createStyles = (colors) => StyleSheet.create({
   filterResetBtnText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   filterApplyBtn: {
     flex: 1.4,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#37633B',
+    backgroundColor: colors.bgBrand,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    shadowColor: '#37633B',
+    shadowColor: colors.bgBrand,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -7208,14 +7208,14 @@ const createStyles = (colors) => StyleSheet.create({
 
   /* Clean Uncluttered Receipt Card (Receipt ID, Workshop, Mechanic, Price, Date & View Receipt button) */
   receiptCleanCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.16)',
+    borderColor: colors.borderGreen,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDarkMode ? 0.25 : 0.05,
     shadowRadius: 6,
     elevation: 2,
     marginBottom: 12,
@@ -7230,25 +7230,25 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 13,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
     letterSpacing: 0.3,
   },
   receiptCleanDateText: {
     fontSize: 12,
     fontFamily: 'PlusJakartaSans-Medium',
-    color: '#7A867B',
+    color: colors.textMuted,
   },
   receiptCleanWorkshopText: {
     fontSize: 15,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '800',
-    color: '#1E2D1F',
+    color: colors.textDark,
     marginBottom: 4,
   },
   receiptCleanMechanicText: {
     fontSize: 12.5,
     fontFamily: 'PlusJakartaSans-Medium',
-    color: '#657367',
+    color: colors.textMuted,
     marginBottom: 12,
   },
   receiptCleanPriceRow: {
@@ -7257,13 +7257,13 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'baseline',
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(55, 99, 59, 0.08)',
+    borderTopColor: colors.borderGreen,
     marginBottom: 14,
   },
   receiptCleanPriceLabel: {
     fontSize: 12,
     fontFamily: 'PlusJakartaSans-Medium',
-    color: '#7A867B',
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -7271,21 +7271,21 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 17,
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontWeight: '900',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   receiptCleanEgp: {
     fontSize: 11.5,
     fontFamily: 'PlusJakartaSans-Medium',
     fontWeight: '600',
-    color: '#657367',
+    color: colors.textMuted,
   },
   receiptCleanViewBtn: {
     width: '100%',
     height: 42,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#37633B',
-    backgroundColor: 'rgba(55, 99, 59, 0.06)',
+    borderColor: colors.bgBrand,
+    backgroundColor: colors.bgBrandLight,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -7295,13 +7295,13 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 13.5,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
 
 /* Perforated Receipt Modal Styles (Exact match to CertifiedMechanicPage) */
   receiptBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 24, 16, 0.72)',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.78)' : 'rgba(15, 24, 16, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -7309,13 +7309,13 @@ const createStyles = (colors) => StyleSheet.create({
   receiptPaper: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FCFBF8',
+    backgroundColor: isDarkMode ? '#1E231E' : '#FCFBF8',
     borderRadius: 22,
     paddingTop: 22,
     paddingBottom: 22,
     paddingHorizontal: 22,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.18)',
+    borderColor: isDarkMode ? 'rgba(93, 130, 96, 0.3)' : 'rgba(55, 99, 59, 0.18)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.28,
@@ -7331,7 +7331,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -7350,14 +7350,14 @@ const createStyles = (colors) => StyleSheet.create({
   receiptArabicBrand: {
     fontFamily: 'ZafranArabic-Bold',
     fontSize: 64,
-    color: '#37633B',
+    color: colors.bgBrand,
     marginTop: -6,
   },
   receiptTitleLabel: {
     textAlign: 'center',
     fontSize: 11,
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    color: '#37633B',
+    color: colors.bgBrand,
     letterSpacing: 1.4,
     marginBottom: 3,
   },
@@ -7365,7 +7365,7 @@ const createStyles = (colors) => StyleSheet.create({
     textAlign: 'center',
     fontSize: 11.5,
     fontFamily: 'PlusJakartaSans-Medium',
-    color: '#7A867B',
+    color: colors.textMuted,
     marginBottom: 14,
   },
   perforationWrapper: {
@@ -7378,21 +7378,21 @@ const createStyles = (colors) => StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(15, 24, 16, 0.72)',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.78)' : 'rgba(15, 24, 16, 0.72)',
     marginLeft: -9,
   },
   notchRight: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(15, 24, 16, 0.72)',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.78)' : 'rgba(15, 24, 16, 0.72)',
     marginRight: -9,
   },
   dashedDivider: {
     flex: 1,
     height: 1,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.25)',
+    borderColor: colors.borderGreen,
     borderStyle: 'dashed',
     marginHorizontal: 6,
   },
@@ -7400,7 +7400,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: '100%',
     height: 1,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.22)',
+    borderColor: colors.borderGreen,
     borderStyle: 'dashed',
     marginVertical: 14,
   },
@@ -7415,12 +7415,12 @@ const createStyles = (colors) => StyleSheet.create({
   receiptMetaLabel: {
     fontSize: 12.5,
     fontFamily: 'PlusJakartaSans-Medium',
-    color: '#6C786D',
+    color: colors.textMuted,
   },
   receiptMetaValue: {
     fontSize: 13,
     fontFamily: 'PlusJakartaSans-Bold',
-    color: '#1E2D1F',
+    color: colors.textDark,
   },
   receiptChargesSection: {
     gap: 10,
@@ -7433,19 +7433,19 @@ const createStyles = (colors) => StyleSheet.create({
   receiptChargeLabel: {
     fontSize: 13,
     fontFamily: 'PlusJakartaSans-SemiBold',
-    color: '#3A473B',
+    color: colors.textDark,
   },
   receiptChargeAmount: {
     fontSize: 13.5,
     fontFamily: 'PlusJakartaSans-Bold',
-    color: '#1E2D1F',
+    color: colors.textDark,
   },
   receiptTotalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 20,
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    backgroundColor: colors.bgBrandLight,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 12,
@@ -7453,24 +7453,24 @@ const createStyles = (colors) => StyleSheet.create({
   receiptTotalLabel: {
     fontSize: 14,
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    color: '#37633B',
+    color: colors.bgBrand,
     letterSpacing: 0.5,
   },
   receiptTotalValue: {
     fontSize: 18,
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    color: '#37633B',
+    color: colors.bgBrand,
   },
   payNowButton: {
     width: '100%',
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#37633B',
+    backgroundColor: colors.bgBrand,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#37633B',
+    shadowColor: colors.bgBrand,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,

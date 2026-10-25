@@ -5,11 +5,13 @@ import { BlurView } from 'expo-blur';
 import ServiceBrandLogo from './ServiceBrandLogo';
 
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
+const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
-// Sized larger with generous canvas and placed lower for visual balance
-const CARD_WIDTH = 220;
-const CARD_HEIGHT = 146;
+// Sized dynamically with generous canvas and placed proportionally for all screens
+const CARD_WIDTH = isTallPlus ? 240 : (isLargeScreen ? 230 : 220);
+const CARD_HEIGHT = isTallPlus ? 164 : (isLargeScreen ? 156 : 146);
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
@@ -287,7 +289,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    marginTop: 22,
+    marginTop: isTallPlus ? 28 : (isLargeScreen ? 25 : 22),
     marginBottom: 0,
     marginHorizontal: -20,
   },

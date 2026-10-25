@@ -219,7 +219,7 @@ function AppContent() {
   const [homeTranslateY] = useState(() => new Animated.Value(0));
   const currentTabRef = useRef(currentTab);
   const isHomeAtTopRef = useRef(true);
-  const maxDrag = 150;
+  const maxDrag = 25;
 
   useEffect(() => {
     currentTabRef.current = currentTab;
@@ -229,7 +229,7 @@ function AppContent() {
     const getRubberBandValue = (dy) => {
       const sign = Math.sign(dy);
       const absVal = Math.abs(dy);
-      return sign * (1 - (1 / ((absVal * 0.45 / maxDrag) + 1))) * maxDrag;
+      return sign * (1 - (1 / ((absVal * 0.85 / maxDrag) + 1))) * maxDrag;
     };
 
     // eslint-disable-next-line react-hooks/refs
@@ -238,11 +238,11 @@ function AppContent() {
       onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         if (currentTabRef.current !== 'home') return false;
-        return Math.abs(gestureState.dy) > 14 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
+        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
       },
       onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
         if (currentTabRef.current !== 'home') return false;
-        return Math.abs(gestureState.dy) > 14 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
+        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
       },
       onPanResponderGrant: () => {
         homeTranslateY.stopAnimation();
@@ -254,16 +254,16 @@ function AppContent() {
       onPanResponderRelease: () => {
         Animated.spring(homeTranslateY, {
           toValue: 0,
-          friction: 7,
-          tension: 40,
+          friction: 10,
+          tension: 50,
           useNativeDriver: true,
         }).start();
       },
       onPanResponderTerminate: () => {
         Animated.spring(homeTranslateY, {
           toValue: 0,
-          friction: 7,
-          tension: 40,
+          friction: 10,
+          tension: 50,
           useNativeDriver: true,
         }).start();
       },
@@ -513,9 +513,11 @@ function AppContent() {
             style={styles.splashLogo} 
             resizeMode="contain" 
           />
-          <Text style={[styles.splashText, fontsLoaded && { fontFamily: 'GuiltyTreasure' }]}>
-            WERASH
-          </Text>
+          <Image 
+            source={require('./assets/Werash_wordmark.png')} 
+            style={styles.splashWordmark} 
+            resizeMode="contain" 
+          />
           <Text style={[styles.splashTextArabic, fontsLoaded && { fontFamily: 'ZafranArabic-Bold' }]}>
             وِرَش
           </Text>
@@ -729,11 +731,12 @@ const createStyles = (colors) => StyleSheet.create({
     height: 140,
     marginBottom: 20,
   },
-  splashText: {
-    fontSize: 72,
-    color: '#F7F5F0',
-    letterSpacing: 1.5,
-    marginTop: 10,
+  splashWordmark: {
+    width: 232,
+    height: 76,
+    tintColor: '#FFFFFF',
+    marginTop: 6,
+    marginBottom: 4,
   },
   splashTextArabic: {
     fontSize: 60,

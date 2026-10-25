@@ -650,7 +650,7 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
               onPress={() => setReceiptVisible(false)}
               activeOpacity={0.8}
             >
-              <Ionicons name="close" size={20} color="#555" />
+              <Ionicons name="close" size={20} color={colors.textDark} />
             </TouchableOpacity>
 
             {/* Top Header: Werash Logo & Arabic Brand Name (Always in Arabic even when app is in English) */}
@@ -799,7 +799,7 @@ export default function CertifiedMechanicPage({ specialist, onClose, selectedLan
   );
 }
 
-const createStyles = (colors) =>
+const createStyles = (colors, isDarkMode) =>
   StyleSheet.create({
     container: {
       position: 'absolute',
@@ -1005,9 +1005,9 @@ const createStyles = (colors) =>
       flex: 1,
       height: 48,
       borderRadius: 14,
-      backgroundColor: 'rgba(55, 99, 59, 0.08)',
+      backgroundColor: colors.bgBrandLight,
       borderWidth: 1.5,
-      borderColor: '#37633B',
+      borderColor: colors.bgBrand,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -1016,19 +1016,19 @@ const createStyles = (colors) =>
     viewPaidReceiptBtnText: {
       fontSize: 14,
       fontFamily: 'PlusJakartaSans-Bold',
-      color: '#37633B',
+      color: colors.bgBrand,
       letterSpacing: 0.2,
     },
     paidReceiptActionButton: {
       width: '100%',
       height: 48,
       borderRadius: 16,
-      backgroundColor: '#37633B',
+      backgroundColor: colors.bgBrand,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      shadowColor: '#37633B',
+      shadowColor: colors.bgBrand,
       shadowOffset: { width: 0, height: 5 },
       shadowOpacity: 0.25,
       shadowRadius: 10,
@@ -1189,7 +1189,7 @@ const createStyles = (colors) =>
     },
     receiptBackdrop: {
       flex: 1,
-      backgroundColor: 'rgba(15, 24, 16, 0.72)',
+      backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.78)' : 'rgba(15, 24, 16, 0.72)',
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 24,
@@ -1197,13 +1197,13 @@ const createStyles = (colors) =>
     receiptPaper: {
       width: '100%',
       maxWidth: 380,
-      backgroundColor: '#FCFBF8',
+      backgroundColor: isDarkMode ? '#1E231E' : '#FCFBF8',
       borderRadius: 22,
       paddingTop: 22,
       paddingBottom: 22,
       paddingHorizontal: 22,
       borderWidth: 1,
-      borderColor: 'rgba(55, 99, 59, 0.18)',
+      borderColor: isDarkMode ? 'rgba(93, 130, 96, 0.3)' : 'rgba(55, 99, 59, 0.18)',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 14 },
       shadowOpacity: 0.28,
@@ -1219,7 +1219,7 @@ const createStyles = (colors) =>
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 10,
@@ -1238,14 +1238,14 @@ const createStyles = (colors) =>
     receiptArabicBrand: {
       fontFamily: 'ZafranArabic-Bold',
       fontSize: 64,
-      color: '#37633B',
+      color: colors.bgBrand,
       marginTop: -6,
     },
     receiptTitleLabel: {
       textAlign: 'center',
       fontSize: 11,
       fontFamily: 'PlusJakartaSans-ExtraBold',
-      color: '#37633B',
+      color: colors.bgBrand,
       letterSpacing: 1.4,
       marginBottom: 3,
     },
@@ -1253,7 +1253,7 @@ const createStyles = (colors) =>
       textAlign: 'center',
       fontSize: 11.5,
       fontFamily: 'PlusJakartaSans-Medium',
-      color: '#7A867B',
+      color: colors.textMuted,
       marginBottom: 14,
     },
     perforationWrapper: {
@@ -1266,21 +1266,21 @@ const createStyles = (colors) =>
       width: 18,
       height: 18,
       borderRadius: 9,
-      backgroundColor: 'rgba(15, 24, 16, 0.72)',
+      backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.78)' : 'rgba(15, 24, 16, 0.72)',
       marginLeft: -9,
     },
     notchRight: {
       width: 18,
       height: 18,
       borderRadius: 9,
-      backgroundColor: 'rgba(15, 24, 16, 0.72)',
+      backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.78)' : 'rgba(15, 24, 16, 0.72)',
       marginRight: -9,
     },
     dashedDivider: {
       flex: 1,
       height: 1,
       borderWidth: 1,
-      borderColor: 'rgba(55, 99, 59, 0.25)',
+      borderColor: colors.borderGreen,
       borderStyle: 'dashed',
       marginHorizontal: 6,
     },
@@ -1288,7 +1288,7 @@ const createStyles = (colors) =>
       width: '100%',
       height: 1,
       borderWidth: 1,
-      borderColor: 'rgba(55, 99, 59, 0.22)',
+      borderColor: colors.borderGreen,
       borderStyle: 'dashed',
       marginVertical: 14,
     },
@@ -1303,12 +1303,12 @@ const createStyles = (colors) =>
     receiptMetaLabel: {
       fontSize: 12.5,
       fontFamily: 'PlusJakartaSans-Medium',
-      color: '#6C786D',
+      color: colors.textMuted,
     },
     receiptMetaValue: {
       fontSize: 13,
       fontFamily: 'PlusJakartaSans-Bold',
-      color: '#1E2D1F',
+      color: colors.textDark,
     },
     receiptChargesSection: {
       gap: 10,
@@ -1321,19 +1321,19 @@ const createStyles = (colors) =>
     receiptChargeLabel: {
       fontSize: 13,
       fontFamily: 'PlusJakartaSans-SemiBold',
-      color: '#3A473B',
+      color: colors.textDark,
     },
     receiptChargeAmount: {
       fontSize: 13.5,
       fontFamily: 'PlusJakartaSans-Bold',
-      color: '#1E2D1F',
+      color: colors.textDark,
     },
     receiptTotalRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 20,
-      backgroundColor: 'rgba(55, 99, 59, 0.08)',
+      backgroundColor: colors.bgBrandLight,
       paddingVertical: 12,
       paddingHorizontal: 14,
       borderRadius: 12,
@@ -1341,24 +1341,24 @@ const createStyles = (colors) =>
     receiptTotalLabel: {
       fontSize: 14,
       fontFamily: 'PlusJakartaSans-ExtraBold',
-      color: '#37633B',
+      color: colors.bgBrand,
       letterSpacing: 0.5,
     },
     receiptTotalValue: {
       fontSize: 18,
       fontFamily: 'PlusJakartaSans-ExtraBold',
-      color: '#37633B',
+      color: colors.bgBrand,
     },
     payNowButton: {
       width: '100%',
       height: 48,
       borderRadius: 14,
-      backgroundColor: '#37633B',
+      backgroundColor: colors.bgBrand,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      shadowColor: '#37633B',
+      shadowColor: colors.bgBrand,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
       shadowRadius: 8,
@@ -1382,12 +1382,12 @@ const createStyles = (colors) =>
       flex: 1.2,
       height: 48,
       borderRadius: 14,
-      backgroundColor: '#37633B',
+      backgroundColor: colors.bgBrand,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      shadowColor: '#37633B',
+      shadowColor: colors.bgBrand,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
       shadowRadius: 8,
@@ -1412,14 +1412,14 @@ const createStyles = (colors) =>
       letterSpacing: 0.3,
     },
     paymentSummaryCard: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.white,
       borderRadius: 16,
       padding: 16,
       borderWidth: 1.5,
-      borderColor: 'rgba(55, 99, 59, 0.2)',
+      borderColor: colors.borderGreen,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
+      shadowOpacity: isDarkMode ? 0.3 : 0.05,
       shadowRadius: 8,
       elevation: 2,
     },
@@ -1455,7 +1455,7 @@ const createStyles = (colors) =>
     viewReceiptLinkText: {
       fontSize: 13,
       fontFamily: 'PlusJakartaSans-Bold',
-      color: '#37633B',
+      color: colors.bgBrand,
       textDecorationLine: 'underline',
     },
     paymentActionsRow: {
@@ -1467,12 +1467,12 @@ const createStyles = (colors) =>
       flex: 1.2,
       height: 44,
       borderRadius: 12,
-      backgroundColor: '#37633B',
+      backgroundColor: colors.bgBrand,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      shadowColor: '#37633B',
+      shadowColor: colors.bgBrand,
       shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.2,
       shadowRadius: 6,
@@ -1520,8 +1520,8 @@ const createStyles = (colors) =>
       height: 42,
       borderRadius: 12,
       borderWidth: 1.5,
-      borderColor: '#37633B',
-      backgroundColor: 'rgba(55, 99, 59, 0.05)',
+      borderColor: colors.bgBrand,
+      backgroundColor: colors.bgBrandLight,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -1531,6 +1531,6 @@ const createStyles = (colors) =>
     viewReceiptOutlineBtnText: {
       fontSize: 14,
       fontFamily: 'PlusJakartaSans-Bold',
-      color: '#37633B',
+      color: colors.bgBrand,
     },
   });

@@ -1,10 +1,19 @@
 import React from 'react';
-import { StyleSheet, View, ScrollView, StatusBar, TouchableOpacity, Text, Image } from 'react-native';
+import { StyleSheet, View, ScrollView, StatusBar, TouchableOpacity, Text, Image, Dimensions } from 'react-native';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import ActiveVehicleCard from '../components/ActiveVehicleCard';
 import SpecialistSpotlight from '../components/SpecialistSpotlight';
+
+const { height: screenHeight } = Dimensions.get('window');
+const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
+const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
+
+const MAIN_ROW_HEIGHT = isTallPlus ? 268 : (isLargeScreen ? 254 : 236);
+const MINI_CARD_HEIGHT = isTallPlus ? 126 : (isLargeScreen ? 120 : 112);
+const ROW_GAP = isTallPlus ? 12 : (isLargeScreen ? 10 : 8);
+const PADDING_TOP = isTallPlus ? 30 : (isLargeScreen ? 24 : 18);
 
 export default function HomeScreen({ 
   onNavigate, 
@@ -29,7 +38,7 @@ export default function HomeScreen({
       <StatusBar barStyle="dark-content" backgroundColor={colors.bgCreamy} />
 
       <View style={styles.scrollView}>
-        <View style={[styles.scrollContent, isRtl && { paddingTop: 6 }]}>
+        <View style={styles.scrollContent}>
           {/* Main Top Row */}
           <View style={[styles.mainRow, false]}>
             {/* Left Column: Vertical Active Vehicle Card */}
@@ -380,8 +389,8 @@ const createStyles = (colors) => StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'flex-start',
-    paddingTop: 8,
-    paddingBottom: 55,
+    paddingTop: PADDING_TOP,
+    paddingBottom: isTallPlus ? 40 : 50,
     paddingHorizontal: 20,
   },
   mainRow: {
@@ -392,17 +401,17 @@ const createStyles = (colors) => StyleSheet.create({
   },
   leftColumn: {
     width: '48.5%',
-    height: 236,
+    height: MAIN_ROW_HEIGHT,
   },
   rightColumn: {
     width: '48.5%',
-    height: 236, // Exact match with ActiveVehicleCard minHeight
+    height: MAIN_ROW_HEIGHT,
     justifyContent: 'space-between',
   },
   // Profile Card (Lighter Active Vehicle Sage Shade - Solid Opaque)
   miniCardProfile: {
     width: '48.5%',
-    height: 112,
+    height: MINI_CARD_HEIGHT,
     borderRadius: 20,
     backgroundColor: colors.white === '#FFFFFF' ? '#EAF1E9' : '#223325',
     borderWidth: 1.2,
@@ -419,7 +428,7 @@ const createStyles = (colors) => StyleSheet.create({
 
   // Community Card (Deeper Active Vehicle Sage Shade - Solid Opaque)
   miniCardCommunity: {
-    height: 112, // (236 - 12) / 2 = 112px
+    height: MINI_CARD_HEIGHT,
     borderRadius: 20,
     backgroundColor: colors.white === '#FFFFFF' ? '#D6E4D6' : '#162318',
     borderWidth: 1.2,
@@ -439,12 +448,12 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    marginTop: 8,
+    marginTop: ROW_GAP,
   },
   // Tow Card (Medium-Dark Sage Green Shade - Solid Opaque)
   miniCardTow: {
     width: '48.5%',
-    height: 112,
+    height: MINI_CARD_HEIGHT,
     borderRadius: 20,
     backgroundColor: colors.white === '#FFFFFF' ? '#AFD0B4' : '#1C2E20',
     borderWidth: 1.2,
@@ -461,7 +470,7 @@ const createStyles = (colors) => StyleSheet.create({
 
   // Mechanics Card (Sage Green Shade - Solid Opaque)
   miniCardMechanic: {
-    height: 112, // (236 - 12) / 2 = 112px
+    height: MINI_CARD_HEIGHT,
     borderRadius: 20,
     backgroundColor: colors.white === '#FFFFFF' ? '#DBEADB' : '#1A2A1C',
     borderWidth: 1.2,

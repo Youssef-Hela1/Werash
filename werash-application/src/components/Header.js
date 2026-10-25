@@ -9,7 +9,9 @@ import NotificationsModal from './NotificationsModal';
 import ChatsModal from './ChatsModal';
 import { STORAGE_KEY_MECHANIC_SHARED } from '../screens/CertifiedMechanicPage';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
+const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
 const BASE_NOTIFICATIONS = [
   {
@@ -175,16 +177,13 @@ export default function Header({
         />
       )}
 
-      {/* Top Corner Tire Track Blob with Integrated Continuous Overscroll Skidmarks (Home Only) */}
+      {/* Top Corner Tire Track Blob (Home Only) */}
       {isHome && (
         <Image 
           pointerEvents="none"
-          source={require('../../assets/top_right_tire_blob.png')} 
-          style={[
-            styles.cornerTireBlob,
-            styles.cornerTireBlobLtr
-          ]} 
-          resizeMode="cover" 
+          source={require('../../assets/forest_green_tire_tread_corner.png')} 
+          style={styles.cornerTireBlob} 
+          resizeMode="contain" 
         />
       )}
 
@@ -201,13 +200,25 @@ export default function Header({
               ]} 
               resizeMode="contain" 
             />
-            <Text style={[
-              selectedLanguage === 'Arabic' ? styles.brandNameArabic : styles.brandName,
-              isHome && (selectedLanguage === 'Arabic' ? styles.brandNameArabicHome : styles.brandNameHome),
-              isHome && { color: colors.bgBrand }
-            ]}>
-              {selectedLanguage === 'Arabic' ? 'وِرَش' : 'WERASH'}
-            </Text>
+            {selectedLanguage === 'Arabic' ? (
+              <Text style={[
+                styles.brandNameArabic,
+                isHome && styles.brandNameArabicHome,
+                isHome && { color: colors.bgBrand }
+              ]}>
+                وِرَش
+              </Text>
+            ) : (
+              <Image 
+                source={require('../../assets/Werash_wordmark.png')}
+                style={[
+                  styles.wordmarkImage,
+                  isHome && styles.wordmarkImageHome,
+                  { tintColor: colors.bgBrand },
+                ]}
+                resizeMode="contain"
+              />
+            )}
           </View>
 
           {isHome && (
@@ -235,7 +246,7 @@ export default function Header({
         {/* Notifications Button on Home (Top Right inside Green Area) */}
         {isHome && (
           <TouchableOpacity 
-            style={[styles.notificationButtonHome, false]} 
+            style={styles.notificationButtonHome} 
             activeOpacity={0.8}
             onPress={() => setNotificationsVisible(true)}
             accessibilityRole="button"
@@ -312,7 +323,7 @@ const createStyles = (colors) => StyleSheet.create({
     zIndex: 10,
   },
   headerContainerHome: {
-    paddingBottom: 4,
+    paddingBottom: 8,
     overflow: 'visible',
   },
   topSolidBlock: {
@@ -333,17 +344,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   cornerTireBlob: {
     position: 'absolute',
-    top: -400,
-    width: 225,
-    height: 595,
-    zIndex: 1,
-  },
-  cornerTireBlobLtr: {
-    right: 0,
-  },
-  cornerTireBlobRtl: {
+    top: -Math.round(screenWidth * (450 / 852)),
     left: 0,
-    transform: [{ scaleX: -1 }],
+    right: 0,
+    width: screenWidth,
+    height: Math.round(screenWidth * (2296 / 852)),
+    zIndex: 1,
   },
   topRow: {
     flexDirection: 'row',
@@ -371,10 +377,6 @@ const createStyles = (colors) => StyleSheet.create({
     zIndex: 10,
     position: 'relative',
   },
-  notificationButtonHomeRtl: {
-    marginRight: 0,
-    marginLeft: 4,
-  },
   brandWrapper: {
     flexDirection: 'column',
     alignItems: 'flex-start',
@@ -395,28 +397,27 @@ const createStyles = (colors) => StyleSheet.create({
     marginRight: 8,
   },
   logoImageHome: {
-    width: 60,
-    height: 60,
-    marginRight: 12,
+    width: 44,
+    height: 44,
+    marginRight: 10,
   },
   logoImageRtl: {
     marginRight: 0,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   greetingText: {
-    fontFamily: 'OriginalBurger',
-    fontSize: 32,
-    fontWeight: '600',
+    fontSize: 26,
+    fontWeight: '700',
     color: colors.bgBrand,
-    marginTop: 18,
-    letterSpacing: 0.5,
+    marginTop: isTallPlus ? 26 : (isLargeScreen ? 22 : 20),
+    letterSpacing: -0.2,
   },
   greetingTextArabic: {
-    fontFamily: 'ZafranArabic-Regular',
-    fontSize: 29,
-    fontWeight: '600',
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 24,
+    fontWeight: '700',
     color: colors.bgBrand,
-    marginTop: 14,
+    marginTop: isTallPlus ? 20 : (isLargeScreen ? 17 : 15),
     textAlign: 'right',
   },
   taglineText: {
@@ -444,6 +445,14 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 64,
     marginTop: 2,
   },
+  wordmarkImage: {
+    height: 32,
+    width: 144,
+  },
+  wordmarkImageHome: {
+    height: 44,
+    width: 130,
+  },
   brandNameArabic: {
     fontFamily: 'ZafranArabic-Bold',
     fontSize: 74,
@@ -452,8 +461,8 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: -4,
   },
   brandNameArabicHome: {
-    fontSize: 104,
-    marginTop: -6,
+    fontSize: 76,
+    marginTop: -5,
   },
   buttonContainer: {
     flexDirection: 'row',

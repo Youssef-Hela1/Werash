@@ -172,7 +172,7 @@ export default function ActiveVehicleCard({
         {/* Brand Logo Zone */}
         <View pointerEvents="none" style={styles.verticalImageSection}>
           {!hasVehicle || !brandLogo ? (
-            <Ionicons name="car-outline" size={38} color={colors.bgBrand} style={{ opacity: 0.5 }} />
+            <Ionicons name="car-outline" size={46} color={colors.bgBrand} style={{ opacity: 0.5 }} />
           ) : (
             <Image 
               source={brandLogo} 
@@ -610,9 +610,8 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 236,
+    height: '100%',
     minHeight: 236,
-    maxHeight: 236,
     overflow: 'hidden',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 5 },
@@ -643,15 +642,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   verticalImageSection: {
     width: '100%',
-    height: 65,
+    height: 82,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 2,
-    marginBottom: 4,
+    marginTop: 0,
+    marginBottom: 2,
   },
   verticalBrandLogo: {
-    width: 75,
-    height: 55,
+    width: 105,
+    height: 78,
   },
   verticalDetailsSection: {
     width: '100%',
