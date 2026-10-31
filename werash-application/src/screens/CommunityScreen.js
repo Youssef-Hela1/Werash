@@ -636,7 +636,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [selectedFeed, setSelectedFeed] = useState('active'); // 'overall', 'active', 'marketplace'
   const [showProfile, setShowProfile] = useState(false);
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
-  const [friendships, setFriendships] = useState({});
   const [directMessageUser, setDirectMessageUser] = useState(null);
   const [openedFromMessagesPage, setOpenedFromMessagesPage] = useState(false);
   const [dmHistory, setDmHistory] = useState({});
@@ -890,18 +889,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     })
   ).current;
 
-  useEffect(() => {
-    AsyncStorage.getItem('@werash_community_friendships').then((raw) => {
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            setFriendships(parsed);
-          }
-        } catch (_) {}
-      }
-    }).catch(() => {});
-  }, []);
+
   const [expandedPostId, setExpandedPostId] = useState(null);
   
   const [showListingPage, setShowListingPage] = useState(false);
@@ -1518,90 +1506,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     }
   };
 
-  const handleToggleFriend = async (targetAuthor) => {
-    const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
-    if (!targetAuthor || targetAuthor === currentAuthor) return;
-    const currentStatus = friendships[targetAuthor] || 'none';
-
-    if (currentStatus === 'none') {
-      // 1. Immediately transition to 'requested'
-      const updated = { ...friendships, [targetAuthor]: 'requested' };
-      setFriendships(updated);
-      AsyncStorage.setItem('@werash_community_friendships', JSON.stringify(updated)).catch(() => {});
-
-      Alert.alert(
-        isRtl ? 'تم إرسال الطلب' : 'Request Sent',
-        isRtl ? `تم إرسال طلب الصداقة إلى ${targetAuthor}.` : `Friend request sent to ${targetAuthor}.`
-      );
-
-      // 2. Automatically simulate the other user accepting the request after 2.5 seconds
-      if (dmTimerRef.current) clearTimeout(dmTimerRef.current);
-      dmTimerRef.current = setTimeout(() => {
-        setFriendships((prev) => {
-          const accepted = { ...prev, [targetAuthor]: 'friends' };
-          AsyncStorage.setItem('@werash_community_friendships', JSON.stringify(accepted)).catch(() => {});
-          return accepted;
-        });
-
-        Alert.alert(
-          isRtl ? 'تم قبول طلب الصداقة! 🎉' : 'Friend Request Accepted! 🎉',
-          isRtl
-            ? `وافق ${targetAuthor} على طلب الصداقة! الزر الآن يعرض: أصدقاء.`
-            : `${targetAuthor} accepted your friend request! The button now says: Friends.`
-        );
-      }, 2500);
-
-    } else if (currentStatus === 'requested') {
-      // Allow accepting immediately or cancelling request
-      Alert.alert(
-        isRtl ? 'طلب صداقة معلق' : 'Pending Request',
-        isRtl
-          ? `طلب الصداقة مع ${targetAuthor} قيد الانتظار. هل ترغب في قبول الطلب الآن أم إلغائه؟`
-          : `Friend request to ${targetAuthor} is pending. Would you like to accept it now or cancel?`,
-        [
-          { text: isRtl ? 'إغلاق' : 'Close', style: 'cancel' },
-          {
-            text: isRtl ? 'إلغاء الطلب' : 'Cancel Request',
-            style: 'destructive',
-            onPress: () => {
-              if (dmTimerRef.current) clearTimeout(dmTimerRef.current);
-              const updated = { ...friendships, [targetAuthor]: 'none' };
-              setFriendships(updated);
-              AsyncStorage.setItem('@werash_community_friendships', JSON.stringify(updated)).catch(() => {});
-            }
-          },
-          {
-            text: isRtl ? 'قبول الآن' : 'Accept Now',
-            onPress: () => {
-              if (dmTimerRef.current) clearTimeout(dmTimerRef.current);
-              const updated = { ...friendships, [targetAuthor]: 'friends' };
-              setFriendships(updated);
-              AsyncStorage.setItem('@werash_community_friendships', JSON.stringify(updated)).catch(() => {});
-            }
-          }
-        ]
-      );
-    } else {
-      // Already friends: prompt to unfriend
-      Alert.alert(
-        isRtl ? 'أصدقاء' : 'Friends',
-        isRtl ? `أنت و ${targetAuthor} أصدقاء. هل ترغب في إلغاء الصداقة؟` : `You and ${targetAuthor} are friends. Would you like to remove this friend?`,
-        [
-          { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
-          {
-            text: isRtl ? 'إلغاء الصداقة' : 'Remove Friend',
-            style: 'destructive',
-            onPress: () => {
-              const updated = { ...friendships, [targetAuthor]: 'none' };
-              setFriendships(updated);
-              AsyncStorage.setItem('@werash_community_friendships', JSON.stringify(updated)).catch(() => {});
-            }
-          }
-        ]
-      );
-    }
-  };
-
   const pickPostImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -1943,7 +1847,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const targetUserPosts = feedPosts.filter(p => p.author === activeProfileUser.author);
   const profilePostsCount = targetUserPosts.length;
   const profileTotalLikes = targetUserPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
-  const friendStatus = friendships[activeProfileUser.author] || 'none';
   const expandedPost = feedPosts.find((p) => p.id === expandedPostId);
 
   const renderGradientOverlay = () => {
@@ -2059,7 +1962,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     {activeProfileUser.handle}
                   </Text>
 
-                  {/* Centered Action Buttons (Send Request + Message) */}
+                  {/* Centered Action Button (Message) */}
                   <View style={styles.profileActionAreaCenter}>
                     {isViewingSelf ? (
                       <View style={[styles.selfBadge, isRtl && { flexDirection: 'row-reverse' }]}>
@@ -2069,66 +1972,24 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                         </Text>
                       </View>
                     ) : (
-                      <View style={[styles.profileButtonsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                        {/* Send Request / Request Sent / Friends Button */}
-                        <TouchableOpacity
-                          activeOpacity={0.82}
-                          style={[
-                            styles.addFriendBtn,
-                            friendStatus === 'requested' && styles.addFriendBtnRequested,
-                            friendStatus === 'friends' && styles.addFriendBtnFriends,
-                            isRtl && { flexDirection: 'row-reverse' }
-                          ]}
-                          onPress={() => handleToggleFriend(activeProfileUser.author)}
+                      <TouchableOpacity
+                        activeOpacity={0.82}
+                        style={[styles.profileMessageBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                        onPress={() => handleOpenDirectMessage(activeProfileUser)}
+                      >
+                        <Ionicons 
+                          name="chatbubble-ellipses" 
+                          size={16} 
+                          color="#FFFFFF" 
+                          style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} 
+                        />
+                        <Text 
+                          numberOfLines={1}
+                          style={[styles.profileMessageBtnText, isRtl && styles.arabicBoldText]}
                         >
-                          <Ionicons 
-                            name={
-                              friendStatus === 'friends' 
-                                ? 'checkmark-circle' 
-                                : friendStatus === 'requested' 
-                                ? 'time-outline' 
-                                : 'person-add'
-                            } 
-                            size={15} 
-                            color={friendStatus === 'requested' ? COLORS.bgBrand : '#F7F5F0'} 
-                            style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
-                          />
-                          <Text 
-                            numberOfLines={1}
-                            style={[
-                              styles.addFriendBtnText,
-                              friendStatus === 'requested' && styles.addFriendBtnTextRequested,
-                              isRtl && styles.arabicBoldText
-                            ]}
-                          >
-                            {friendStatus === 'friends'
-                              ? (isRtl ? 'أصدقاء' : 'Friends')
-                              : friendStatus === 'requested'
-                              ? (isRtl ? 'تم الطلب' : 'Request Sent')
-                              : (isRtl ? 'إرسال طلب' : 'Send Request')}
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Message Button */}
-                        <TouchableOpacity
-                          activeOpacity={0.82}
-                          style={[styles.profileMessageBtn, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => handleOpenDirectMessage(activeProfileUser)}
-                        >
-                          <Ionicons 
-                            name="chatbubble-ellipses-outline" 
-                            size={15} 
-                            color={COLORS.bgBrand} 
-                            style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
-                          />
-                          <Text 
-                            numberOfLines={1}
-                            style={[styles.profileMessageBtnText, isRtl && styles.arabicBoldText]}
-                          >
-                            {isRtl ? 'رسالة' : 'Message'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                          {isRtl ? 'محادثة' : 'Message'}
+                        </Text>
+                      </TouchableOpacity>
                     )}
                   </View>
                 </View>
@@ -2146,15 +2007,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     <Text style={styles.statVal}>{profileTotalLikes}</Text>
                     <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
                       {isRtl ? 'إعجابات' : 'LIKES'}
-                    </Text>
-                  </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statBox}>
-                    <Text style={styles.statVal}>
-                      {friendStatus === 'friends' ? 14 : 13}
-                    </Text>
-                    <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
-                      {isRtl ? 'أصدقاء' : 'FRIENDS'}
                     </Text>
                   </View>
                 </View>
@@ -2788,7 +2640,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                               <TouchableOpacity
                                 style={styles.fbToolbarIconButton}
                                 activeOpacity={0.7}
-                                onPress={() => Alert.alert(isRtl ? 'إشارة' : 'Tag', isRtl ? 'ميزة الإشارة إلى الأصدقاء ستتوفر قريباً!' : 'Friend tagging coming soon!')}
+                                onPress={() => Alert.alert(isRtl ? 'إشارة' : 'Tag', isRtl ? 'ميزة الإشارة إلى المستخدمين ستتوفر قريباً!' : 'User tagging coming soon!')}
                               >
                                 <Ionicons name="person-add" size={24} color="#1877F2" />
                               </TouchableOpacity>
@@ -3074,42 +2926,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       </View>
                     </View>
 
-                    {/* Quick Friend Status Pill in Header */}
-                    {directMessageUser && (
-                      <TouchableOpacity
-                        style={[
-                          styles.dmHeaderFriendBtn,
-                          friendships[directMessageUser.author] === 'friends' && styles.dmHeaderFriendBtnActive,
-                          isRtl && { flexDirection: 'row-reverse' }
-                        ]}
-                        onPress={() => handleToggleFriend(directMessageUser.author)}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons
-                          name={
-                            friendships[directMessageUser.author] === 'friends'
-                              ? 'checkmark-circle'
-                              : friendships[directMessageUser.author] === 'requested'
-                              ? 'time-outline'
-                              : 'person-add'
-                          }
-                          size={12}
-                          color={friendships[directMessageUser.author] === 'friends' ? '#FFFFFF' : COLORS.bgBrand}
-                          style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }}
-                        />
-                        <Text style={[
-                          styles.dmHeaderFriendBtnText,
-                          friendships[directMessageUser.author] === 'friends' && styles.dmHeaderFriendBtnTextActive,
-                          isRtl && styles.arabicBoldText
-                        ]}>
-                          {friendships[directMessageUser.author] === 'friends'
-                            ? (isRtl ? 'أصدقاء' : 'Friends')
-                            : friendships[directMessageUser.author] === 'requested'
-                            ? (isRtl ? 'تم الإرسال' : 'Sent')
-                            : (isRtl ? '+ صديق' : '+ Friend')}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+
                   </View>
 
                   {/* Messages Scroll View */}
@@ -4307,75 +4124,26 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    maxWidth: 320,
-    gap: 10,
-  },
-  addFriendBtn: {
-    flex: 1,
+  profileMessageBtn: {
     height: 40,
+    minWidth: 180,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.bgBrand,
-    paddingHorizontal: 10,
+    paddingHorizontal: 22,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
     shadowColor: colors.bgBrand,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 5,
     elevation: 3,
   },
-  addFriendBtnRequested: {
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  addFriendBtnFriends: {
-    backgroundColor: '#244528',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  addFriendBtnText: {
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontWeight: '700',
-    color: '#F7F5F0',
-    letterSpacing: 0.1,
-  },
-  addFriendBtnTextRequested: {
-    color: colors.bgBrand,
-  },
-  profileMessageBtn: {
-    flex: 1,
-    height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1.2,
-    borderColor: colors.borderGreen,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
   profileMessageBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
-    color: colors.bgBrand,
+    color: '#FFFFFF',
     letterSpacing: 0.1,
   },
   /* Comments Bottom Sheet & Component Styles */
@@ -4888,29 +4656,6 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 11,
     fontFamily: 'PlusJakartaSans-Regular',
     color: colors.textMuted,
-  },
-  dmHeaderFriendBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bgBrandLight,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
-  },
-  dmHeaderFriendBtnActive: {
-    backgroundColor: colors.bgBrand,
-    borderColor: colors.bgBrand,
-  },
-  dmHeaderFriendBtnText: {
-    fontSize: 11,
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontWeight: '700',
-    color: colors.bgBrand,
-  },
-  dmHeaderFriendBtnTextActive: {
-    color: '#FFFFFF',
   },
   dmMessagesScroll: {
     flex: 1,
