@@ -621,6 +621,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
   const [friendships, setFriendships] = useState({});
   const [directMessageUser, setDirectMessageUser] = useState(null);
+  const [openedFromMessagesPage, setOpenedFromMessagesPage] = useState(false);
   const [dmHistory, setDmHistory] = useState({});
   const [dmInputText, setDmInputText] = useState('');
   const [attachedMedia, setAttachedMedia] = useState(null); // { type: 'image' | 'video', uri, duration }
@@ -918,9 +919,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     }
   ];
 
-  const handleOpenDirectMessage = async (user) => {
+  const handleOpenDirectMessage = async (user, fromInbox = false) => {
     if (!user) return;
+    setOpenedFromMessagesPage(Boolean(fromInbox));
     setDirectMessageUser(user);
+    setShowMessagesPage(true);
     try {
       const stored = await AsyncStorage.getItem(`@werash_dm_${user.author}`);
       if (stored) {
@@ -933,6 +936,13 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     } catch (_) {}
     if (!dmHistory[user.author]) {
       setDmHistory(prev => ({ ...prev, [user.author]: getDefaultDmMessages(user.author) }));
+    }
+  };
+
+  const handleCloseDirectMessage = () => {
+    setDirectMessageUser(null);
+    if (!openedFromMessagesPage) {
+      setShowMessagesPage(false);
     }
   };
 
@@ -2625,388 +2635,391 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
           </Modal>
 
 
-          {/* Direct User Chat Modal */}
+          {/* Messages & Chat Modal */}
           <Modal
-            visible={Boolean(directMessageUser)}
+            visible={showMessagesPage}
+            transparent={false}
             animationType="slide"
-            onRequestClose={() => setDirectMessageUser(null)}
+            statusBarTranslucent={true}
+            onRequestClose={directMessageUser ? handleCloseDirectMessage : () => setShowMessagesPage(false)}
           >
-            <SafeAreaView style={[styles.dmModalContainer, { backgroundColor: COLORS.bgCreamy }]}>
+            <SafeAreaView style={[styles.newPageContainer, { backgroundColor: COLORS.bgCreamy }]}>
               <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bgCreamy} />
-              
-              {/* DM Header */}
-              <View style={[styles.dmHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                <TouchableOpacity 
-                  style={[styles.dmBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
-                  onPress={() => setDirectMessageUser(null)}
-                  activeOpacity={0.8}
+
+              {directMessageUser ? (
+                // --- CHAT CONVERSATION VIEW (Inside Messages Page) ---
+                <KeyboardAvoidingView
+                  style={{ flex: 1 }}
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
                 >
-                  <Ionicons 
-                    name={isRtl ? "chevron-forward" : "chevron-back"} 
-                    size={22} 
-                    color={COLORS.bgBrand} 
-                  />
-                </TouchableOpacity>
+                  {/* DM Header */}
+                  <View style={[styles.dmHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <TouchableOpacity 
+                      style={[styles.dmBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
+                      onPress={handleCloseDirectMessage}
+                      activeOpacity={0.8}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons 
+                        name={isRtl ? "chevron-forward" : "chevron-back"} 
+                        size={22} 
+                        color={COLORS.bgBrand} 
+                      />
+                      {openedFromMessagesPage && (
+                        <Text style={[styles.dmBackBtnText, isRtl ? { marginRight: 3 } : { marginLeft: 3 }]}>
+                          {isRtl ? 'الرسائل' : 'Inbox'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
 
-                {/* User Identity in Header */}
-                <View style={[styles.dmUserHeaderInfo, isRtl && { flexDirection: 'row-reverse' }]}>
-                  {directMessageUser?.avatar ? (
-                    <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.dmAvatarSmallIcon}>
-                      <Ionicons name="person" size={15} color="#FFFFFF" />
-                    </View>
-                  )}
-                  <View style={[isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
-                    <Text style={[styles.dmUserName, isRtl && styles.arabicBoldText]}>
-                      {directMessageUser?.author}
-                    </Text>
-                    <View style={[styles.dmOnlineRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <View style={styles.dmOnlineDot} />
-                      <Text style={styles.dmOnlineText}>
-                        {isRtl ? 'متصل الآن' : 'Active now'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Quick Friend Status Pill in Header */}
-                {directMessageUser && (
-                  <TouchableOpacity
-                    style={[
-                      styles.dmHeaderFriendBtn,
-                      friendships[directMessageUser.author] === 'friends' && styles.dmHeaderFriendBtnActive,
-                      isRtl && { flexDirection: 'row-reverse' }
-                    ]}
-                    onPress={() => handleToggleFriend(directMessageUser.author)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={
-                        friendships[directMessageUser.author] === 'friends'
-                          ? 'checkmark-circle'
-                          : friendships[directMessageUser.author] === 'requested'
-                          ? 'time-outline'
-                          : 'person-add'
-                      }
-                      size={12}
-                      color={friendships[directMessageUser.author] === 'friends' ? '#FFFFFF' : COLORS.bgBrand}
-                      style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }}
-                    />
-                    <Text style={[
-                      styles.dmHeaderFriendBtnText,
-                      friendships[directMessageUser.author] === 'friends' && styles.dmHeaderFriendBtnTextActive,
-                      isRtl && styles.arabicBoldText
-                    ]}>
-                      {friendships[directMessageUser.author] === 'friends'
-                        ? (isRtl ? 'أصدقاء' : 'Friends')
-                        : friendships[directMessageUser.author] === 'requested'
-                        ? (isRtl ? 'تم الإرسال' : 'Sent')
-                        : (isRtl ? '+ صديق' : '+ Friend')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Messages Scroll View */}
-              <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-              >
-                <ScrollView
-                  ref={dmScrollRef}
-                  style={styles.dmMessagesScroll}
-                  contentContainerStyle={styles.dmMessagesContent}
-                  showsVerticalScrollIndicator={false}
-                  onContentSizeChange={() => dmScrollRef.current?.scrollToEnd({ animated: true })}
-                >
-                  {/* Profile Intro Banner inside Chat */}
-                  <View style={styles.dmIntroCard}>
-                    {directMessageUser?.avatar ? (
-                      <Image source={directMessageUser.avatar} style={styles.dmIntroAvatar} resizeMode="cover" />
-                    ) : (
-                      <View style={styles.dmIntroAvatarIcon}>
-                        <Ionicons name="person" size={26} color="#FFFFFF" />
-                      </View>
-                    )}
-                    <Text style={[styles.dmIntroName, isRtl && styles.arabicBoldText]}>
-                      {directMessageUser?.author}
-                    </Text>
-                    <Text style={styles.dmIntroHandle}>{directMessageUser?.handle}</Text>
-                    <Text style={[styles.dmIntroText, isRtl && styles.arabicRegularText]}>
-                      {isRtl
-                        ? `هذه بداية محادثتك المباشرة مع ${directMessageUser?.author}. تبادلا الخبرات واستفسرا عن التعديلات وقطع الغيار.`
-                        : `This is the start of your direct conversation with ${directMessageUser?.author}. Connect, ask about car builds, or trade parts.`}
-                    </Text>
-                  </View>
-
-                  {/* Chat Messages */}
-                  {((directMessageUser && dmHistory[directMessageUser.author]) || []).map((msg) => {
-                    const isMe = msg.sender === 'user';
-                    return (
-                      <View
-                        key={msg.id}
-                        style={[
-                          styles.dmMessageRow,
-                          isMe ? styles.dmMessageRowMe : styles.dmMessageRowThem,
-                          isRtl && { flexDirection: isMe ? 'row-reverse' : 'row' }
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.dmBubble,
-                            isMe ? styles.dmBubbleMe : styles.dmBubbleThem,
-                          ]}
-                        >
-                          {/* Attached Image inside bubble */}
-                          {msg.mediaType === 'image' && msg.mediaUri && (
-                            <TouchableOpacity
-                              activeOpacity={0.9}
-                              onPress={() => setViewingMedia({ type: 'image', uri: msg.mediaUri })}
-                              style={styles.dmBubbleMediaWrapper}
-                            >
-                              <Image source={{ uri: msg.mediaUri }} style={styles.dmBubbleImage} resizeMode="cover" />
-                              <View style={styles.dmExpandMediaIcon}>
-                                <Ionicons name="expand" size={14} color="#FFFFFF" />
-                              </View>
-                            </TouchableOpacity>
-                          )}
-
-                          {/* Attached Video inside bubble */}
-                          {msg.mediaType === 'video' && msg.mediaUri && (
-                            <TouchableOpacity
-                              activeOpacity={0.9}
-                              onPress={() => setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration })}
-                              style={styles.dmBubbleVideoCard}
-                            >
-                              <View style={styles.dmBubbleVideoThumbnail}>
-                                <View style={styles.dmVideoPlayBtnCircle}>
-                                  <Ionicons name="play" size={22} color="#FFFFFF" style={{ marginLeft: 3 }} />
-                                </View>
-                                <View style={styles.dmVideoBadgeRow}>
-                                  <View style={styles.dmVideoTypeBadge}>
-                                    <Ionicons name="videocam" size={11} color="#FFFFFF" style={{ marginRight: 3 }} />
-                                    <Text style={styles.dmVideoBadgeText}>VIDEO</Text>
-                                  </View>
-                                  {msg.mediaDuration ? (
-                                    <View style={styles.dmVideoDurationBadge}>
-                                      <Text style={styles.dmVideoBadgeText}>{'0:' + (msg.mediaDuration < 10 ? '0' : '') + msg.mediaDuration}</Text>
-                                    </View>
-                                  ) : null}
-                                </View>
-                              </View>
-                              <View style={styles.dmVideoCardFooter}>
-                                <Text style={[styles.dmVideoCardLabel, isMe ? styles.dmVideoCardLabelMe : styles.dmVideoCardLabelThem]}>
-                                  {isRtl ? 'تسجيل فيديو • انقر للعرض' : 'Video recording • Tap to view'}
-                                </Text>
-                              </View>
-                            </TouchableOpacity>
-                          )}
-
-                          {/* Message Text */}
-                          {Boolean(msg.text) && (
-                            <Text style={[
-                              styles.dmBubbleText,
-                              isMe ? styles.dmBubbleTextMe : styles.dmBubbleTextThem,
-                              isRtl && { textAlign: 'right' },
-                              isRtl && styles.arabicRegularText
-                            ]}>
-                              {isRtl ? (msg.textAr || msg.text) : msg.text}
-                            </Text>
-                          )}
-
-                          <Text style={[
-                            styles.dmBubbleTime,
-                            isMe ? styles.dmBubbleTimeMe : styles.dmBubbleTimeThem,
-                          ]}>
-                            {msg.time}
+                    {/* User Identity in Header */}
+                    <View style={[styles.dmUserHeaderInfo, isRtl && { flexDirection: 'row-reverse' }]}>
+                      {directMessageUser?.avatar ? (
+                        <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.dmAvatarSmallIcon}>
+                          <Ionicons name="person" size={15} color="#FFFFFF" />
+                        </View>
+                      )}
+                      <View style={[isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
+                        <Text style={[styles.dmUserName, isRtl && styles.arabicBoldText]}>
+                          {directMessageUser?.author}
+                        </Text>
+                        <View style={[styles.dmOnlineRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <View style={styles.dmOnlineDot} />
+                          <Text style={styles.dmOnlineText}>
+                            {isRtl ? 'متصل الآن' : 'Active now'}
                           </Text>
                         </View>
                       </View>
-                    );
-                  })}
-                </ScrollView>
+                    </View>
 
-                {/* Staged Attachment Preview Bar */}
-                {attachedMedia && (
-                  <View style={[styles.dmAttachedPreviewBar, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <View style={styles.dmAttachedThumbnailBox}>
-                      {attachedMedia.type === 'image' ? (
-                        <Image source={{ uri: attachedMedia.uri }} style={styles.dmAttachedThumbnailImg} />
+                    {/* Quick Friend Status Pill in Header */}
+                    {directMessageUser && (
+                      <TouchableOpacity
+                        style={[
+                          styles.dmHeaderFriendBtn,
+                          friendships[directMessageUser.author] === 'friends' && styles.dmHeaderFriendBtnActive,
+                          isRtl && { flexDirection: 'row-reverse' }
+                        ]}
+                        onPress={() => handleToggleFriend(directMessageUser.author)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name={
+                            friendships[directMessageUser.author] === 'friends'
+                              ? 'checkmark-circle'
+                              : friendships[directMessageUser.author] === 'requested'
+                              ? 'time-outline'
+                              : 'person-add'
+                          }
+                          size={12}
+                          color={friendships[directMessageUser.author] === 'friends' ? '#FFFFFF' : COLORS.bgBrand}
+                          style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }}
+                        />
+                        <Text style={[
+                          styles.dmHeaderFriendBtnText,
+                          friendships[directMessageUser.author] === 'friends' && styles.dmHeaderFriendBtnTextActive,
+                          isRtl && styles.arabicBoldText
+                        ]}>
+                          {friendships[directMessageUser.author] === 'friends'
+                            ? (isRtl ? 'أصدقاء' : 'Friends')
+                            : friendships[directMessageUser.author] === 'requested'
+                            ? (isRtl ? 'تم الإرسال' : 'Sent')
+                            : (isRtl ? '+ صديق' : '+ Friend')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Messages Scroll View */}
+                  <ScrollView
+                    ref={dmScrollRef}
+                    style={styles.dmMessagesScroll}
+                    contentContainerStyle={styles.dmMessagesContent}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={() => dmScrollRef.current?.scrollToEnd({ animated: true })}
+                  >
+                    {/* Profile Intro Banner inside Chat */}
+                    <View style={styles.dmIntroCard}>
+                      {directMessageUser?.avatar ? (
+                        <Image source={directMessageUser.avatar} style={styles.dmIntroAvatar} resizeMode="cover" />
                       ) : (
-                        <View style={styles.dmAttachedVideoThumbnail}>
-                          <Ionicons name="videocam" size={20} color="#FFFFFF" />
+                        <View style={styles.dmIntroAvatarIcon}>
+                          <Ionicons name="person" size={26} color="#FFFFFF" />
                         </View>
                       )}
-                      <View style={styles.dmAttachedTypePill}>
-                        <Text style={styles.dmAttachedTypePillText}>
-                          {attachedMedia.type === 'video' ? (isRtl ? 'فيديو' : 'Video') : (isRtl ? 'صورة' : 'Photo')}
+                      <Text style={[styles.dmIntroName, isRtl && styles.arabicBoldText]}>
+                        {directMessageUser?.author}
+                      </Text>
+                      <Text style={styles.dmIntroHandle}>{directMessageUser?.handle}</Text>
+                      <Text style={[styles.dmIntroText, isRtl && styles.arabicRegularText]}>
+                        {isRtl
+                          ? `هذه بداية محادثتك المباشرة مع ${directMessageUser?.author}. تبادلا الخبرات واستفسرا عن التعديلات وقطع الغيار.`
+                          : `This is the start of your direct conversation with ${directMessageUser?.author}. Connect, ask about car builds, or trade parts.`}
+                      </Text>
+                    </View>
+
+                    {/* Chat Messages */}
+                    {((directMessageUser && dmHistory[directMessageUser.author]) || []).map((msg) => {
+                      const isMe = msg.sender === 'user';
+                      return (
+                        <View
+                          key={msg.id}
+                          style={[
+                            styles.dmMessageRow,
+                            isMe ? styles.dmMessageRowMe : styles.dmMessageRowThem,
+                            isRtl && { flexDirection: isMe ? 'row-reverse' : 'row' }
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.dmBubble,
+                              isMe ? styles.dmBubbleMe : styles.dmBubbleThem,
+                            ]}
+                          >
+                            {/* Attached Image inside bubble */}
+                            {msg.mediaType === 'image' && msg.mediaUri && (
+                              <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={() => setViewingMedia({ type: 'image', uri: msg.mediaUri })}
+                                style={styles.dmBubbleMediaWrapper}
+                              >
+                                <Image source={{ uri: msg.mediaUri }} style={styles.dmBubbleImage} resizeMode="cover" />
+                                <View style={styles.dmExpandMediaIcon}>
+                                  <Ionicons name="expand" size={14} color="#FFFFFF" />
+                                </View>
+                              </TouchableOpacity>
+                            )}
+
+                            {/* Attached Video inside bubble */}
+                            {msg.mediaType === 'video' && msg.mediaUri && (
+                              <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={() => setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration })}
+                                style={styles.dmBubbleVideoCard}
+                              >
+                                <View style={styles.dmBubbleVideoThumbnail}>
+                                  <View style={styles.dmVideoPlayBtnCircle}>
+                                    <Ionicons name="play" size={22} color="#FFFFFF" style={{ marginLeft: 3 }} />
+                                  </View>
+                                  <View style={styles.dmVideoBadgeRow}>
+                                    <View style={styles.dmVideoTypeBadge}>
+                                      <Ionicons name="videocam" size={11} color="#FFFFFF" style={{ marginRight: 3 }} />
+                                      <Text style={styles.dmVideoBadgeText}>VIDEO</Text>
+                                    </View>
+                                    {msg.mediaDuration ? (
+                                      <View style={styles.dmVideoDurationBadge}>
+                                        <Text style={styles.dmVideoBadgeText}>{'0:' + (msg.mediaDuration < 10 ? '0' : '') + msg.mediaDuration}</Text>
+                                      </View>
+                                    ) : null}
+                                  </View>
+                                </View>
+                                <View style={styles.dmVideoCardFooter}>
+                                  <Text style={[styles.dmVideoCardLabel, isMe ? styles.dmVideoCardLabelMe : styles.dmVideoCardLabelThem]}>
+                                    {isRtl ? 'تسجيل فيديو • انقر للعرض' : 'Video recording • Tap to view'}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            )}
+
+                            {/* Message Text */}
+                            {Boolean(msg.text) && (
+                              <Text style={[
+                                styles.dmBubbleText,
+                                isMe ? styles.dmBubbleTextMe : styles.dmBubbleTextThem,
+                                isRtl && { textAlign: 'right' },
+                                isRtl && styles.arabicRegularText
+                              ]}>
+                                {isRtl ? (msg.textAr || msg.text) : msg.text}
+                              </Text>
+                            )}
+
+                            <Text style={[
+                              styles.dmBubbleTime,
+                              isMe ? styles.dmBubbleTimeMe : styles.dmBubbleTimeThem,
+                            ]}>
+                              {msg.time}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Staged Attachment Preview Bar */}
+                  {attachedMedia && (
+                    <View style={[styles.dmAttachedPreviewBar, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={styles.dmAttachedThumbnailBox}>
+                        {attachedMedia.type === 'image' ? (
+                          <Image source={{ uri: attachedMedia.uri }} style={styles.dmAttachedThumbnailImg} />
+                        ) : (
+                          <View style={styles.dmAttachedVideoThumbnail}>
+                            <Ionicons name="videocam" size={20} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View style={styles.dmAttachedTypePill}>
+                          <Text style={styles.dmAttachedTypePillText}>
+                            {attachedMedia.type === 'video' ? (isRtl ? 'فيديو' : 'Video') : (isRtl ? 'صورة' : 'Photo')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.dmAttachedInfo, isRtl ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
+                        <Text style={[styles.dmAttachedTitle, isRtl && styles.arabicBoldText]}>
+                          {attachedMedia.type === 'video' ? (isRtl ? 'تسجيل فيديو مرفق' : 'Video recording attached') : (isRtl ? 'صورة مرفقة' : 'Image attached')}
+                        </Text>
+                        <Text style={styles.dmAttachedSubtitle}>
+                          {isRtl ? 'أضف تعليقاً أو اضغط إرسال' : 'Add an optional caption or send'}
                         </Text>
                       </View>
+
+                      <TouchableOpacity
+                        style={styles.dmAttachedRemoveBtn}
+                        onPress={() => setAttachedMedia(null)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#E53935" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Bottom Composer */}
+                  <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <TouchableOpacity
+                        style={styles.dmMediaActionBtn}
+                        onPress={handlePickChatImage}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.dmMediaActionBtn}
+                        onPress={handleSelectVideoOption}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="videocam-outline" size={21} color={COLORS.bgBrand} />
+                      </TouchableOpacity>
                     </View>
 
-                    <View style={[styles.dmAttachedInfo, isRtl ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
-                      <Text style={[styles.dmAttachedTitle, isRtl && styles.arabicBoldText]}>
-                        {attachedMedia.type === 'video' ? (isRtl ? 'تسجيل فيديو مرفق' : 'Video recording attached') : (isRtl ? 'صورة مرفقة' : 'Image attached')}
-                      </Text>
-                      <Text style={styles.dmAttachedSubtitle}>
-                        {isRtl ? 'أضف تعليقاً أو اضغط إرسال' : 'Add an optional caption or send'}
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.dmAttachedRemoveBtn}
-                      onPress={() => setAttachedMedia(null)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="close-circle" size={22} color="#E53935" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Bottom Composer with Photo & Video Actions */}
-                <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
-                  <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                    {/* Add Image Button */}
-                    <TouchableOpacity
-                      style={styles.dmMediaActionBtn}
-                      onPress={handlePickChatImage}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
-                    </TouchableOpacity>
-
-                    {/* Record / Attach Video Button */}
-                    <TouchableOpacity
-                      style={styles.dmMediaActionBtn}
-                      onPress={handleSelectVideoOption}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="videocam-outline" size={21} color={COLORS.bgBrand} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <TextInput
-                    style={[
-                      styles.dmInput,
-                      isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
-                    ]}
-                    placeholder={
-                      attachedMedia
-                        ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
-                        : (isRtl ? "اكتب رسالة..." : "Type a message...")
-                    }
-                    placeholderTextColor="#A0A0A0"
-                    value={dmInputText}
-                    onChangeText={setDmInputText}
-                    multiline
-                  />
-
-                  <TouchableOpacity
-                    style={[
-                      styles.dmSendButton,
-                      (!dmInputText.trim() && !attachedMedia) && styles.dmSendButtonDisabled
-                    ]}
-                    onPress={handleSendDirectMessage}
-                    disabled={!dmInputText.trim() && !attachedMedia}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="send"
-                      size={15}
-                      color="#FFFFFF"
-                      style={isRtl ? { transform: [{ rotate: '180deg' }] } : { marginLeft: 2 }}
+                    <TextInput
+                      style={[
+                        styles.dmInput,
+                        isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
+                      ]}
+                      placeholder={
+                        attachedMedia
+                          ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
+                          : (isRtl ? "اكتب رسالة..." : "Type a message...")
+                      }
+                      placeholderTextColor="#A0A0A0"
+                      value={dmInputText}
+                      onChangeText={setDmInputText}
+                      multiline
                     />
-                  </TouchableOpacity>
-                </View>
-              </KeyboardAvoidingView>
-            </SafeAreaView>
-          </Modal>
-          {/* Messages Page Modal */}
-          <Modal
-            visible={showMessagesPage}
-            transparent={true}
-            animationType="slide"
-            statusBarTranslucent={true}
-            onRequestClose={() => setShowMessagesPage(false)}
-          >
-            <View style={[styles.newPageContainer, { backgroundColor: COLORS.bgCreamy }]}>
-              <StatusBar barStyle="light-content" backgroundColor={COLORS.bgBrand} />
-              <View style={styles.newPageHeader}>
-                <TouchableOpacity 
-                  style={styles.newPageBackButton} 
-                  onPress={() => setShowMessagesPage(false)}
-                  activeOpacity={0.8}
-                  hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
-                >
-                  <Ionicons name="chevron-back" size={18} color={COLORS.bgBrand} style={{ marginRight: 2 }} />
-                  <Text style={styles.newPageBackButtonText}>Community</Text>
-                </TouchableOpacity>
-                <Text style={styles.newPageHeaderTitle}>Inbox</Text>
-                <View style={{ width: 100 }} />
-              </View>
 
-              {/* Search Inbox */}
-              <View style={[styles.inboxSearchBar, isRtl && { flexDirection: 'row-reverse' }]}>
-                <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-                <TextInput
-                  style={[styles.inboxSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                  placeholder={isRtl ? "بحث في المحادثات..." : "Search conversations..."}
-                  placeholderTextColor="#A0A0A0"
-                  value={inboxSearch}
-                  onChangeText={setInboxSearch}
-                />
-                {Boolean(inboxSearch) && (
-                  <TouchableOpacity onPress={() => setInboxSearch('')}>
-                    <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
-                {inboxConversations
-                  .filter(c => !inboxSearch.trim() || c.user.toLowerCase().includes(inboxSearch.toLowerCase().trim()))
-                  .map(msg => (
-                    <TouchableOpacity 
-                      key={msg.id} 
-                      style={[styles.messageRow, isRtl && { flexDirection: 'row-reverse' }]} 
+                    <TouchableOpacity
+                      style={[
+                        styles.dmSendButton,
+                        (!dmInputText.trim() && !attachedMedia) && styles.dmSendButtonDisabled
+                      ]}
+                      onPress={handleSendDirectMessage}
+                      disabled={!dmInputText.trim() && !attachedMedia}
                       activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name="send"
+                        size={15}
+                        color="#FFFFFF"
+                        style={isRtl ? { transform: [{ rotate: '180deg' }] } : { marginLeft: 2 }}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </KeyboardAvoidingView>
+              ) : (
+                // --- INBOX CONVERSATIONS LIST VIEW ---
+                <View style={{ flex: 1 }}>
+                  <View style={[styles.newPageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <TouchableOpacity 
+                      style={[styles.newPageBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
                       onPress={() => {
                         setShowMessagesPage(false);
-                        handleOpenDirectMessage({
-                          author: msg.user,
-                          handle: msg.handle || ('@' + msg.user.toLowerCase().replace(/\s+/g, '')),
-                          avatar: msg.avatar,
-                          avatarType: msg.avatar ? 'image' : 'icon',
-                        });
+                        setDirectMessageUser(null);
                       }}
+                      activeOpacity={0.8}
+                      hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
                     >
-                      {msg.avatarType === 'image' && msg.avatar ? (
-                        <Image source={msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
-                      ) : (
-                        <View style={styles.messageAvatar}>
-                          <Ionicons name="person" size={20} color="#FFFFFF" />
-                        </View>
-                      )}
-                      <View style={[styles.messageContent, isRtl ? { marginRight: 14 } : { marginLeft: 0 }]}>
-                        <View style={[styles.messageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                          <Text style={[styles.messageUser, isRtl && styles.arabicBoldText]}>{msg.user}</Text>
-                          <Text style={styles.messageTime}>{msg.time}</Text>
-                        </View>
-                        <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread, isRtl && { textAlign: 'right' }]} numberOfLines={1}>
-                          {msg.lastMessage}
-                        </Text>
-                      </View>
-                      {msg.unread > 0 && (
-                        <View style={[styles.messageBadge, isRtl && { marginLeft: 0, marginRight: 12 }]}>
-                          <Text style={styles.messageBadgeText}>{msg.unread}</Text>
-                        </View>
-                      )}
+                      <Ionicons name={isRtl ? "chevron-forward" : "chevron-back"} size={18} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 2 } : { marginRight: 2 }} />
+                      <Text style={[styles.newPageBackButtonText, isRtl && styles.arabicBoldText]}>{isRtl ? 'المجتمع' : 'Community'}</Text>
                     </TouchableOpacity>
-                  ))}
-              </ScrollView>
-            </View>
+                    <Text style={[styles.newPageHeaderTitle, isRtl && styles.arabicBoldText]}>{isRtl ? 'الرسائل' : 'Inbox'}</Text>
+                    <View style={{ width: 80 }} />
+                  </View>
+
+                  {/* Search Inbox */}
+                  <View style={[styles.inboxSearchBar, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                    <TextInput
+                      style={[styles.inboxSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                      placeholder={isRtl ? "بحث في المحادثات..." : "Search conversations..."}
+                      placeholderTextColor="#A0A0A0"
+                      value={inboxSearch}
+                      onChangeText={setInboxSearch}
+                    />
+                    {Boolean(inboxSearch) && (
+                      <TouchableOpacity onPress={() => setInboxSearch('')}>
+                        <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
+                    {inboxConversations
+                      .filter(c => !inboxSearch.trim() || c.user.toLowerCase().includes(inboxSearch.toLowerCase().trim()))
+                      .map(msg => (
+                        <TouchableOpacity 
+                          key={msg.id} 
+                          style={[styles.messageRow, isRtl && { flexDirection: 'row-reverse' }]} 
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            handleOpenDirectMessage({
+                              author: msg.user,
+                              handle: msg.handle || ('@' + msg.user.toLowerCase().replace(/\s+/g, '')),
+                              avatar: msg.avatar,
+                              avatarType: msg.avatar ? 'image' : 'icon',
+                            }, true);
+                          }}
+                        >
+                          {msg.avatarType === 'image' && msg.avatar ? (
+                            <Image source={msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
+                          ) : (
+                            <View style={styles.messageAvatar}>
+                              <Ionicons name="person" size={20} color="#FFFFFF" />
+                            </View>
+                          )}
+                          <View style={[styles.messageContent, isRtl ? { marginRight: 14 } : { marginLeft: 0 }]}>
+                            <View style={[styles.messageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                              <Text style={[styles.messageUser, isRtl && styles.arabicBoldText]}>{msg.user}</Text>
+                              <Text style={styles.messageTime}>{msg.time}</Text>
+                            </View>
+                            <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread, isRtl && { textAlign: 'right' }]} numberOfLines={1}>
+                              {msg.lastMessage}
+                            </Text>
+                          </View>
+                          {msg.unread > 0 && (
+                            <View style={[styles.messageBadge, isRtl && { marginLeft: 0, marginRight: 12 }]}>
+                              <Text style={styles.messageBadgeText}>{msg.unread}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                </View>
+              )}
+            </SafeAreaView>
           </Modal>
 
           {/* Interactive Comments Modal / Bottom Sheet */}
@@ -4238,8 +4251,16 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.bgCreamy,
   },
   dmBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 6,
     marginRight: 4,
+  },
+  dmBackBtnText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
   },
   dmUserHeaderInfo: {
     flex: 1,
