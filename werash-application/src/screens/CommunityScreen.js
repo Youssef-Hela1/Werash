@@ -3355,7 +3355,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               ) : (
                 // --- INBOX CONVERSATIONS LIST VIEW ---
                 <View style={{ flex: 1 }}>
-                  <View style={[styles.newPageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <View style={[styles.inboxHeader, isRtl && { flexDirection: 'row-reverse' }]}>
                     <TouchableOpacity 
                       style={[styles.newPageBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
                       onPress={() => {
@@ -5353,6 +5353,16 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 12,
     fontFamily: 'PlusJakartaSans-Regular',
     color: 'rgba(255,255,255,0.6)',
+  },
+  inboxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 4 : 8,
+    paddingBottom: 8,
+    backgroundColor: colors.bgCreamy,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGreen,
   },
   inboxSearchBar: {
     flexDirection: 'row',
