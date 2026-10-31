@@ -811,7 +811,7 @@ export default function GarageScreen({
     }, 50);
   };
 
-  const renderStickyStack = (extraStyle = {}) => {
+  const renderAttachedPhotosBelowPaper = () => {
     const pageImages = noteImages[currentPage] || [];
     if (pageImages.length === 0) return null;
     
@@ -822,84 +822,114 @@ export default function GarageScreen({
     }
     
     return (
-      <TouchableOpacity
-        style={[
-          styles.notebookStickyStackBottom,
-          isRtl ? { left: 18 } : { right: 18 },
-          extraStyle
-        ]}
-        onPress={() => setIsImageModalOpen(true)}
-        activeOpacity={0.92}
-      >
-        {cards.map(({ uri, originalIdx }) => {
-          let rotateDeg = '-2.5deg';
-          let translateX = 0;
-          let translateY = 0;
-          let zIndex = 3 - originalIdx;
-          
-          if (originalIdx === 0) {
-            rotateDeg = '-2.5deg';
-            translateX = 0;
-            translateY = 0;
-          } else if (originalIdx === 1) {
-            rotateDeg = '3.5deg';
-            translateX = 4;
-            translateY = 3;
-          } else if (originalIdx === 2) {
-            rotateDeg = '-5.5deg';
-            translateX = -4;
-            translateY = 6;
-          }
-          
-          const stickyColors = ['#FEFDF8', '#FFF9DB', '#EFF7EF'];
-          const bgColor = stickyColors[originalIdx % stickyColors.length];
-          
-          return (
-            <View
-              key={originalIdx}
-              style={[
-                styles.stickyStackCard,
-                {
-                  backgroundColor: bgColor,
-                  zIndex,
-                  transform: [
-                    { rotate: rotateDeg },
-                    { translateX },
-                    { translateY }
-                  ]
-                }
-              ]}
-            >
-              {originalIdx === 0 && (
-                <View style={styles.stickyPanelTape} />
-              )}
-              <View style={styles.stickyPhotoInnerFrame}>
-                <Image
-                  source={{ uri }}
-                  style={styles.stickyStackImage}
-                  resizeMode="cover"
-                />
-              </View>
-              {originalIdx === 0 && (
-                <View style={styles.stickyBottomBar}>
-                  <Ionicons name="expand-outline" size={10} color={colors.textMuted} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                  <Text style={styles.stickyBottomText}>
-                    {isRtl ? 'معاينة' : 'VIEW'}
-                  </Text>
+      <View style={[styles.belowPaperStickySection, isRtl && { flexDirection: 'row-reverse' }]}>
+        <TouchableOpacity
+          style={styles.belowPaperStickyNoteWrapper}
+          onPress={() => setIsImageModalOpen(true)}
+          activeOpacity={0.92}
+        >
+          {cards.map(({ uri, originalIdx }) => {
+            let rotateDeg = '-2deg';
+            let translateX = 0;
+            let translateY = 0;
+            let zIndex = 3 - originalIdx;
+            
+            if (originalIdx === 0) {
+              rotateDeg = '-2deg';
+              translateX = 0;
+              translateY = 0;
+            } else if (originalIdx === 1) {
+              rotateDeg = '4deg';
+              translateX = 4;
+              translateY = 3;
+            } else if (originalIdx === 2) {
+              rotateDeg = '-5deg';
+              translateX = -4;
+              translateY = 6;
+            }
+            
+            const stickyColors = ['#FEFDF8', '#FFF9DB', '#EFF7EF'];
+            const bgColor = stickyColors[originalIdx % stickyColors.length];
+            
+            return (
+              <View
+                key={originalIdx}
+                style={[
+                  styles.stickyStackCard,
+                  {
+                    backgroundColor: bgColor,
+                    zIndex,
+                    transform: [
+                      { rotate: rotateDeg },
+                      { translateX },
+                      { translateY }
+                    ]
+                  }
+                ]}
+              >
+                {originalIdx === 0 && (
+                  <View style={styles.stickyPanelTape} />
+                )}
+                <View style={styles.stickyPhotoInnerFrame}>
+                  <Image
+                    source={{ uri }}
+                    style={styles.stickyStackImage}
+                    resizeMode="cover"
+                  />
                 </View>
-              )}
+                {originalIdx === 0 && (
+                  <View style={styles.stickyBottomBar}>
+                    <Ionicons name="expand-outline" size={10} color={colors.textMuted} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
+                    <Text style={styles.stickyBottomText}>
+                      {isRtl ? 'معاينة' : 'VIEW'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+          {pageImages.length > 1 && (
+            <View style={[styles.stickyStackBadge, isRtl ? { left: -4 } : { right: -4 }]}>
+              <Ionicons name="images" size={10} color={colors.white} />
+              <Text style={styles.stickyStackBadgeText}>
+                {pageImages.length}
+              </Text>
             </View>
-          );
-        })}
-        {pageImages.length > 1 && (
-          <View style={[styles.stickyStackBadge, isRtl ? { left: -4 } : { right: -4 }]}>
-            <Ionicons name="images" size={10} color={colors.white} />
-            <Text style={styles.stickyStackBadgeText}>
-              {pageImages.length}
+          )}
+        </TouchableOpacity>
+
+        {/* Attached Photo Details & Quick Add */}
+        <View style={[styles.belowPaperInfoCard, isRtl && { alignItems: 'flex-end' }]}>
+          <View style={[styles.belowPaperTitleRow, isRtl && { flexDirection: 'row-reverse' }]}>
+            <View style={styles.belowPaperPinDot} />
+            <Text style={styles.belowPaperTitle}>
+              {isRtl ? 'الصور المرفقة' : 'Attached Photos'}
             </Text>
+            <View style={styles.belowPaperCountPill}>
+              <Text style={styles.belowPaperCountPillText}>
+                {pageImages.length}/4
+              </Text>
+            </View>
           </View>
-        )}
-      </TouchableOpacity>
+          <Text style={[styles.belowPaperSubtitle, isRtl && { textAlign: 'right' }]}>
+            {isRtl 
+              ? 'ملاحظة لاصقة مرفقة بصفحة الملاحظات. اضغط للمعاينة.' 
+              : 'Sticky note attached below this page. Tap to view.'}
+          </Text>
+          {pageImages.length < 4 && (
+            <TouchableOpacity 
+              style={[styles.belowPaperAddBtn, isRtl && { flexDirection: 'row-reverse' }]}
+              onPress={handleAddImage}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle" size={14} color={colors.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+              <Text style={styles.belowPaperAddBtnText}>
+                {isRtl ? 'إضافة صورة' : 'Add photo'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
     );
   };
 
@@ -1784,9 +1814,6 @@ export default function GarageScreen({
                     {notePages[currentPage] || ' '}
                   </Text>
                 )}
-
-                {/* Sticky Note at the Bottom */}
-                {renderStickyStack({ bottom: 12 })}
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -2638,7 +2665,7 @@ export default function GarageScreen({
                                 paddingLeft: 14,
                                 paddingRight: 14,
                                 paddingTop: 52,
-                                paddingBottom: (noteImages[currentPage] || []).length > 0 ? 140 : 20,
+                                paddingBottom: 20,
                               }
                             ]}
                           >
@@ -2646,15 +2673,15 @@ export default function GarageScreen({
                           </Text>
                         </TouchableOpacity>
                       </ScrollView>
-
-                      {/* Sticky Note at the Bottom */}
-                      {renderStickyStack()}
                     </View>
 
                     {/* Character count */}
                     <Text style={[styles.notebookCharCount, isRtl && { textAlign: 'left' }]}>
                       {notePages[currentPage]?.length || 0} {selectedLanguage === 'Arabic' ? 'حرف' : 'chars'}
                     </Text>
+
+                    {/* Sticky Note Attached Below the Paper (0% overlap with text) */}
+                    {renderAttachedPhotosBelowPaper()}
                   </View>
                 )}
 
@@ -4795,12 +4822,81 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingTop: 52,
     minHeight: 180,
   },
-  notebookStickyStackBottom: {
-    position: 'absolute',
-    bottom: 16,
-    width: 108,
-    height: 122,
-    zIndex: 10,
+  belowPaperStickySection: {
+    marginTop: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgCardNested,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+    gap: 16,
+  },
+  belowPaperStickyNoteWrapper: {
+    width: 104,
+    height: 120,
+    position: 'relative',
+  },
+  belowPaperInfoCard: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  belowPaperTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 6,
+  },
+  belowPaperPinDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.bgBrand,
+  },
+  belowPaperTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  belowPaperCountPill: {
+    backgroundColor: colors.bgBrandLight,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+  },
+  belowPaperCountPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  belowPaperSubtitle: {
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  belowPaperAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  belowPaperAddBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.bgBrand,
   },
   stickyStackCard: {
     position: 'absolute',
