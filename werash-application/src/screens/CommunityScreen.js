@@ -710,35 +710,66 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               { useNativeDriver: true }
             )}
           >
-            {/* User Profile Summary Card (Inside scroll content so it collapses on scroll) */}
+            {/* User Profile Summary Card */}
             {showProfile && (
               <View style={styles.profileSummaryCard}>
-                <View style={[styles.profileSummaryHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                  {activeProfileUser.avatar ? (
-                    <Image source={activeProfileUser.avatar} style={styles.avatarLargeImage} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.avatarLarge}>
-                      <Ionicons name="person" size={24} color="#FFFFFF" />
-                    </View>
-                  )}
-                  <View style={[styles.profileSummaryDetails, isRtl && { marginRight: 12, marginLeft: 0, alignItems: 'flex-end' }]}>
-                    <Text style={[styles.profileSummaryName, isRtl && styles.arabicBoldText]}>{activeProfileUser.author}</Text>
-                    <Text style={styles.profileSummaryHandle}>{activeProfileUser.handle}</Text>
-                    <View style={[styles.carBadge, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <Ionicons name="car-outline" size={13} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
-                      <Text style={[styles.carText, isRtl && styles.arabicBoldText]}>
-                        {isRtl ? `السيارة: ${activeProfileUser.vehicle}` : `Active: ${activeProfileUser.vehicle}`}
-                      </Text>
-                    </View>
+                {/* Banner Wallpaper behind avatar */}
+                <View style={styles.profileBannerContainer}>
+                  <Image
+                    source={require('../../assets/Banner wallpaper.png')}
+                    style={styles.profileBannerImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.profileBannerOverlay} />
+                </View>
+
+                {/* Centered Profile Header Section (Overlapping the banner) */}
+                <View style={styles.profileHeaderCenter}>
+                  {/* Centered Avatar Wrapper */}
+                  <View style={styles.profileAvatarWrapper}>
+                    {activeProfileUser.avatar ? (
+                      <Image
+                        source={activeProfileUser.avatar}
+                        style={styles.profileAvatarCenteredImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.profileAvatarCenteredIcon}>
+                        <Ionicons name="person" size={40} color="#FFFFFF" />
+                      </View>
+                    )}
                   </View>
 
-                  {/* Add Friend Button or Self Badge */}
-                  <View style={[styles.profileActionArea, isRtl ? { marginRight: 'auto', marginLeft: 0 } : { marginLeft: 'auto' }]}>
+                  {/* Centered Name */}
+                  <Text style={[styles.profileSummaryName, isRtl && styles.arabicBoldText]}>
+                    {activeProfileUser.author}
+                  </Text>
+
+                  {/* Centered Handle */}
+                  <Text style={styles.profileSummaryHandle}>
+                    {activeProfileUser.handle}
+                  </Text>
+
+                  {/* Centered Active Vehicle Pill */}
+                  <View style={[styles.carBadge, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Ionicons 
+                      name="car-outline" 
+                      size={13} 
+                      color={COLORS.bgBrand} 
+                      style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
+                    />
+                    <Text style={[styles.carText, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? `السيارة: ${activeProfileUser.vehicle}` : `Active: ${activeProfileUser.vehicle}`}
+                    </Text>
+                  </View>
+
+                  {/* Centered Add Friend Button / Self Badge */}
+                  <View style={styles.profileActionAreaCenter}>
                     {isViewingSelf ? (
                       <View style={[styles.selfBadge, isRtl && { flexDirection: 'row-reverse' }]}>
-                        <Ionicons name="person-circle-outline" size={13} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                        <Ionicons name="person-circle-outline" size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
                         <Text style={[styles.selfBadgeText, isRtl && styles.arabicBoldText]}>
-                          {isRtl ? 'حسابك' : 'You'}
+                          {isRtl ? 'حسابك الشخصي' : 'Your Profile'}
                         </Text>
                       </View>
                     ) : (
@@ -760,7 +791,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                               ? 'time-outline' 
                               : 'person-add'
                           } 
-                          size={13} 
+                          size={14} 
                           color={friendStatus === 'requested' ? COLORS.bgBrand : '#F7F5F0'} 
                           style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
                         />
@@ -772,7 +803,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                           {friendStatus === 'friends'
                             ? (isRtl ? 'أصدقاء' : 'Friends')
                             : friendStatus === 'requested'
-                            ? (isRtl ? 'تم الإرسال' : 'Requested')
+                            ? (isRtl ? 'تم إرسال الطلب' : 'Request Sent')
                             : (isRtl ? 'إضافة صديق' : 'Add Friend')}
                         </Text>
                       </TouchableOpacity>
@@ -1994,16 +2025,72 @@ const createStyles = (colors) => StyleSheet.create({
   },
   profileSummaryCard: {
     backgroundColor: colors.bgBrandLight,
-    borderRadius: 16,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.borderGreen,
-    padding: 16,
+    overflow: 'hidden',
     marginBottom: 16,
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  profileBannerContainer: {
+    width: '100%',
+    height: 125,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#243C27',
+  },
+  profileBannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileBannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(20, 35, 22, 0.22)',
+  },
+  profileHeaderCenter: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: -44,
+    paddingBottom: 12,
+  },
+  profileAvatarWrapper: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.bgCreamy,
+    padding: 3.5,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 6,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarCenteredImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+  },
+  profileAvatarCenteredIcon: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileActionAreaCenter: {
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileSummaryHeader: {
     flexDirection: 'row',
@@ -2022,25 +2109,29 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 12,
   },
   profileSummaryName: {
-    fontSize: 14.5,
+    fontSize: 17,
     fontWeight: '800',
     color: colors.textDark,
+    textAlign: 'center',
   },
   profileSummaryHandle: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textMuted,
-    marginTop: 1,
+    textAlign: 'center',
+    marginTop: 2,
     fontWeight: '600',
   },
   carBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgBrandLight,
-    borderRadius: 8,
-    paddingHorizontal: 8,
+    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.75)' : colors.bgCreamy,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    borderRadius: 9,
+    paddingHorizontal: 10,
     paddingVertical: 4.5,
-    marginTop: 2,
-    alignSelf: 'flex-start',
+    marginTop: 7,
+    alignSelf: 'center',
   },
   carText: {
     fontSize: 10.5,
@@ -2051,10 +2142,11 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 14,
+    marginHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: colors.borderGreen,
     paddingTop: 10,
+    paddingBottom: 14,
   },
   statBox: {
     alignItems: 'center',
