@@ -401,6 +401,9 @@ function AppContent() {
                       services: v.services && typeof v.services === 'object' ? v.services : {},
                       logs: Array.isArray(v.logs) ? v.logs : [],
                       isServiceSetup: Boolean(v.is_service_setup),
+                      notes: Array.isArray(v.notes) ? v.notes.join('[PAGE]') : (typeof v.notes === 'string' ? v.notes : ''),
+                      noteDate: Array.isArray(v.note_dates) ? v.note_dates.join('[PAGE]') : (typeof v.note_dates === 'string' ? v.note_dates : ''),
+                      noteImages: Array.isArray(v.note_images) ? v.note_images : [],
                     }));
                     setUserVehicles(mapped);
                     const activeCar = dbVehicles.find(v => v.is_active) || mapped[0];
@@ -533,6 +536,9 @@ function AppContent() {
               services: v.services && typeof v.services === 'object' ? v.services : {},
               logs: Array.isArray(v.logs) ? v.logs : [],
               isServiceSetup: Boolean(v.is_service_setup),
+              notes: Array.isArray(v.notes) ? v.notes.join('[PAGE]') : (typeof v.notes === 'string' ? v.notes : ''),
+              noteDate: Array.isArray(v.note_dates) ? v.note_dates.join('[PAGE]') : (typeof v.note_dates === 'string' ? v.note_dates : ''),
+              noteImages: Array.isArray(v.note_images) ? v.note_images : [],
             }));
             setUserVehicles(mapped);
             const activeCar = dbVehicles.find(v => v.is_active) || mapped[0];

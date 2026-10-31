@@ -945,7 +945,7 @@ export default function GarageScreen({
     }
   };
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     if (!activeVehicle) return;
     const joined = notePages.join('[PAGE]');
     const joinedDates = noteDates.map(d => d === null ? '' : d).join('[PAGE]');
@@ -956,6 +956,18 @@ export default function GarageScreen({
     );
     setIsNotesSaved(true);
     notebookInputRef.current?.blur();
+
+    if (currentUser?.id && activeVehicle?.id) {
+      try {
+        await supabase.from('vehicles').update({
+          notes: notePages.filter(Boolean).length > 0 ? notePages : [''],
+          note_dates: noteDates,
+          note_images: noteImages,
+        }).eq('id', activeVehicle.id);
+      } catch (err) {
+        console.warn('Error saving notes to Supabase:', err);
+      }
+    }
   };
 
   const handleAddImage = async () => {
@@ -983,34 +995,90 @@ export default function GarageScreen({
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
-      quality: 0.85,
+      quality: 0.7,
       allowsMultipleSelection: false,
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
-      setNoteImages(prev => {
-        const updated = prev.map((imgArr, pageIdx) => {
-          if (pageIdx === currentPage) {
-            return [...(imgArr || []), result.assets[0].uri];
-          }
-          return imgArr;
-        });
-        return updated;
-      });
-      setIsNotesSaved(false);
-    }
-  };
+      let finalUri = result.assets[0].uri;
+      if (currentUser?.id && activeVehicle?.id) {
+        try {
+          const localUri = result.assets[0].uri;
+          const response = await fetch(localUri);
+          const blob = await response.blob();
+          const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+          const fileName = `${currentUser.id}/${activeVehicle.id}/p${currentPage}_${Date.now()}.${ext}`;
 
-  const handleRemoveImage = (idx) => {
-    setNoteImages(prev => {
-      const updated = prev.map((imgArr, pageIdx) => {
-        if (pageIdx === currentPage && Array.isArray(imgArr)) {
-          return imgArr.filter((_, i) => i !== idx);
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('vehicle-media')
+            .upload(fileName, blob, {
+              contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+              upsert: true,
+            });
+
+          if (!uploadErr && uploadData) {
+            const { data: publicData } = supabase.storage
+              .from('vehicle-media')
+              .getPublicUrl(fileName);
+
+            if (publicData?.publicUrl) {
+              finalUri = publicData.publicUrl;
+            }
+          } else if (uploadErr) {
+            console.warn('Supabase storage upload error:', uploadErr);
+          }
+        } catch (uploadErr) {
+          console.warn('Storage upload error:', uploadErr);
+        }
+      }
+
+      const updatedImages = noteImages.map((imgArr, pageIdx) => {
+        if (pageIdx === currentPage) {
+          return [...(imgArr || []), finalUri];
         }
         return imgArr;
       });
-      return updated;
+
+      setNoteImages(updatedImages);
+      setIsNotesSaved(false);
+
+      if (currentUser?.id && activeVehicle?.id) {
+        try {
+          await supabase.from('vehicles').update({
+            note_images: updatedImages,
+          }).eq('id', activeVehicle.id);
+        } catch (_) {}
+      }
+    }
+  };
+
+  const handleRemoveImage = async (idx) => {
+    const imageToDelete = noteImages[currentPage]?.[idx];
+    if (imageToDelete && imageToDelete.includes('/vehicle-media/')) {
+      try {
+        const filePath = imageToDelete.split('/vehicle-media/')[1];
+        if (filePath) {
+          await supabase.storage.from('vehicle-media').remove([decodeURIComponent(filePath)]);
+        }
+      } catch (_) {}
+    }
+
+    const updatedImages = noteImages.map((imgArr, pageIdx) => {
+      if (pageIdx === currentPage && Array.isArray(imgArr)) {
+        return imgArr.filter((_, i) => i !== idx);
+      }
+      return imgArr;
     });
+
+    setNoteImages(updatedImages);
     setIsNotesSaved(false);
+
+    if (currentUser?.id && activeVehicle?.id) {
+      try {
+        await supabase.from('vehicles').update({
+          note_images: updatedImages,
+        }).eq('id', activeVehicle.id);
+      } catch (_) {}
+    }
   };
 
   const handleSelectPartForEdit = (itemKey) => {
