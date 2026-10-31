@@ -1387,7 +1387,7 @@ export default function CommunityScreen({
               {
                 paddingTop: selectedFeed === 'profile' || showProfile
                   ? topInset + 120
-                  : ((selectedFeed === 'souq' || selectedFeed === 'marketplace') ? topInset + 175 : topInset + 230)
+                  : ((selectedFeed === 'souq' || selectedFeed === 'marketplace') ? topInset + 225 : topInset + 235)
               }
             ]}
             scrollEventThrottle={16}
@@ -1817,7 +1817,7 @@ export default function CommunityScreen({
                 top: topInset + 6,
                 height: selectedFeed === 'profile' || showProfile
                   ? 120
-                  : ((selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 175 : 225),
+                  : ((selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 220 : 230),
                 zIndex: 10,
               }
             ]}
