@@ -2447,28 +2447,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   </TouchableOpacity>
                 </View>
 
-                {/* Post Context Preview */}
-                {activeCommentsPost && (
-                  <View style={[styles.commentsPostPreview, isRtl && { flexDirection: 'row-reverse' }]}>
-                    {activeCommentsPost.avatarType === 'image' && activeCommentsPost.avatar ? (
-                      <Image source={activeCommentsPost.avatar} style={styles.commentsPostPreviewAvatar} />
-                    ) : (
-                      <View style={styles.commentsPostPreviewAvatarIcon}>
-                        <Ionicons name="person" size={13} color="#FFFFFF" />
-                      </View>
-                    )}
-                    <View style={[styles.commentsPostPreviewBody, isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
-                      <Text style={[styles.commentsPostPreviewAuthor, isRtl && styles.arabicBoldText]}>
-                        {activeCommentsPost.author}
-                      </Text>
-                      <Text style={styles.commentsPostPreviewText} numberOfLines={2}>
-                        {activeCommentsPost.content}
-                      </Text>
-                    </View>
-                  </View>
-                )}
 
-                <View style={styles.commentsDivider} />
 
                 {/* Comments List Scroll */}
                 <ScrollView 
@@ -2915,20 +2894,24 @@ const createStyles = (colors) => StyleSheet.create({
   /* Comments Bottom Sheet & Component Styles */
   commentsBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
   commentsSheetContainer: {
     width: '100%',
-    maxHeight: '80%',
-    minHeight: 380,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    maxHeight: '62%',
+    minHeight: 280,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.borderGreen,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 16,
   },
   commentsHandleBar: {
     width: 38,
