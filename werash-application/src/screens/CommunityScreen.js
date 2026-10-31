@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const mockMessages = [
   { id: 'msg1', user: 'Ahmed Yassin', lastMessage: 'Is the BMW part still available?', time: '10:42 AM', unread: 2, avatarType: 'icon' },
@@ -263,6 +264,21 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [statusText, setStatusText] = useState('');
   const [selectedFeed, setSelectedFeed] = useState('active'); // 'overall', 'active', 'marketplace'
   const [showProfile, setShowProfile] = useState(false);
+  const [selectedUserProfile, setSelectedUserProfile] = useState(null);
+  const [friendships, setFriendships] = useState({});
+
+  useEffect(() => {
+    AsyncStorage.getItem('@werash_community_friendships').then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            setFriendships(parsed);
+          }
+        } catch (_) {}
+      }
+    }).catch(() => {});
+  }, []);
   const [expandedPostId, setExpandedPostId] = useState(null);
   
   const [showListingPage, setShowListingPage] = useState(false);
@@ -382,6 +398,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
   const handleShowProfile = (val) => {
     setShowProfile(val);
+    if (!val) {
+      setSelectedUserProfile(null);
+    }
     setExpandedPostId(null);
     scrollY.setValue(0);
     if (scrollViewRef.current) {
@@ -391,6 +410,76 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         scrollViewRef.current.getNode().scrollTo({ y: 0, animated: false });
       }
     }
+  };
+
+  const handleOpenUserProfile = (authorData) => {
+    if (!authorData) return;
+    const authorName = authorData.author || authorData.fullName || authorData.name;
+    if (!authorName) return;
+
+    const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
+    const authorPosts = feedPosts.filter((p) => p.author === authorName);
+    const primaryVehicle = authorData.vehicle || authorPosts.find((p) => p.vehicle && p.vehicle !== 'General')?.vehicle || (authorName === currentAuthor ? 'Hyundai Coupe (2005)' : 'BMW E46');
+    const avatar = authorData.avatar || authorPosts.find((p) => p.avatar)?.avatar || null;
+    const avatarType = authorData.avatarType || (avatar ? 'image' : 'icon');
+    const handle = authorData.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`;
+
+    setSelectedUserProfile({
+      author: authorName,
+      handle,
+      avatar,
+      avatarType,
+      vehicle: primaryVehicle,
+      isSelf: authorName === currentAuthor,
+    });
+    setShowProfile(true);
+    setExpandedPostId(null);
+    scrollY.setValue(0);
+    if (scrollViewRef.current) {
+      if (typeof scrollViewRef.current.scrollTo === 'function') {
+        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      } else if (scrollViewRef.current.getNode && typeof scrollViewRef.current.getNode().scrollTo === 'function') {
+        scrollViewRef.current.getNode().scrollTo({ y: 0, animated: false });
+      }
+    }
+  };
+
+  const handleToggleFriend = async (targetAuthor) => {
+    const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
+    if (!targetAuthor || targetAuthor === currentAuthor) return;
+    const currentStatus = friendships[targetAuthor] || 'none';
+    let newStatus = 'none';
+    let alertMsg = '';
+    let alertTitle = '';
+
+    if (currentStatus === 'none') {
+      newStatus = 'requested';
+      alertTitle = isRtl ? 'طلب صداقة' : 'Friend Request Sent';
+      alertMsg = isRtl
+        ? `تم إرسال طلب صداقة إلى ${targetAuthor}.`
+        : `Friend request sent to ${targetAuthor}.`;
+    } else if (currentStatus === 'requested') {
+      newStatus = 'friends';
+      alertTitle = isRtl ? 'تمت إضافة الصديق' : 'Added to Friends';
+      alertMsg = isRtl
+        ? `أنت و ${targetAuthor} الآن أصدقاء على وِرَش!`
+        : `You and ${targetAuthor} are now friends on Werash!`;
+    } else {
+      newStatus = 'none';
+      alertTitle = isRtl ? 'إلغاء الصداقة' : 'Friend Removed';
+      alertMsg = isRtl
+        ? `تمت إزالة ${targetAuthor} من قائمة أصدقائك.`
+        : `Removed ${targetAuthor} from your friends list.`;
+    }
+
+    const updated = { ...friendships, [targetAuthor]: newStatus };
+    setFriendships(updated);
+    try {
+      await AsyncStorage.setItem('@werash_community_friendships', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Error saving friendships:', e);
+    }
+    Alert.alert(alertTitle, alertMsg);
   };
 
   const pickPostImage = async () => {
@@ -508,7 +597,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   // Filter posts based on view state
   const filteredPosts = feedPosts.filter((post) => {
     if (showProfile) {
-      return post.author === 'Guest User';
+      const targetAuthor = selectedUserProfile?.author || currentAuthorName;
+      return post.author === targetAuthor;
     }
     if (selectedFeed === 'messages') {
       return false;
@@ -530,11 +620,21 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     return post.vehicle === 'Hyundai Coupe' || post.vehicle === 'General' || post.author === 'Guest User';
   });
 
-  // Calculate user stats for profile card
+  // Calculate active user stats for profile card
   const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
-  const myPosts = feedPosts.filter(p => p.author === currentAuthorName);
-  const myPostsCount = myPosts.length;
-  const myTotalLikes = myPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
+  const activeProfileUser = selectedUserProfile || {
+    author: currentAuthorName,
+    handle: `@${currentAuthorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
+    avatar: null,
+    avatarType: 'icon',
+    vehicle: 'Hyundai Coupe (2005)',
+    isSelf: true,
+  };
+  const isViewingSelf = activeProfileUser.isSelf || activeProfileUser.author === currentAuthorName;
+  const targetUserPosts = feedPosts.filter(p => p.author === activeProfileUser.author);
+  const profilePostsCount = targetUserPosts.length;
+  const profileTotalLikes = targetUserPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
+  const friendStatus = friendships[activeProfileUser.author] || 'none';
   const expandedPost = feedPosts.find((p) => p.id === expandedPostId);
 
   const renderGradientOverlay = () => {
@@ -613,33 +713,112 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             {/* User Profile Summary Card (Inside scroll content so it collapses on scroll) */}
             {showProfile && (
               <View style={styles.profileSummaryCard}>
-                <View style={styles.profileSummaryHeader}>
-                  <View style={styles.avatarLarge}>
-                    <Ionicons name="person" size={24} color="#FFFFFF" />
+                <View style={[styles.profileSummaryHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  {activeProfileUser.avatar ? (
+                    <Image source={activeProfileUser.avatar} style={styles.avatarLargeImage} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.avatarLarge}>
+                      <Ionicons name="person" size={24} color="#FFFFFF" />
+                    </View>
+                  )}
+                  <View style={[styles.profileSummaryDetails, isRtl && { marginRight: 12, marginLeft: 0, alignItems: 'flex-end' }]}>
+                    <Text style={[styles.profileSummaryName, isRtl && styles.arabicBoldText]}>{activeProfileUser.author}</Text>
+                    <Text style={styles.profileSummaryHandle}>{activeProfileUser.handle}</Text>
+                    <View style={[styles.carBadge, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="car-outline" size={13} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+                      <Text style={[styles.carText, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? `السيارة: ${activeProfileUser.vehicle}` : `Active: ${activeProfileUser.vehicle}`}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.profileSummaryDetails}>
-                    <Text style={styles.profileSummaryName}>{currentAuthorName}</Text>
-                    <Text style={styles.profileSummaryHandle}>
-                      @{currentAuthorName.toLowerCase().replace(/\s+/g, '')}
-                    </Text>
+
+                  {/* Add Friend Button or Self Badge */}
+                  <View style={[styles.profileActionArea, isRtl ? { marginRight: 'auto', marginLeft: 0 } : { marginLeft: 'auto' }]}>
+                    {isViewingSelf ? (
+                      <View style={[styles.selfBadge, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="person-circle-outline" size={13} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                        <Text style={[styles.selfBadgeText, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'حسابك' : 'You'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        activeOpacity={0.82}
+                        style={[
+                          styles.addFriendBtn,
+                          friendStatus === 'requested' && styles.addFriendBtnRequested,
+                          friendStatus === 'friends' && styles.addFriendBtnFriends,
+                          isRtl && { flexDirection: 'row-reverse' }
+                        ]}
+                        onPress={() => handleToggleFriend(activeProfileUser.author)}
+                      >
+                        <Ionicons 
+                          name={
+                            friendStatus === 'friends' 
+                              ? 'checkmark-circle' 
+                              : friendStatus === 'requested' 
+                              ? 'time-outline' 
+                              : 'person-add'
+                          } 
+                          size={13} 
+                          color={friendStatus === 'requested' ? COLORS.bgBrand : '#F7F5F0'} 
+                          style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                        />
+                        <Text style={[
+                          styles.addFriendBtnText,
+                          friendStatus === 'requested' && styles.addFriendBtnTextRequested,
+                          isRtl && styles.arabicBoldText
+                        ]}>
+                          {friendStatus === 'friends'
+                            ? (isRtl ? 'أصدقاء' : 'Friends')
+                            : friendStatus === 'requested'
+                            ? (isRtl ? 'تم الإرسال' : 'Requested')
+                            : (isRtl ? 'إضافة صديق' : 'Add Friend')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                </View>
-                
-                <View style={styles.carBadge}>
-                  <Ionicons name="car-outline" size={14} color={COLORS.bgBrand} style={{ marginRight: 6 }} />
-                  <Text style={styles.carText}>Active: Hyundai Coupe (2005)</Text>
                 </View>
 
+                {/* Stats Row */}
                 <View style={styles.statsRow}>
                   <View style={styles.statBox}>
-                    <Text style={styles.statVal}>{myPostsCount}</Text>
-                    <Text style={styles.statLabel}>POSTS</Text>
+                    <Text style={styles.statVal}>{profilePostsCount}</Text>
+                    <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'منشورات' : 'POSTS'}
+                    </Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statBox}>
-                    <Text style={styles.statVal}>{myTotalLikes}</Text>
-                    <Text style={styles.statLabel}>LIKES RECEIVED</Text>
+                    <Text style={styles.statVal}>{profileTotalLikes}</Text>
+                    <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'إعجابات' : 'LIKES'}
+                    </Text>
                   </View>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statBox}>
+                    <Text style={styles.statVal}>
+                      {friendStatus === 'friends' ? 14 : 13}
+                    </Text>
+                    <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'أصدقاء' : 'FRIENDS'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Profile Feed Header Divider */}
+            {showProfile && filteredPosts.length > 0 && (
+              <View style={[styles.profileFeedHeaderRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <Ionicons name="newspaper-outline" size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+                  <Text style={[styles.profileFeedHeaderText, isRtl && styles.arabicBoldText]}>
+                    {isRtl ? `منشورات ${activeProfileUser.author}` : `Posts by ${activeProfileUser.author}`}
+                  </Text>
+                </View>
+                <View style={styles.profileFeedCountBadge}>
+                  <Text style={styles.profileFeedCountBadgeText}>{filteredPosts.length}</Text>
                 </View>
               </View>
             )}
@@ -683,8 +862,17 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       {/* Top Info Area */}
                       <View>
                         {/* Seller & Badge */}
-                        <View style={styles.marketGridAuthorRow}>
-                          <Text style={styles.marketGridAuthor} numberOfLines={1}>{post.author}</Text>
+                        <View style={[styles.marketGridAuthorRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={(e) => {
+                              if (e && e.stopPropagation) e.stopPropagation();
+                              handleOpenUserProfile(post);
+                            }}
+                            style={{ flexShrink: 1, marginRight: isRtl ? 0 : 6, marginLeft: isRtl ? 6 : 0 }}
+                          >
+                            <Text style={[styles.marketGridAuthor, isRtl && styles.arabicBoldText]} numberOfLines={1}>{post.author}</Text>
+                          </TouchableOpacity>
                           <View style={styles.marketGridBadge}>
                             <Text style={styles.marketGridBadgeText}>FOR SALE</Text>
                           </View>
@@ -721,18 +909,22 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
 
                   {/* Author Info */}
-                  <View style={styles.authorRow}>
-                    <View style={styles.authorLeft}>
-                      {post.avatarType === 'image' ? (
+                  <View style={[styles.authorRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <TouchableOpacity 
+                      style={[styles.authorLeft, isRtl && { flexDirection: 'row-reverse' }]}
+                      activeOpacity={0.7}
+                      onPress={() => handleOpenUserProfile(post)}
+                    >
+                      {post.avatarType === 'image' && post.avatar ? (
                         <Image source={post.avatar} style={styles.avatarImage} />
                       ) : (
                         <View style={styles.avatarIcon}>
                           <Ionicons name="person" size={16} color="#FFFFFF" />
                         </View>
                       )}
-                      <View style={styles.authorDetails}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={styles.authorName}>{post.author}</Text>
+                      <View style={[styles.authorDetails, isRtl ? { marginRight: 10, marginLeft: 0, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
+                        <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Text style={[styles.authorName, isRtl && styles.arabicBoldText]}>{post.author}</Text>
                           {post.isMarketplace && (
                             <View style={styles.saleBadge}>
                               <Text style={styles.saleBadgeText}>FOR SALE</Text>
@@ -744,7 +936,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                           {post.location && ` • 📍 ${post.location}`}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                     {post.isMarketplace ? (
                       <View style={styles.priceContainer}>
                         <Text style={styles.priceText}>{post.price}</Text>
@@ -831,8 +1023,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 activeOpacity={0.7}
                 hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
               >
-                <Ionicons name="arrow-back-outline" size={13} color={COLORS.bgBrand} style={{ marginRight: 4 }} />
-                <Text style={styles.backButtonText}>Back to Feed</Text>
+                <Ionicons name={isRtl ? "arrow-forward-outline" : "arrow-back-outline"} size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                <Text style={[styles.backButtonText, isRtl && styles.arabicBoldText]}>{isRtl ? 'العودة للمجتمع' : 'Back to Feed'}</Text>
               </TouchableOpacity>
             ) : (
               // Feed Mode Header
@@ -932,7 +1124,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 >
                   <TouchableOpacity 
                     activeOpacity={0.8}
-                    onPress={() => handleShowProfile(true)}
+                    onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
                     style={styles.stickyProfileAvatar}
                   >
                     <Ionicons name="person" size={18} color="#FFFFFF" />
@@ -1031,7 +1223,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       <View style={[styles.composerRow, isRtl && { flexDirection: 'row-reverse' }]}>
                         <TouchableOpacity 
                           activeOpacity={0.8}
-                          onPress={() => handleShowProfile(true)}
+                          onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
                           style={styles.composerAvatar}
                         >
                           <Ionicons name="person" size={18} color="#FFFFFF" />
@@ -1272,18 +1464,35 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     {/* Content Area */}
                     <View style={styles.expandedDetails}>
                       {/* Seller Info */}
-                      <View style={styles.expandedSellerHeader}>
-                        <View style={styles.avatarLarge}>
-                          <Ionicons name="person" size={24} color="#FFFFFF" />
-                        </View>
-                        <View style={{ marginLeft: 12 }}>
-                          <Text style={styles.expandedSellerName}>{expandedPost.author}</Text>
+                      <TouchableOpacity 
+                        style={[styles.expandedSellerHeader, isRtl && { flexDirection: 'row-reverse' }]}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setExpandedPostId(null);
+                          handleOpenUserProfile(expandedPost);
+                        }}
+                      >
+                        {expandedPost.avatarType === 'image' && expandedPost.avatar ? (
+                          <Image source={expandedPost.avatar} style={styles.avatarLargeImage} resizeMode="cover" />
+                        ) : (
+                          <View style={styles.avatarLarge}>
+                            <Ionicons name="person" size={24} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View style={[isRtl ? { marginRight: 12, alignItems: 'flex-end' } : { marginLeft: 12 }]}>
+                          <Text style={[styles.expandedSellerName, isRtl && styles.arabicBoldText]}>{expandedPost.author}</Text>
                           <Text style={styles.expandedSellerHandle}>
                             {expandedPost.handle} • {expandedPost.time}
                             {expandedPost.location && ` • 📍 ${expandedPost.location}`}
                           </Text>
                         </View>
-                      </View>
+                        <Ionicons 
+                          name={isRtl ? "chevron-back" : "chevron-forward"} 
+                          size={18} 
+                          color={COLORS.textMuted} 
+                          style={isRtl ? { marginRight: 'auto' } : { marginLeft: 'auto' }} 
+                        />
+                      </TouchableOpacity>
 
                       {/* Description */}
                       <Text style={styles.expandedPostDescription}>
@@ -1693,6 +1902,95 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 187,
     paddingHorizontal: 20,
     paddingBottom: 110,
+  },
+  arabicBoldText: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  avatarLargeImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: colors.borderGreen,
+  },
+  profileActionArea: {
+    marginLeft: 'auto',
+    justifyContent: 'center',
+  },
+  selfBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  selfBadgeText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  addFriendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgBrand,
+    paddingHorizontal: 11,
+    paddingVertical: 6.5,
+    borderRadius: 11,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addFriendBtnRequested: {
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  addFriendBtnFriends: {
+    backgroundColor: '#2A4E2E',
+  },
+  addFriendBtnText: {
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: '#F7F5F0',
+  },
+  addFriendBtnTextRequested: {
+    color: colors.bgBrand,
+  },
+  profileFeedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  profileFeedHeaderText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  profileFeedCountBadge: {
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  profileFeedCountBadgeText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
   },
   profileSummaryCard: {
     backgroundColor: colors.bgBrandLight,
