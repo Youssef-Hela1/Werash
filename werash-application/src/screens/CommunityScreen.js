@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
@@ -645,6 +645,109 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const micScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Fresh refs to prevent stale closures in PanResponder
+  // Hydrate all stored DM messages so keyword search covers all chat histories
+  useEffect(() => {
+    const loadStoredDms = async () => {
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const dmKeys = keys.filter(k => k.startsWith('@werash_dm_'));
+        if (dmKeys.length > 0) {
+          const pairs = await AsyncStorage.multiGet(dmKeys);
+          const historyMap = {};
+          pairs.forEach(([key, val]) => {
+            if (val) {
+              const author = key.replace('@werash_dm_', '');
+              try {
+                historyMap[author] = JSON.parse(val);
+              } catch (_) {}
+            }
+          });
+          setDmHistory(prev => ({ ...historyMap, ...prev }));
+        }
+      } catch (_) {}
+    };
+    loadStoredDms();
+  }, [showMessagesPage]);
+
+  // Comprehensive conversation search across usernames, handles, and all chat message contents
+  const filteredConversations = useMemo(() => {
+    const q = inboxSearch.toLowerCase().trim();
+    if (!q) {
+      return inboxConversations;
+    }
+
+    // Combine inboxConversations with all users in dmHistory
+    const allConversationsMap = new Map();
+    inboxConversations.forEach(c => allConversationsMap.set(c.user, { ...c }));
+
+    Object.keys(dmHistory).forEach(author => {
+      if (!allConversationsMap.has(author)) {
+        const msgs = dmHistory[author] || [];
+        const lastMsg = msgs[msgs.length - 1];
+        allConversationsMap.set(author, {
+          id: 'conv_' + author,
+          user: author,
+          handle: '@' + author.toLowerCase().replace(/\s+/g, ''),
+          avatar: null,
+          avatarType: 'icon',
+          lastMessage: lastMsg ? (lastMsg.text || (lastMsg.mediaType ? `[${lastMsg.mediaType}]` : '')) : '',
+          time: lastMsg?.time || 'Recent',
+          unread: 0,
+        });
+      }
+    });
+
+    const results = [];
+    allConversationsMap.forEach(conv => {
+      const userMatch = conv.user.toLowerCase().includes(q);
+      const handleMatch = conv.handle && conv.handle.toLowerCase().includes(q);
+      const lastMsgMatch = conv.lastMessage && conv.lastMessage.toLowerCase().includes(q);
+
+      // Search all messages in this conversation
+      const chatMessages = dmHistory[conv.user] || getDefaultDmMessages(conv.user);
+      const matchedChatMsg = chatMessages.slice().reverse().find(m => {
+        const en = (m.text || '').toLowerCase();
+        const ar = (m.textAr || '').toLowerCase();
+        if (en.includes(q) || ar.includes(q)) return true;
+        if (m.mediaType === 'audio' && (q.includes('voice') || q.includes('صوت') || q.includes('تسجيل') || q.includes('audio') || q.includes('mic'))) return true;
+        if (m.mediaType === 'video' && (q.includes('video') || q.includes('فيديو') || q.includes('تسجيل'))) return true;
+        if (m.mediaType === 'image' && (q.includes('image') || q.includes('photo') || q.includes('صورة'))) return true;
+        return false;
+      });
+
+      if (userMatch || handleMatch || lastMsgMatch || matchedChatMsg) {
+        let snippet = conv.lastMessage;
+        let matchReason = null;
+
+        if (matchedChatMsg) {
+          const matchedText = isRtl
+            ? (matchedChatMsg.textAr || matchedChatMsg.text)
+            : (matchedChatMsg.text || matchedChatMsg.textAr);
+
+          if (matchedText) {
+            snippet = matchedText;
+          } else if (matchedChatMsg.mediaType === 'audio') {
+            snippet = isRtl ? '🎤 تسجيل صوتي' : '🎤 Voice message';
+          } else if (matchedChatMsg.mediaType === 'video') {
+            snippet = isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording';
+          } else if (matchedChatMsg.mediaType === 'image') {
+            snippet = isRtl ? '📷 صورة' : '📷 Image';
+          }
+          matchReason = isRtl ? 'رسالة مطابقة' : 'Matched message';
+        }
+
+        results.push({
+          ...conv,
+          displaySnippet: snippet,
+          matchReason: !userMatch && !handleMatch ? matchReason : null,
+          matchedSender: matchedChatMsg?.sender === 'user' ? (isRtl ? 'أنت' : 'You') : null,
+        });
+      }
+    });
+
+    return results;
+  }, [inboxSearch, inboxConversations, dmHistory, isRtl]);
+
   const directMessageUserRef = useRef(directMessageUser);
   directMessageUserRef.current = directMessageUser;
   const dmHistoryRef = useRef(dmHistory);
@@ -3388,9 +3491,41 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   </View>
 
                   <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
-                    {inboxConversations
-                      .filter(c => !inboxSearch.trim() || c.user.toLowerCase().includes(inboxSearch.toLowerCase().trim()))
-                      .map(msg => (
+                    {Boolean(inboxSearch.trim()) && (
+                      <View style={[styles.inboxSearchStatusRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <Text style={[styles.inboxSearchStatusText, isRtl && styles.arabicRegularText]}>
+                          {isRtl
+                            ? `${filteredConversations.length} محادثة مطابقة`
+                            : `${filteredConversations.length} conversation${filteredConversations.length === 1 ? '' : 's'} found`}
+                        </Text>
+                      </View>
+                    )}
+
+                    {filteredConversations.length === 0 ? (
+                      <View style={styles.inboxEmptyContainer}>
+                        <View style={styles.inboxEmptyIconBox}>
+                          <Ionicons name="search" size={28} color={COLORS.bgBrand} />
+                        </View>
+                        <Text style={[styles.inboxEmptyTitle, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'لم يتم العثور على رسائل' : 'No messages or chats found'}
+                        </Text>
+                        <Text style={[styles.inboxEmptySubtitle, isRtl && styles.arabicRegularText]}>
+                          {isRtl
+                            ? `لا توجد محادثات أو رسائل تطابق "${inboxSearch}"`
+                            : `No conversations or messages matching "${inboxSearch}"`}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.inboxClearSearchBtn}
+                          onPress={() => setInboxSearch('')}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.inboxClearSearchBtnText, isRtl && styles.arabicBoldText]}>
+                            {isRtl ? 'مسح البحث' : 'Clear Search'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      filteredConversations.map(msg => (
                         <TouchableOpacity 
                           key={msg.id} 
                           style={[styles.messageRow, isRtl && { flexDirection: 'row-reverse' }]} 
@@ -3416,8 +3551,19 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                               <Text style={[styles.messageUser, isRtl && styles.arabicBoldText]}>{msg.user}</Text>
                               <Text style={styles.messageTime}>{msg.time}</Text>
                             </View>
+
+                            {/* Matched message indicator tag */}
+                            {Boolean(msg.matchReason) && (
+                              <View style={[styles.inboxMatchedTag, isRtl && { alignSelf: 'flex-end' }]}>
+                                <Ionicons name="chatbubble-ellipses-outline" size={11} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
+                                <Text style={[styles.inboxMatchedTagText, isRtl && styles.arabicRegularText]}>
+                                  {msg.matchedSender ? `${msg.matchedSender}: ` : ''}{msg.matchReason}
+                                </Text>
+                              </View>
+                            )}
+
                             <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread, isRtl && { textAlign: 'right' }]} numberOfLines={1}>
-                              {msg.lastMessage}
+                              {msg.displaySnippet || msg.lastMessage}
                             </Text>
                           </View>
                           {msg.unread > 0 && (
@@ -3426,7 +3572,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                             </View>
                           )}
                         </TouchableOpacity>
-                      ))}
+                      ))
+                    )}
                   </ScrollView>
                 </View>
               )}
@@ -5363,6 +5510,75 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.bgCreamy,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGreen,
+  },
+  inboxSearchStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  inboxSearchStatusText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    color: colors.textMuted,
+  },
+  inboxMatchedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(55, 99, 59, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 3,
+  },
+  inboxMatchedTagText: {
+    fontSize: 10,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.bgBrand,
+  },
+  inboxEmptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 45,
+    paddingHorizontal: 24,
+  },
+  inboxEmptyIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.bgBrandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  inboxEmptyTitle: {
+    fontSize: 15.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.textDark,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  inboxEmptySubtitle: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  inboxClearSearchBtn: {
+    backgroundColor: colors.bgBrand,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  inboxClearSearchBtnText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#FFFFFF',
   },
   inboxSearchBar: {
     flexDirection: 'row',
