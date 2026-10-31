@@ -552,6 +552,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
   const isCommentsExpandedRef = useRef(false);
   const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
+  const commentsSlideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (activeCommentsPost) {
@@ -1067,8 +1068,17 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const handleOpenComments = (post) => {
     // Find the latest version of post from feedPosts to ensure commentsList is fresh
     const freshPost = feedPosts.find(p => p.id === post.id) || post;
+    commentsSlideAnim.setValue(500);
+    isCommentsExpandedRef.current = false;
+    commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
     setActiveCommentsPost(freshPost);
     setCommentInputText('');
+    Animated.spring(commentsSlideAnim, {
+      toValue: 0,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 50,
+    }).start();
   };
 
   const handleSubmitComment = () => {
@@ -2495,7 +2505,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
           {/* Interactive Comments Modal / Bottom Sheet */}
           <Modal
             visible={Boolean(activeCommentsPost)}
-            animationType="slide"
+            animationType="none"
             transparent={true}
             statusBarTranslucent={true}
             onRequestClose={() => setActiveCommentsPost(null)}
@@ -2513,7 +2523,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               <Animated.View 
                 style={[
                   styles.commentsSheetContainer, 
-                  { backgroundColor: COLORS.bgCreamy, height: commentsHeightAnim }
+                  { 
+                    backgroundColor: COLORS.bgCreamy, 
+                    height: commentsHeightAnim,
+                    transform: [{ translateY: commentsSlideAnim }]
+                  }
                 ]}
               >
                 {/* Draggable Handle Bar Area */}
