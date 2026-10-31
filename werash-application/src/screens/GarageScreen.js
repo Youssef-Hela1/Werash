@@ -1059,9 +1059,15 @@ export default function GarageScreen({
     });
 
     setUserVehicles(updatedVehicles);
-    if (currentUser?.id && activeVehicleId) {
+    const activeCarUpdated = updatedVehicles.find(c => c.id === activeVehicleId);
+    if (currentUser?.id && activeVehicleId && activeCarUpdated) {
       try {
-        await supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId);
+        await supabase.from('vehicles').update({
+          odometer: odoVal,
+          services: activeCarUpdated.services || {},
+          logs: activeCarUpdated.logs || [],
+          is_service_setup: true,
+        }).eq('id', activeVehicleId);
       } catch (_) {}
     }
     setTempOdometer(odoVal.toLocaleString('en-US'));
@@ -1163,9 +1169,15 @@ export default function GarageScreen({
     });
 
     setUserVehicles(updatedVehicles);
-    if (currentUser?.id && activeVehicleId) {
+    const activeCarUpdated = updatedVehicles.find(c => c.id === activeVehicleId);
+    if (currentUser?.id && activeVehicleId && activeCarUpdated) {
       try {
-        await supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId);
+        await supabase.from('vehicles').update({
+          odometer: odoVal,
+          services: activeCarUpdated.services || {},
+          logs: activeCarUpdated.logs || [],
+          is_service_setup: true,
+        }).eq('id', activeVehicleId);
       } catch (_) {}
     }
     setIsEditingStatus(false);
@@ -1247,6 +1259,9 @@ export default function GarageScreen({
             is_manual: isManualCar,
             odometer: odoVal,
             is_active: userVehicles.length === 0,
+            services: defaultCarServices,
+            logs: [],
+            is_service_setup: false,
           })
           .select()
           .single();
@@ -1418,7 +1433,10 @@ export default function GarageScreen({
               setUserVehicles(updated);
               if (currentUser?.id && activeVehicleId) {
                 try {
-                  await supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId);
+                  await supabase.from('vehicles').update({
+                    odometer: odoVal,
+                    is_service_setup: true,
+                  }).eq('id', activeVehicleId);
                 } catch (_) {}
               }
               setIsOdoSetupStep(false);

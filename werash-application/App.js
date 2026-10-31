@@ -398,8 +398,9 @@ function AppContent() {
                       is4WD: false,
                       hasHydraulicPS: false,
                       hasTimingBelt: false,
-                      services: {},
-                      logs: [],
+                      services: v.services && typeof v.services === 'object' ? v.services : {},
+                      logs: Array.isArray(v.logs) ? v.logs : [],
+                      isServiceSetup: Boolean(v.is_service_setup),
                     }));
                     setUserVehicles(mapped);
                     const activeCar = dbVehicles.find(v => v.is_active) || mapped[0];
@@ -529,8 +530,9 @@ function AppContent() {
               is4WD: false,
               hasHydraulicPS: false,
               hasTimingBelt: false,
-              services: {},
-              logs: [],
+              services: v.services && typeof v.services === 'object' ? v.services : {},
+              logs: Array.isArray(v.logs) ? v.logs : [],
+              isServiceSetup: Boolean(v.is_service_setup),
             }));
             setUserVehicles(mapped);
             const activeCar = dbVehicles.find(v => v.is_active) || mapped[0];
