@@ -56,7 +56,7 @@ export default function CommunityScreen({
   };
   const [feedPosts, setFeedPosts] = useState(initialPosts);
   const [statusText, setStatusText] = useState('');
-  const [selectedFeed, setSelectedFeed] = useState('active'); // 'overall', 'active', 'marketplace'
+  const [selectedFeed, setSelectedFeed] = useState('feed'); // 'feed', 'profile', 'souq'
   const [showProfile, setShowProfile] = useState(false);
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
   const [directMessageUser, setDirectMessageUser] = useState(null);
@@ -396,23 +396,8 @@ export default function CommunityScreen({
     }
   }, [selectedFeed]);
 
-  // In profile mode: header collapses on scroll by translating the whole header.
-  // In feed mode: the collapsible header container stays static, and its children animate/compress.
-  const headerTranslateY = showProfile
-    ? scrollY.interpolate({
-        inputRange: [0, 55],
-        outputRange: [0, -55],
-        extrapolate: 'clamp',
-      })
-    : new Animated.Value(0);
-
-  const headerOpacity = showProfile
-    ? scrollY.interpolate({
-        inputRange: [0, 35],
-        outputRange: [1, 0],
-        extrapolate: 'clamp',
-      })
-    : new Animated.Value(1);
+  const headerTranslateY = new Animated.Value(0);
+  const headerOpacity = new Animated.Value(1);
 
   const [isSticky, setIsSticky] = useState(false);
 
@@ -477,6 +462,9 @@ export default function CommunityScreen({
     setShowProfile(val);
     if (!val) {
       setSelectedUserProfile(null);
+      setSelectedFeed('feed');
+    } else {
+      setSelectedFeed('profile');
     }
     setExpandedPostId(null);
     scrollY.setValue(0);
@@ -509,6 +497,7 @@ export default function CommunityScreen({
       vehicle: primaryVehicle,
       isSelf: authorName === currentAuthor,
     });
+    setSelectedFeed('profile');
     setShowProfile(true);
     setExpandedPostId(null);
     scrollY.setValue(0);
@@ -1010,9 +999,9 @@ export default function CommunityScreen({
       liked: false,
       postImage: selectedImage,
       vehicle: currentVehicle,
-      isMarketplace: selectedFeed === 'marketplace',
-      price: selectedFeed === 'marketplace' ? 'Ask Price' : null,
-      location: selectedFeed === 'marketplace' ? 'Cairo' : null,
+      isMarketplace: selectedFeed === 'souq' || selectedFeed === 'marketplace',
+      price: (selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 'Ask Price' : null,
+      location: (selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 'Cairo' : null,
     };
     setFeedPosts([newPost, ...feedPosts]);
     setStatusText('');
@@ -1293,7 +1282,7 @@ export default function CommunityScreen({
     if (selectedFeed === 'messages') {
       return false;
     }
-    if (selectedFeed === 'marketplace') {
+    if (selectedFeed === 'souq' || selectedFeed === 'marketplace') {
       const isMarket = post.isMarketplace === true;
       if (!isMarket) return false;
       if (!marketSearch.trim()) return true;
@@ -1303,14 +1292,14 @@ export default function CommunityScreen({
       const locationMatches = post.location && post.location.toLowerCase().includes(query);
       return titleMatches || authorMatches || locationMatches;
     }
-    // Exclude marketplace items from standard feeds
-    if (post.isMarketplace) return false;
-    
-    if (selectedFeed === 'overall') return true;
-    if (selectedFeed === 'active') {
-      if (!currentCarName) return true;
-      return post.vehicle === currentCarName || post.vehicle === 'General' || post.author === currentAuthorName;
+
+    if (selectedFeed === 'profile' || showProfile) {
+      const targetAuthor = selectedUserProfile?.author || currentAuthorName;
+      return post.author === targetAuthor;
     }
+
+    // Default: 'feed' / 'overall'
+    if (post.isMarketplace) return false;
     return true;
   });
 
@@ -1395,7 +1384,11 @@ export default function CommunityScreen({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: showProfile ? topInset + 55 : topInset + 230 }
+              {
+                paddingTop: selectedFeed === 'profile' || showProfile
+                  ? topInset + 120
+                  : ((selectedFeed === 'souq' || selectedFeed === 'marketplace') ? topInset + 175 : topInset + 230)
+              }
             ]}
             scrollEventThrottle={16}
             onScroll={Animated.event(
@@ -1404,8 +1397,21 @@ export default function CommunityScreen({
             )}
           >
             {/* User Profile Summary Card */}
-            {showProfile && (
-              <View style={styles.profileSummaryCard}>
+            {(selectedFeed === 'profile' || showProfile) && (
+              <>
+                {selectedUserProfile && !selectedUserProfile.isSelf && (
+                  <TouchableOpacity 
+                    onPress={() => setSelectedUserProfile(null)} 
+                    style={[styles.backButton, { alignSelf: 'flex-start', marginBottom: 12, marginLeft: 16 }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={isRtl ? "arrow-forward-outline" : "arrow-back-outline"} size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                    <Text style={[styles.backButtonText, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'العودة لملفي' : 'Back to My Profile'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <View style={styles.profileSummaryCard}>
                 {/* Banner Wallpaper behind avatar */}
                 <View style={styles.profileBannerContainer}>
                   <Image
@@ -1492,10 +1498,11 @@ export default function CommunityScreen({
                   </View>
                 </View>
               </View>
-            )}
+            </>
+          )}
 
             {/* Profile Feed Header Divider */}
-            {showProfile && filteredPosts.length > 0 && (
+            {(selectedFeed === 'profile' || showProfile) && filteredPosts.length > 0 && (
               <View style={[styles.profileFeedHeaderRow, isRtl && { flexDirection: 'row-reverse' }]}>
                 <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
                   <Ionicons name="newspaper-outline" size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
@@ -1604,14 +1611,20 @@ export default function CommunityScreen({
               <View style={styles.emptyState}>
                 <Ionicons name="chatbubble-ellipses-outline" size={36} color="rgba(77, 110, 79, 0.18)" style={{ marginBottom: 10 }} />
                 <Text style={[styles.emptyText, isRtl && styles.arabicRegularText]}>
-                  {showProfile 
+                  {selectedFeed === 'profile' || showProfile
                     ? (isRtl ? 'لم تنشر أي شيء بعد. شارك أول منشور لك في المجتمع!' : "You haven't posted anything yet. Share your first status update on the feed!")
-                    : (isRtl ? 'لا توجد منشورات في هذا القسم حالياً.' : 'No posts found in this feed.')}
+                    : (selectedFeed === 'souq' || selectedFeed === 'marketplace')
+                      ? (isRtl ? 'لا توجد قطع معروضة في السوق حالياً.' : 'No listings found in Souq.')
+                      : (isRtl ? 'لا توجد منشورات في الموجز حالياً.' : 'No posts found in this feed.')}
                 </Text>
-                {showProfile && (
+                {(selectedFeed === 'profile' || showProfile) && (
                   <TouchableOpacity 
                     style={styles.emptyButton} 
-                    onPress={() => handleShowProfile(false)}
+                    onPress={() => {
+                      setSelectedFeed('feed');
+                      setShowProfile(false);
+                      setSelectedUserProfile(null);
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.emptyButtonText, isRtl && styles.arabicBoldText]}>
@@ -1620,7 +1633,7 @@ export default function CommunityScreen({
                   </TouchableOpacity>
                 )}
               </View>
-            ) : selectedFeed === 'marketplace' && !showProfile ? (
+            ) : (selectedFeed === 'souq' || selectedFeed === 'marketplace') && !showProfile ? (
               // 2x2 Grid Layout for Marketplace (structured like Mechanics Screen)
               <View style={styles.gridContainer}>
                 {filteredPosts.map((post) => (
@@ -1802,343 +1815,370 @@ export default function CommunityScreen({
               styles.collapsibleHeader,
               {
                 top: topInset + 6,
-                height: showProfile ? 55 : 220,
-                opacity: headerOpacity,
-                transform: [{ translateY: headerTranslateY }],
-                justifyContent: showProfile ? 'center' : 'flex-start',
+                height: selectedFeed === 'profile' || showProfile
+                  ? 120
+                  : ((selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 175 : 225),
                 zIndex: 10,
               }
             ]}
           >
-            {showProfile ? (
-              // Profile Mode Header
-              <TouchableOpacity 
-                onPress={() => handleShowProfile(false)} 
-                style={styles.backButton}
-                activeOpacity={0.7}
-                hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+            <View style={{ position: 'relative', width: '100%' }} pointerEvents="box-none">
+              {/* Expanded Header Content: Search + Selections + Fixed Post Section */}
+              <Animated.View
+                style={[
+                  styles.expandedHeaderWrapper,
+                  {
+                    opacity: originalSelectorOpacity,
+                    transform: [{ translateY: titleTranslateY }],
+                    backgroundColor: COLORS.bgCreamy,
+                  }
+                ]}
+                pointerEvents={isSticky ? 'none' : 'auto'}
               >
-                <Ionicons name={isRtl ? "arrow-forward-outline" : "arrow-back-outline"} size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
-                <Text style={[styles.backButtonText, isRtl && styles.arabicBoldText]}>{isRtl ? 'العودة للمجتمع' : 'Back to Feed'}</Text>
-              </TouchableOpacity>
-            ) : (
-              // Feed Mode Header
-              <View style={{ position: 'relative', width: '100%' }} pointerEvents="box-none">
-                {/* Expanded Header Content: Search + Selections + Fixed Post Section */}
-                <Animated.View
-                  style={[
-                    styles.expandedHeaderWrapper,
-                    {
-                      opacity: originalSelectorOpacity,
-                      transform: [{ translateY: titleTranslateY }],
-                      backgroundColor: COLORS.bgCreamy,
-                    }
-                  ]}
-                  pointerEvents={isSticky ? 'none' : 'auto'}
-                >
-                  {/* Top Search Bar & Messages Row */}
-                  <View style={[styles.topSearchHeaderRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <View style={[styles.communitySearchBar, isRtl ? { marginLeft: 10 } : { marginRight: 10 }, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-                      <TextInput
-                        style={[styles.communitySearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                        placeholder={isRtl ? "ابحث عن أشخاص أو منشورات..." : "Search people or posts..."}
-                        placeholderTextColor="#A0A0A0"
-                        value={communitySearch}
-                        onChangeText={setCommunitySearch}
-                        returnKeyType="search"
-                      />
-                      {Boolean(communitySearch) && (
-                        <TouchableOpacity onPress={() => setCommunitySearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                {/* Top Search Bar & Messages Row */}
+                <View style={[styles.topSearchHeaderRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <View style={[styles.communitySearchBar, isRtl ? { marginLeft: 10 } : { marginRight: 10 }, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                    <TextInput
+                      style={[styles.communitySearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                      placeholder={isRtl ? "ابحث عن أشخاص أو منشورات..." : "Search people or posts..."}
+                      placeholderTextColor="#A0A0A0"
+                      value={communitySearch}
+                      onChangeText={setCommunitySearch}
+                      returnKeyType="search"
+                    />
+                    {Boolean(communitySearch) && (
+                      <TouchableOpacity onPress={() => setCommunitySearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Messages Icon */}
+                  <TouchableOpacity 
+                    activeOpacity={0.8}
+                    onPress={() => setShowMessagesPage(true)}
+                    style={styles.messagesHeaderIcon}
+                  >
+                    <Ionicons name="chatbox-ellipses-outline" size={22} color={COLORS.bgBrand} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Feed Segmented Selector Row (Feed, Profile, Souq) */}
+                <View style={[styles.selectorContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+                  {/* Feed */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedFeed('feed');
+                      setShowProfile(false);
+                      setSelectedUserProfile(null);
+                      setExpandedPostId(null);
+                      setMarketSearch('');
+                    }}
+                    style={[styles.selectorTab, (selectedFeed === 'feed' || selectedFeed === 'overall') && styles.selectorTabActive]}
+                  >
+                    <Ionicons 
+                      name={(selectedFeed === 'feed' || selectedFeed === 'overall') ? 'chatbubbles' : 'chatbubbles-outline'} 
+                      size={15} 
+                      color={(selectedFeed === 'feed' || selectedFeed === 'overall') ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                      style={{ marginBottom: 3 }}
+                    />
+                    <Text style={[
+                      styles.selectorText,
+                      (selectedFeed === 'feed' || selectedFeed === 'overall') ? styles.selectorTextSelected : styles.selectorTextUnselected,
+                      isRtl && styles.arabicBoldText
+                    ]}>
+                      {isRtl ? 'المنشورات' : 'Feed'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Profile */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedFeed('profile');
+                      setShowProfile(true);
+                      setSelectedUserProfile(null);
+                      setExpandedPostId(null);
+                      setMarketSearch('');
+                    }}
+                    style={[styles.selectorTab, (selectedFeed === 'profile' || showProfile) && styles.selectorTabActive]}
+                  >
+                    <Ionicons 
+                      name={(selectedFeed === 'profile' || showProfile) ? 'person' : 'person-outline'} 
+                      size={15} 
+                      color={(selectedFeed === 'profile' || showProfile) ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                      style={{ marginBottom: 3 }}
+                    />
+                    <Text style={[
+                      styles.selectorText,
+                      (selectedFeed === 'profile' || showProfile) ? styles.selectorTextSelected : styles.selectorTextUnselected,
+                      isRtl && styles.arabicBoldText
+                    ]}>
+                      {isRtl ? 'الملف الشخصي' : 'Profile'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Souq */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedFeed('souq');
+                      setShowProfile(false);
+                      setSelectedUserProfile(null);
+                      setExpandedPostId(null);
+                      setMarketSearch('');
+                    }}
+                    style={[styles.selectorTab, (selectedFeed === 'souq' || selectedFeed === 'marketplace') && styles.selectorTabActive]}
+                  >
+                    <Ionicons 
+                      name={(selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 'pricetag' : 'pricetag-outline'} 
+                      size={15} 
+                      color={(selectedFeed === 'souq' || selectedFeed === 'marketplace') ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                      style={{ marginBottom: 3 }}
+                    />
+                    <Text style={[
+                      styles.selectorText,
+                      (selectedFeed === 'souq' || selectedFeed === 'marketplace') ? styles.selectorTextSelected : styles.selectorTextUnselected,
+                      isRtl && styles.arabicBoldText
+                    ]}>
+                      {isRtl ? 'سوق' : 'Souq'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Sub-header below the selections */}
+                {!communitySearch.trim() && (selectedFeed !== 'profile' && !showProfile) && (
+                  <Animated.View 
+                    style={{
+                      opacity: composerOpacity,
+                      transform: [{ translateY: composerTranslateY }],
+                      width: '100%',
+                    }}
+                  >
+                    {(selectedFeed === 'souq' || selectedFeed === 'marketplace') ? (
+                      <View style={[styles.marketControlsContainer, { marginTop: 8 }]}>
+                        <View style={[styles.marketSearchEntity, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Ionicons name="search" size={16} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                          <TextInput
+                            style={[styles.marketSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                            placeholder={isRtl ? "البحث في السوق..." : "Search items, location, sellers..."}
+                            placeholderTextColor="#ADADAD"
+                            value={marketSearch}
+                            onChangeText={setMarketSearch}
+                          />
+                          {marketSearch.trim().length > 0 && (
+                            <TouchableOpacity onPress={() => setMarketSearch('')}>
+                              <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        <TouchableOpacity 
+                          activeOpacity={0.8}
+                          style={[styles.marketListEntityBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                          onPress={() => setShowListingPage(true)}
+                        >
+                          <Ionicons name="add" size={18} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                          <Text style={[styles.marketListEntityText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                            {isRtl ? 'إضافة إعلان جديد' : 'LIST A NEW ITEM'}
+                          </Text>
                         </TouchableOpacity>
-                      )}
-                    </View>
-
-                    {/* Messages Icon */}
-                    <TouchableOpacity 
-                      activeOpacity={0.8}
-                      onPress={() => setShowMessagesPage(true)}
-                      style={styles.messagesHeaderIcon}
-                    >
-                      <Ionicons name="chatbox-ellipses-outline" size={22} color={COLORS.bgBrand} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Feed Segmented Selector Row (My Car, Feed, Souq) */}
-                  <View style={[styles.selectorContainer, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[styles.selectorTab, selectedFeed === 'active' && styles.selectorTabActive]}
-                    >
-                      <Ionicons 
-                        name={selectedFeed === 'active' ? 'car' : 'car-outline'} 
-                        size={15} 
-                        color={selectedFeed === 'active' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                        style={{ marginBottom: 3 }}
-                      />
-                      <Text style={[
-                        styles.selectorText,
-                        selectedFeed === 'active' ? styles.selectorTextSelected : styles.selectorTextUnselected,
-                        isRtl && styles.arabicBoldText
-                      ]}>
-                        {isRtl ? 'سيارتي' : 'My Car'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[styles.selectorTab, selectedFeed === 'overall' && styles.selectorTabActive]}
-                    >
-                      <Ionicons 
-                        name={selectedFeed === 'overall' ? 'chatbubbles' : 'chatbubbles-outline'} 
-                        size={15} 
-                        color={selectedFeed === 'overall' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                        style={{ marginBottom: 3 }}
-                      />
-                      <Text style={[
-                        styles.selectorText,
-                        selectedFeed === 'overall' ? styles.selectorTextSelected : styles.selectorTextUnselected,
-                        isRtl && styles.arabicBoldText
-                      ]}>
-                        {isRtl ? 'المنشورات' : 'Feed'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('marketplace'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[styles.selectorTab, selectedFeed === 'marketplace' && styles.selectorTabActive]}
-                    >
-                      <Ionicons 
-                        name={selectedFeed === 'marketplace' ? 'pricetag' : 'pricetag-outline'} 
-                        size={15} 
-                        color={selectedFeed === 'marketplace' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                        style={{ marginBottom: 3 }}
-                      />
-                      <Text style={[
-                        styles.selectorText,
-                        selectedFeed === 'marketplace' ? styles.selectorTextSelected : styles.selectorTextUnselected,
-                        isRtl && styles.arabicBoldText
-                      ]}>
-                        {isRtl ? 'سوق' : 'Souq'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Fixed Post Section below the selections */}
-                  {!communitySearch.trim() && (
-                    <Animated.View 
-                      style={{
-                        opacity: composerOpacity,
-                        transform: [{ translateY: composerTranslateY }],
-                        width: '100%',
-                      }}
-                    >
-                      {selectedFeed === 'marketplace' ? (
-                        <View style={[styles.marketControlsContainer, { marginTop: 8 }]}>
-                          <View style={[styles.marketSearchEntity, isRtl && { flexDirection: 'row-reverse' }]}>
-                            <Ionicons name="search" size={16} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-                            <TextInput
-                              style={[styles.marketSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                              placeholder={isRtl ? "البحث في السوق..." : "Search items, location, sellers..."}
-                              placeholderTextColor="#ADADAD"
-                              value={marketSearch}
-                              onChangeText={setMarketSearch}
-                            />
-                            {marketSearch.trim().length > 0 && (
-                              <TouchableOpacity onPress={() => setMarketSearch('')}>
-                                <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
-                              </TouchableOpacity>
-                            )}
-                          </View>
+                      </View>
+                    ) : (
+                      <View style={[styles.composerContainer, { marginTop: 8 }]}>
+                        <View style={[styles.composerRow, { marginTop: 0 }, isRtl && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity 
                             activeOpacity={0.8}
-                            style={[styles.marketListEntityBtn, isRtl && { flexDirection: 'row-reverse' }]}
-                            onPress={() => setShowListingPage(true)}
+                            onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
+                            style={[
+                              styles.composerAvatar,
+                              { marginTop: 2 },
+                              isRtl ? { marginLeft: 10, marginRight: 0 } : { marginRight: 10 }
+                            ]}
                           >
-                            <Ionicons name="add" size={18} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
-                            <Text style={[styles.marketListEntityText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                              {isRtl ? 'إضافة إعلان جديد' : 'LIST A NEW ITEM'}
-                            </Text>
+                            <Ionicons name="person" size={18} color="#FFFFFF" />
                           </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <View style={[styles.composerContainer, { marginTop: 8 }]}>
-                          <View style={[styles.composerRow, { marginTop: 0 }, isRtl && { flexDirection: 'row-reverse' }]}>
-                            <TouchableOpacity 
-                              activeOpacity={0.8}
-                              onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
-                              style={[
-                                styles.composerAvatar,
-                                { marginTop: 2 },
-                                isRtl ? { marginLeft: 10, marginRight: 0 } : { marginRight: 10 }
-                              ]}
-                            >
-                              <Ionicons name="person" size={18} color="#FFFFFF" />
-                            </TouchableOpacity>
-                            <View style={styles.postComposer}>
-                              {/* Top Part: Input Area wrapped in Touchable to open Modal */}
-                              <View style={[styles.composerTopRow, { position: 'relative' }]}>
-                                <TextInput
-                                  style={[styles.composerInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                                  placeholder={isRtl ? "شارك تحديث سيارتك الجديد..." : "Share your latest car update..."}
-                                  placeholderTextColor="#ADADAD"
-                                  value=""
-                                  editable={false}
-                                  multiline={true}
-                                />
+                          <View style={styles.postComposer}>
+                            {/* Top Part: Input Area wrapped in Touchable to open Modal */}
+                            <View style={[styles.composerTopRow, { position: 'relative' }]}>
+                              <TextInput
+                                style={[styles.composerInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                                placeholder={isRtl ? "شارك تحديث سيارتك الجديد..." : "Share your latest car update..."}
+                                placeholderTextColor="#ADADAD"
+                                value=""
+                                editable={false}
+                                multiline={true}
+                              />
+                              <TouchableOpacity 
+                                activeOpacity={0.9}
+                                onPress={() => setCreatePostModalVisible(true)}
+                                style={StyleSheet.absoluteFill}
+                              />
+                            </View>
+                            
+                            {/* Bottom Part: Media attachments & POST button */}
+                            <View style={[styles.composerBottomRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                              {/* Attachment Icons */}
+                              <View style={[styles.composerIconsRow, isRtl && { flexDirection: 'row-reverse' }]}>
                                 <TouchableOpacity 
-                                  activeOpacity={0.9}
+                                  style={styles.composerIconButton} 
+                                  activeOpacity={0.7}
                                   onPress={() => setCreatePostModalVisible(true)}
-                                  style={StyleSheet.absoluteFill}
-                                />
-                              </View>
-                              
-                              {/* Bottom Part: Media attachments & POST button */}
-                              <View style={[styles.composerBottomRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                                {/* Attachment Icons */}
-                                <View style={[styles.composerIconsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                                  <TouchableOpacity 
-                                    style={styles.composerIconButton} 
-                                    activeOpacity={0.7}
-                                    onPress={() => setCreatePostModalVisible(true)}
-                                  >
-                                    <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity 
-                                    style={styles.composerIconButton} 
-                                    activeOpacity={0.7}
-                                    onPress={() => {
-                                      setCreatePostModalVisible(true);
-                                      pickPostImage();
-                                    }}
-                                  >
-                                    <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity 
-                                    style={styles.composerIconButton} 
-                                    activeOpacity={0.7}
-                                    onPress={() => setCreatePostModalVisible(true)}
-                                  >
-                                    <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity 
-                                    style={styles.composerIconButton} 
-                                    activeOpacity={0.7}
-                                    onPress={() => setCreatePostModalVisible(true)}
-                                  >
-                                    <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
-                                  </TouchableOpacity>
-                                </View>
-
-                                {/* Post Action */}
-                                <TouchableOpacity 
-                                  style={styles.postButton} 
-                                  onPress={() => setCreatePostModalVisible(true)} 
-                                  activeOpacity={0.8}
                                 >
-                                  <Text style={[styles.postButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                                    {isRtl ? 'نشر' : 'POST'}
-                                  </Text>
+                                  <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  style={styles.composerIconButton} 
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    setCreatePostModalVisible(true);
+                                    pickPostImage();
+                                  }}
+                                >
+                                  <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  style={styles.composerIconButton} 
+                                  activeOpacity={0.7}
+                                  onPress={() => setCreatePostModalVisible(true)}
+                                >
+                                  <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  style={styles.composerIconButton} 
+                                  activeOpacity={0.7}
+                                  onPress={() => setCreatePostModalVisible(true)}
+                                >
+                                  <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
                                 </TouchableOpacity>
                               </View>
+
+                              {/* Post Action */}
+                              <TouchableOpacity 
+                                style={styles.postButton} 
+                                onPress={() => setCreatePostModalVisible(true)} 
+                                activeOpacity={0.8}
+                              >
+                                <Text style={[styles.postButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                                  {isRtl ? 'نشر' : 'POST'}
+                                </Text>
+                              </TouchableOpacity>
                             </View>
                           </View>
                         </View>
-                      )}
-                    </Animated.View>
-                  )}
-                </Animated.View>
+                      </View>
+                    )}
+                  </Animated.View>
+                )}
+              </Animated.View>
 
-                {/* Sticky Header Content: Smaller section at top */}
-                <Animated.View
-                  style={[
-                    styles.stickyBar,
-                    {
-                      top: -(topInset + 6),
-                      height: topInset + 50,
-                      opacity: stickyBarOpacity,
-                    },
-                    isRtl && { flexDirection: 'row-reverse' }
-                  ]}
-                  pointerEvents={isSticky ? 'auto' : 'none'}
-                >
-                  {/* Left: Avatar + Messages */}
-                  <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity 
-                      activeOpacity={0.8}
-                      onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
-                      style={styles.stickyProfileAvatar}
-                    >
-                      <Ionicons name="person" size={18} color="#FFFFFF" />
-                    </TouchableOpacity>
+              {/* Sticky Header Content: Smaller section at top */}
+              <Animated.View
+                style={[
+                  styles.stickyBar,
+                  {
+                    top: -(topInset + 6),
+                    height: topInset + 50,
+                    opacity: stickyBarOpacity,
+                  },
+                  isRtl && { flexDirection: 'row-reverse' }
+                ]}
+                pointerEvents={isSticky ? 'auto' : 'none'}
+              >
+                {/* Left: Avatar + Messages */}
+                <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <TouchableOpacity 
+                    activeOpacity={0.8}
+                    onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
+                    style={styles.stickyProfileAvatar}
+                  >
+                    <Ionicons name="person" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
 
-                    <TouchableOpacity 
-                      activeOpacity={0.8}
-                      onPress={() => setShowMessagesPage(true)}
-                      style={[styles.stickyProfileAvatar, { backgroundColor: COLORS.bgBrandLight, borderWidth: 1, borderColor: COLORS.borderGreen }]}
-                    >
-                      <Ionicons name="chatbox-ellipses-outline" size={18} color={COLORS.bgBrand} />
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity 
+                    activeOpacity={0.8}
+                    onPress={() => setShowMessagesPage(true)}
+                    style={[styles.stickyProfileAvatar, { backgroundColor: COLORS.bgBrandLight, borderWidth: 1, borderColor: COLORS.borderGreen }]}
+                  >
+                    <Ionicons name="chatbox-ellipses-outline" size={18} color={COLORS.bgBrand} />
+                  </TouchableOpacity>
+                </View>
 
-                  {/* Right: Collapsed Smaller Selections Group */}
-                  <View style={[styles.stickyTabsGroup, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[
-                        styles.stickyTab,
-                        selectedFeed === 'active' ? styles.stickyTabSelected : styles.stickyTabUnselected
-                      ]}
-                    >
-                      <Ionicons 
-                        name="car-outline" 
-                        size={16} 
-                        color={selectedFeed === 'active' ? '#FFFFFF' : COLORS.bgBrand} 
-                      />
-                    </TouchableOpacity>
+                {/* Right: Collapsed Smaller Selections Group */}
+                <View style={[styles.stickyTabsGroup, isRtl && { flexDirection: 'row-reverse' }]}>
+                  {/* Feed */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedFeed('feed');
+                      setShowProfile(false);
+                      setSelectedUserProfile(null);
+                      setExpandedPostId(null);
+                      setMarketSearch('');
+                    }}
+                    style={[
+                      styles.stickyTab,
+                      (selectedFeed === 'feed' || selectedFeed === 'overall') ? styles.stickyTabSelected : styles.stickyTabUnselected
+                    ]}
+                  >
+                    <Ionicons 
+                      name="chatbubbles-outline" 
+                      size={16} 
+                      color={(selectedFeed === 'feed' || selectedFeed === 'overall') ? '#FFFFFF' : COLORS.bgBrand} 
+                    />
+                  </TouchableOpacity>
 
-                    <View style={styles.stickyDivider} />
+                  <View style={styles.stickyDivider} />
 
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[
-                        styles.stickyTab,
-                        selectedFeed === 'overall' ? styles.stickyTabSelected : styles.stickyTabUnselected
-                      ]}
-                    >
-                      <Ionicons 
-                        name="chatbubbles-outline" 
-                        size={16} 
-                        color={selectedFeed === 'overall' ? '#FFFFFF' : COLORS.bgBrand} 
-                      />
-                    </TouchableOpacity>
+                  {/* Profile */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedFeed('profile');
+                      setShowProfile(true);
+                      setSelectedUserProfile(null);
+                      setExpandedPostId(null);
+                      setMarketSearch('');
+                    }}
+                    style={[
+                      styles.stickyTab,
+                      (selectedFeed === 'profile' || showProfile) ? styles.stickyTabSelected : styles.stickyTabUnselected
+                    ]}
+                  >
+                    <Ionicons 
+                      name="person-outline" 
+                      size={16} 
+                      color={(selectedFeed === 'profile' || showProfile) ? '#FFFFFF' : COLORS.bgBrand} 
+                    />
+                  </TouchableOpacity>
 
-                    <View style={styles.stickyDivider} />
+                  <View style={styles.stickyDivider} />
 
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { setSelectedFeed('marketplace'); setExpandedPostId(null); setMarketSearch(''); }}
-                      style={[
-                        styles.stickyTab,
-                        selectedFeed === 'marketplace' ? styles.stickyTabSelected : styles.stickyTabUnselected
-                      ]}
-                    >
-                      <Ionicons 
-                        name="pricetag-outline" 
-                        size={16} 
-                        color={selectedFeed === 'marketplace' ? '#FFFFFF' : COLORS.bgBrand} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </Animated.View>
-              </View>
-            )}
+                  {/* Souq */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedFeed('souq');
+                      setShowProfile(false);
+                      setSelectedUserProfile(null);
+                      setExpandedPostId(null);
+                      setMarketSearch('');
+                    }}
+                    style={[
+                      styles.stickyTab,
+                      (selectedFeed === 'souq' || selectedFeed === 'marketplace') ? styles.stickyTabSelected : styles.stickyTabUnselected
+                    ]}
+                  >
+                    <Ionicons 
+                      name="pricetag-outline" 
+                      size={16} 
+                      color={(selectedFeed === 'souq' || selectedFeed === 'marketplace') ? '#FFFFFF' : COLORS.bgBrand} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </View>
           </Animated.View>
 
           {/* Facebook-style Create Post Modal */}
