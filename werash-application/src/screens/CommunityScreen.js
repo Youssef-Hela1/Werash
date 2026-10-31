@@ -897,19 +897,22 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                                 ? 'time-outline' 
                                 : 'person-add'
                             } 
-                            size={14} 
+                            size={15} 
                             color={friendStatus === 'requested' ? COLORS.bgBrand : '#F7F5F0'} 
-                            style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                            style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
                           />
-                          <Text style={[
-                            styles.addFriendBtnText,
-                            friendStatus === 'requested' && styles.addFriendBtnTextRequested,
-                            isRtl && styles.arabicBoldText
-                          ]}>
+                          <Text 
+                            numberOfLines={1}
+                            style={[
+                              styles.addFriendBtnText,
+                              friendStatus === 'requested' && styles.addFriendBtnTextRequested,
+                              isRtl && styles.arabicBoldText
+                            ]}
+                          >
                             {friendStatus === 'friends'
                               ? (isRtl ? 'أصدقاء' : 'Friends')
                               : friendStatus === 'requested'
-                              ? (isRtl ? 'تم إرسال الطلب' : 'Request Sent')
+                              ? (isRtl ? 'تم الطلب' : 'Request Sent')
                               : (isRtl ? 'إرسال طلب' : 'Send Request')}
                           </Text>
                         </TouchableOpacity>
@@ -922,11 +925,14 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                         >
                           <Ionicons 
                             name="chatbubble-ellipses-outline" 
-                            size={14} 
+                            size={15} 
                             color={COLORS.bgBrand} 
-                            style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                            style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
                           />
-                          <Text style={[styles.profileMessageBtnText, isRtl && styles.arabicBoldText]}>
+                          <Text 
+                            numberOfLines={1}
+                            style={[styles.profileMessageBtnText, isRtl && styles.arabicBoldText]}
+                          >
                             {isRtl ? 'رسالة' : 'Message'}
                           </Text>
                         </TouchableOpacity>
@@ -2276,37 +2282,82 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
     color: colors.bgBrand,
   },
-  addFriendBtn: {
+  profileActionAreaCenter: {
+    marginTop: 12,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 320,
+    gap: 10,
+  },
+  addFriendBtn: {
+    flex: 1,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.bgBrand,
-    paddingHorizontal: 11,
-    paddingVertical: 6.5,
-    borderRadius: 11,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
     elevation: 3,
   },
   addFriendBtnRequested: {
-    backgroundColor: colors.bgBrandLight,
-    borderWidth: 1,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderWidth: 1.2,
     borderColor: colors.borderGreen,
     shadowOpacity: 0,
     elevation: 0,
   },
   addFriendBtnFriends: {
-    backgroundColor: '#2A4E2E',
+    backgroundColor: '#244528',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   addFriendBtnText: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontFamily: 'PlusJakartaSans-Bold',
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#F7F5F0',
+    letterSpacing: 0.1,
   },
   addFriendBtnTextRequested: {
     color: colors.bgBrand,
+  },
+  profileMessageBtn: {
+    flex: 1,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  profileMessageBtnText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+    letterSpacing: 0.1,
   },
   profileFeedHeaderRow: {
     flexDirection: 'row',
@@ -2396,11 +2447,6 @@ const createStyles = (colors) => StyleSheet.create({
     height: '100%',
     borderRadius: 40,
     backgroundColor: colors.bgBrand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileActionAreaCenter: {
-    marginTop: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
