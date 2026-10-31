@@ -2734,7 +2734,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 )}
               </Animated.View>
             )}
-          </Animated.View>
 
           {/* Expanded Post Overlay (styled like Mechanics details) */}
           {expandedPost && (
