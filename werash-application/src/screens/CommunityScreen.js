@@ -644,6 +644,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [viewingMedia, setViewingMedia] = useState(null);
   const [inboxConversations, setInboxConversations] = useState(initialInboxConversations);
   const [inboxSearch, setInboxSearch] = useState('');
+  const [communitySearch, setCommunitySearch] = useState('');
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isRecordingLocked, setIsRecordingLocked] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -684,6 +685,48 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     };
     loadStoredDms();
   }, [showMessagesPage]);
+
+  // People matching search query across authors and users
+  const matchedPeople = useMemo(() => {
+    const q = communitySearch.toLowerCase().trim();
+    if (!q) return [];
+    const peopleMap = new Map();
+
+    (feedPosts || []).forEach(p => {
+      if (p && p.author && !peopleMap.has(p.author)) {
+        peopleMap.set(p.author, {
+          author: p.author,
+          handle: p.handle || `@${p.author.toLowerCase().replace(/[\s\W]+/g, '')}`,
+          avatar: p.avatar,
+          avatarType: p.avatarType || (p.avatar ? 'image' : 'icon'),
+          vehicle: p.vehicle || '',
+        });
+      }
+    });
+
+    (inboxConversations || []).forEach(c => {
+      if (c && c.user && !peopleMap.has(c.user)) {
+        peopleMap.set(c.user, {
+          author: c.user,
+          handle: c.handle || `@${c.user.toLowerCase().replace(/[\s\W]+/g, '')}`,
+          avatar: c.avatar,
+          avatarType: c.avatarType || (c.avatar ? 'image' : 'icon'),
+          vehicle: '',
+        });
+      }
+    });
+
+    const results = [];
+    peopleMap.forEach(person => {
+      const nameMatch = (person.author || '').toLowerCase().includes(q);
+      const handleMatch = Boolean(person.handle && person.handle.toLowerCase().includes(q));
+      const vehicleMatch = Boolean(person.vehicle && person.vehicle.toLowerCase().includes(q));
+      if (nameMatch || handleMatch || vehicleMatch) {
+        results.push(person);
+      }
+    });
+    return results;
+  }, [communitySearch, feedPosts, inboxConversations]);
 
   // Comprehensive conversation search across usernames, handles, and all chat message contents
   const filteredConversations = useMemo(() => {
@@ -1813,6 +1856,17 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       const targetAuthor = selectedUserProfile?.author || currentAuthorName;
       return post.author === targetAuthor;
     }
+
+    // Community Search Query Matching
+    if (communitySearch.trim()) {
+      const q = communitySearch.toLowerCase().trim();
+      const contentMatches = Boolean(post.content && post.content.toLowerCase().includes(q));
+      const authorMatches = Boolean(post.author && post.author.toLowerCase().includes(q));
+      const handleMatches = Boolean(post.handle && post.handle.toLowerCase().includes(q));
+      const vehicleMatches = Boolean(post.vehicle && post.vehicle.toLowerCase().includes(q));
+      const locationMatches = Boolean(post.location && post.location.toLowerCase().includes(q));
+      return contentMatches || authorMatches || handleMatches || vehicleMatches || locationMatches;
+    }
     if (selectedFeed === 'messages') {
       return false;
     }
@@ -1914,7 +1968,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: showProfile ? topInset + 55 : topInset + 175 }
+              { paddingTop: showProfile ? topInset + 55 : topInset + 225 }
             ]}
             scrollEventThrottle={16}
             onScroll={Animated.event(
@@ -2028,7 +2082,98 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               </View>
             )}
 
-            {filteredPosts.length === 0 ? (
+            {/* Community Search People Section */}
+            {Boolean(communitySearch.trim()) && matchedPeople.length > 0 && (
+              <View style={[styles.peopleSectionContainer, isRtl && { alignItems: 'flex-end' }]}>
+                <View style={[styles.peopleSectionHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <Ionicons name="people" size={16} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                  <Text style={[styles.peopleSectionTitle, isRtl && styles.arabicBoldText]}>
+                    {isRtl ? 'الأشخاص' : 'People'}
+                  </Text>
+                  <View style={styles.peopleCountBadge}>
+                    <Text style={styles.peopleCountBadgeText}>{matchedPeople.length}</Text>
+                  </View>
+                </View>
+
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[styles.peopleScrollContent, isRtl && { flexDirection: 'row-reverse' }]}
+                >
+                  {matchedPeople.map((person, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={styles.personCard}
+                      activeOpacity={0.85}
+                      onPress={() => handleOpenUserProfile(person)}
+                    >
+                      <View style={styles.personCardAvatarBox}>
+                        {person.avatar ? (
+                          <Image source={person.avatar} style={styles.personCardAvatar} resizeMode="cover" />
+                        ) : (
+                          <View style={styles.personCardAvatarPlaceholder}>
+                            <Ionicons name="person" size={18} color="#FFFFFF" />
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.personCardName, isRtl && styles.arabicBoldText]} numberOfLines={1}>
+                        {person.author}
+                      </Text>
+                      <Text style={styles.personCardHandle} numberOfLines={1}>
+                        {person.handle}
+                      </Text>
+                      {Boolean(person.vehicle) && (
+                        <Text style={styles.personCardVehicle} numberOfLines={1}>
+                          🚗 {person.vehicle}
+                        </Text>
+                      )}
+                      <View style={styles.personCardViewBtn}>
+                        <Text style={[styles.personCardViewBtnText, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'عرض الصفحة' : 'View Profile'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Posts search status indicator */}
+            {Boolean(communitySearch.trim()) && (
+              <View style={[styles.communitySearchStatusRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                <Ionicons name="newspaper-outline" size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+                <Text style={[styles.communitySearchStatusText, isRtl && styles.arabicBoldText]}>
+                  {isRtl 
+                    ? `المنشورات (${filteredPosts.length})` 
+                    : `Posts (${filteredPosts.length})`}
+                </Text>
+              </View>
+            )}
+
+            {Boolean(communitySearch.trim()) && matchedPeople.length === 0 && filteredPosts.length === 0 ? (
+              <View style={styles.communitySearchEmptyBox}>
+                <View style={styles.communitySearchEmptyIcon}>
+                  <Ionicons name="search" size={32} color={COLORS.bgBrand} />
+                </View>
+                <Text style={[styles.communitySearchEmptyTitle, isRtl && styles.arabicBoldText]}>
+                  {isRtl ? 'لم يتم العثور على نتائج' : 'No people or posts found'}
+                </Text>
+                <Text style={[styles.communitySearchEmptySubtitle, isRtl && styles.arabicRegularText]}>
+                  {isRtl 
+                    ? `لا توجد نتائج تطابق "${communitySearch}". جرب البحث باسم أو كلمة أخرى.` 
+                    : `No results matching "${communitySearch}". Try searching for another name or keyword.`}
+                </Text>
+                <TouchableOpacity
+                  style={styles.communitySearchClearBtn}
+                  onPress={() => setCommunitySearch('')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.communitySearchClearBtnText, isRtl && styles.arabicBoldText]}>
+                    {isRtl ? 'مسح البحث' : 'Clear Search'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : filteredPosts.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="chatbubble-ellipses-outline" size={36} color="rgba(77, 110, 79, 0.18)" style={{ marginBottom: 10 }} />
                 <Text style={styles.emptyText}>
@@ -2228,7 +2373,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               styles.collapsibleHeader,
               {
                 top: topInset + 6,
-                height: showProfile ? 55 : 180,
+                height: showProfile ? 55 : 220,
                 opacity: headerOpacity,
                 transform: [{ translateY: headerTranslateY }],
                 justifyContent: showProfile ? 'center' : 'flex-start',
@@ -2258,65 +2403,23 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   }}
                   pointerEvents={isSticky ? 'none' : 'auto'}
                 >
-                  {/* Feed Segmented Selector & Messages */}
-                  <View style={styles.topHeaderRow}>
-                    <View style={styles.selectorRow}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
-                        style={[styles.selectorTab, selectedFeed === 'active' && styles.selectorTabActive]}
-                      >
-                        <Ionicons 
-                          name={selectedFeed === 'active' ? 'car' : 'car-outline'} 
-                          size={15} 
-                          color={selectedFeed === 'active' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                          style={{ marginBottom: 3 }}
-                        />
-                        <Text style={[
-                          styles.selectorText,
-                          selectedFeed === 'active' ? styles.selectorTextSelected : styles.selectorTextUnselected
-                        ]}>
-                          My Car
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
-                        style={[styles.selectorTab, selectedFeed === 'overall' && styles.selectorTabActive]}
-                      >
-                        <Ionicons 
-                          name={selectedFeed === 'overall' ? 'chatbubbles' : 'chatbubbles-outline'} 
-                          size={15} 
-                          color={selectedFeed === 'overall' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                          style={{ marginBottom: 3 }}
-                        />
-                        <Text style={[
-                          styles.selectorText,
-                          selectedFeed === 'overall' ? styles.selectorTextSelected : styles.selectorTextUnselected
-                        ]}>
-                          Feed
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => { setSelectedFeed('marketplace'); setExpandedPostId(null); setMarketSearch(''); }}
-                        style={[styles.selectorTab, selectedFeed === 'marketplace' && styles.selectorTabActive]}
-                      >
-                        <Ionicons 
-                          name={selectedFeed === 'marketplace' ? 'pricetag' : 'pricetag-outline'} 
-                          size={15} 
-                          color={selectedFeed === 'marketplace' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
-                          style={{ marginBottom: 3 }}
-                        />
-                        <Text style={[
-                          styles.selectorText,
-                          selectedFeed === 'marketplace' ? styles.selectorTextSelected : styles.selectorTextUnselected
-                        ]}>
-                          Souq
-                        </Text>
-                      </TouchableOpacity>
+                  {/* Top Search Bar & Messages Row */}
+                  <View style={[styles.topSearchHeaderRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={[styles.communitySearchBar, isRtl ? { marginLeft: 10 } : { marginRight: 10 }, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                      <TextInput
+                        style={[styles.communitySearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                        placeholder={isRtl ? "ابحث عن أشخاص أو منشورات..." : "Search people or posts..."}
+                        placeholderTextColor="#A0A0A0"
+                        value={communitySearch}
+                        onChangeText={setCommunitySearch}
+                        returnKeyType="search"
+                      />
+                      {Boolean(communitySearch) && (
+                        <TouchableOpacity onPress={() => setCommunitySearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                        </TouchableOpacity>
+                      )}
                     </View>
 
                     {/* Messages Icon */}
@@ -2326,6 +2429,66 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       style={styles.messagesHeaderIcon}
                     >
                       <Ionicons name="chatbox-ellipses-outline" size={22} color={COLORS.bgBrand} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Feed Segmented Selector Row */}
+                  <View style={[styles.selectorRow, { marginHorizontal: 20, marginTop: 8 }]}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => { setSelectedFeed('active'); setExpandedPostId(null); setMarketSearch(''); }}
+                      style={[styles.selectorTab, selectedFeed === 'active' && styles.selectorTabActive]}
+                    >
+                      <Ionicons 
+                        name={selectedFeed === 'active' ? 'car' : 'car-outline'} 
+                        size={15} 
+                        color={selectedFeed === 'active' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                        style={{ marginBottom: 3 }}
+                      />
+                      <Text style={[
+                        styles.selectorText,
+                        selectedFeed === 'active' ? styles.selectorTextSelected : styles.selectorTextUnselected
+                      ]}>
+                        My Car
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => { setSelectedFeed('overall'); setExpandedPostId(null); setMarketSearch(''); }}
+                      style={[styles.selectorTab, selectedFeed === 'overall' && styles.selectorTabActive]}
+                    >
+                      <Ionicons 
+                        name={selectedFeed === 'overall' ? 'chatbubbles' : 'chatbubbles-outline'} 
+                        size={15} 
+                        color={selectedFeed === 'overall' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                        style={{ marginBottom: 3 }}
+                      />
+                      <Text style={[
+                        styles.selectorText,
+                        selectedFeed === 'overall' ? styles.selectorTextSelected : styles.selectorTextUnselected
+                      ]}>
+                        Feed
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => { setSelectedFeed('marketplace'); setExpandedPostId(null); setMarketSearch(''); }}
+                      style={[styles.selectorTab, selectedFeed === 'marketplace' && styles.selectorTabActive]}
+                    >
+                      <Ionicons 
+                        name={selectedFeed === 'marketplace' ? 'pricetag' : 'pricetag-outline'} 
+                        size={15} 
+                        color={selectedFeed === 'marketplace' ? COLORS.bgBrand : 'rgba(77, 110, 79, 0.55)'} 
+                        style={{ marginBottom: 3 }}
+                      />
+                      <Text style={[
+                        styles.selectorText,
+                        selectedFeed === 'marketplace' ? styles.selectorTextSelected : styles.selectorTextUnselected
+                      ]}>
+                        Souq
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </Animated.View>
@@ -3942,6 +4105,189 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '600',
     color: colors.textMuted,
     marginTop: 1,
+  },
+  topSearchHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 2,
+    zIndex: 5,
+  },
+  communitySearchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 5,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  communitySearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textDark,
+    paddingVertical: 2,
+  },
+  /* People Search Results Section */
+  peopleSectionContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  peopleSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 8,
+  },
+  peopleSectionTitle: {
+    fontSize: 14,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.textDark,
+    fontWeight: '700',
+  },
+  peopleCountBadge: {
+    backgroundColor: 'rgba(55, 99, 59, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 6,
+  },
+  peopleCountBadgeText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.bgBrand,
+  },
+  peopleScrollContent: {
+    paddingLeft: 4,
+    paddingRight: 16,
+    gap: 10,
+  },
+  personCard: {
+    width: 135,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  personCardAvatarBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  personCardAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  personCardAvatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personCardName: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.textDark,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  personCardHandle: {
+    fontSize: 10.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  personCardVehicle: {
+    fontSize: 10,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    color: colors.bgBrand,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  personCardViewBtn: {
+    backgroundColor: colors.bgBrand,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  personCardViewBtnText: {
+    fontSize: 10.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#FFFFFF',
+  },
+  /* Community search post status row */
+  communitySearchStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  communitySearchStatusText: {
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.bgBrand,
+    fontWeight: '700',
+  },
+  communitySearchEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  communitySearchEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.bgBrandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  communitySearchEmptyTitle: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.textDark,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  communitySearchEmptySubtitle: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  communitySearchClearBtn: {
+    backgroundColor: colors.bgBrand,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  communitySearchClearBtnText: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#FFFFFF',
   },
   topHeaderRow: {
     flexDirection: 'row',
