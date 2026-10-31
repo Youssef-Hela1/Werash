@@ -11,10 +11,57 @@ import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const mockMessages = [
-  { id: 'msg1', user: 'Ahmed Yassin', lastMessage: 'Is the BMW part still available?', time: '10:42 AM', unread: 2, avatarType: 'icon' },
-  { id: 'msg2', user: 'Khaled Omar', lastMessage: 'Thanks for the tip on the oil change.', time: 'Yesterday', unread: 0, avatarType: 'icon' },
-  { id: 'msg3', user: 'Mohamed Salah', lastMessage: 'Can you recommend a good mechanic?', time: 'Mon', unread: 0, avatarType: 'icon' },
+const initialInboxConversations = [
+  {
+    id: 'conv_1',
+    user: 'Samir Fahmy',
+    handle: '@samir_f',
+    avatar: require('../../assets/expert_samir.png'),
+    avatarType: 'image',
+    lastMessage: 'Hey! Thanks for visiting my profile. Feel free to ask about my car or parts!',
+    time: '10:30 AM',
+    unread: 1,
+  },
+  {
+    id: 'conv_2',
+    user: 'Sarah Jenkins',
+    handle: '@sarah_j',
+    avatar: require('../../assets/expert_sarah.png'),
+    avatarType: 'image',
+    lastMessage: 'The ceramic coating holds up for at least 3 years with proper washes.',
+    time: 'Yesterday',
+    unread: 0,
+  },
+  {
+    id: 'conv_3',
+    user: 'Sherif Aly',
+    handle: '@sherif_a',
+    avatar: require('../../assets/expert_sherif.png'),
+    avatarType: 'image',
+    lastMessage: 'Are you coming to the car meet this weekend? 🤝🚗',
+    time: '2d ago',
+    unread: 0,
+  },
+  {
+    id: 'conv_4',
+    user: 'Elena Rostova',
+    handle: '@elena',
+    avatar: require('../../assets/expert_elena.png'),
+    avatarType: 'image',
+    lastMessage: 'The carbon fiber hood weighs only 6.5 kg, great reduction.',
+    time: '3d ago',
+    unread: 0,
+  },
+  {
+    id: 'conv_5',
+    user: 'Ahmed Yassin',
+    handle: '@ahmed_y',
+    avatar: null,
+    avatarType: 'icon',
+    lastMessage: 'Is the BMW part still available?',
+    time: '10:42 AM',
+    unread: 0,
+  },
 ];
 
 const initialPosts = [
@@ -576,6 +623,10 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [directMessageUser, setDirectMessageUser] = useState(null);
   const [dmHistory, setDmHistory] = useState({});
   const [dmInputText, setDmInputText] = useState('');
+  const [attachedMedia, setAttachedMedia] = useState(null); // { type: 'image' | 'video', uri, duration }
+  const [viewingMedia, setViewingMedia] = useState(null);
+  const [inboxConversations, setInboxConversations] = useState(initialInboxConversations);
+  const [inboxSearch, setInboxSearch] = useState('');
   const dmTimerRef = useRef(null);
   const dmScrollRef = useRef(null);
   
@@ -885,14 +936,153 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     }
   };
 
+  const updateInboxConversation = (authorName, lastMsgText, time) => {
+    setInboxConversations((prev) => {
+      const existingIdx = prev.findIndex((c) => c.user === authorName);
+      if (existingIdx !== -1) {
+        const updatedItem = {
+          ...prev[existingIdx],
+          lastMessage: lastMsgText,
+          time: time || 'Just now',
+          unread: 0,
+        };
+        const rest = prev.filter((_, idx) => idx !== existingIdx);
+        return [updatedItem, ...rest];
+      } else {
+        const newConv = {
+          id: 'conv_' + Date.now(),
+          user: authorName,
+          handle: directMessageUser?.handle || ('@' + authorName.toLowerCase().replace(/\s+/g, '')),
+          avatar: directMessageUser?.avatar || null,
+          avatarType: directMessageUser?.avatar ? 'image' : 'icon',
+          lastMessage: lastMsgText,
+          time: time || 'Just now',
+          unread: 0,
+        };
+        return [newConv, ...prev];
+      }
+    });
+  };
+
+  const handlePickChatImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'الإذن مطلوب' : 'Permission Required',
+          isRtl ? 'يرجى منح إذن الوصول إلى الصور لإرسالها.' : 'Please allow photo library access to send images.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAttachedMedia({
+          type: 'image',
+          uri: result.assets[0].uri,
+        });
+      }
+    } catch (err) {
+      console.warn('Error picking chat image:', err);
+    }
+  };
+
+  const handleSelectVideoOption = () => {
+    Alert.alert(
+      isRtl ? 'إرسال تسجيل فيديو' : 'Send Video Recording',
+      isRtl ? 'اختر طريقة تسجيل أو إرفاق الفيديو:' : 'Choose how to record or select your video:',
+      [
+        {
+          text: isRtl ? 'تسجيل فيديو بالكاميرا' : 'Record Video with Camera',
+          onPress: handleRecordVideoWithCamera,
+        },
+        {
+          text: isRtl ? 'اختيار من المعرض' : 'Choose Video from Library',
+          onPress: handlePickVideoFromLibrary,
+        },
+        {
+          text: isRtl ? 'إلغاء' : 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const handleRecordVideoWithCamera = async () => {
+    try {
+      const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (cameraPerm.status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'إذن الكاميرا مطلوب' : 'Camera Permission Required',
+          isRtl ? 'يرجى السماح بالوصول إلى الكاميرا لتسجيل الفيديو.' : 'Please allow camera access to record video.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        videoMaxDuration: 60,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAttachedMedia({
+          type: 'video',
+          uri: result.assets[0].uri,
+          duration: result.assets[0].duration ? Math.round(result.assets[0].duration / 1000) : null,
+        });
+      }
+    } catch (err) {
+      console.warn('Error recording video:', err);
+    }
+  };
+
+  const handlePickVideoFromLibrary = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'الإذن مطلوب' : 'Permission Required',
+          isRtl ? 'يرجى منح إذن الوصول إلى الوسائط لإرسال الفيديو.' : 'Please allow media library access to send videos.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAttachedMedia({
+          type: 'video',
+          uri: result.assets[0].uri,
+          duration: result.assets[0].duration ? Math.round(result.assets[0].duration / 1000) : null,
+        });
+      }
+    } catch (err) {
+      console.warn('Error picking video from library:', err);
+    }
+  };
+
   const handleSendDirectMessage = async () => {
-    if (!dmInputText.trim() || !directMessageUser) return;
+    if ((!dmInputText.trim() && !attachedMedia) || !directMessageUser) return;
     const authorName = directMessageUser.author;
+    const sentMedia = attachedMedia;
+    
     const newMsg = {
-      id: `dm-${Date.now()}`,
+      id: 'dm-' + Date.now(),
       sender: 'user',
       text: dmInputText.trim(),
       textAr: dmInputText.trim(),
+      mediaType: sentMedia ? sentMedia.type : null,
+      mediaUri: sentMedia ? sentMedia.uri : null,
+      mediaDuration: sentMedia ? sentMedia.duration : null,
       time: 'Just now'
     };
 
@@ -901,26 +1091,42 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     
     setDmHistory(prev => ({ ...prev, [authorName]: updatedList }));
     setDmInputText('');
+    setAttachedMedia(null);
+
+    const summaryText = newMsg.text || (sentMedia?.type === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image'));
+    updateInboxConversation(authorName, summaryText, 'Just now');
 
     try {
-      await AsyncStorage.setItem(`@werash_dm_${authorName}`, JSON.stringify(updatedList));
+      await AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(updatedList));
     } catch (_) {}
 
-    // Simulated reply from the author after 1.5 seconds
+    // Simulated contextual reply from author
     setTimeout(async () => {
+      let replyText = 'Got your message! Great connecting with you on Werash.';
+      let replyTextAr = 'وصلتني رسالتك! يسعدني التواصل معك على وِرَش.';
+
+      if (sentMedia?.type === 'video') {
+        replyText = 'Awesome video recording! That engine note sounds unbelievable! 🏎️💨';
+        replyTextAr = 'تسجيل فيديو رائع! صوت المحرك رهيب وخيالي ما شاء الله! 🏎️💨';
+      } else if (sentMedia?.type === 'image') {
+        replyText = 'That looks super clean! Where did you get that build done? 🔥';
+        replyTextAr = 'شكلها نظيف وممتاز جداً! أين قمت بهذا التعديل؟ 🔥';
+      }
+
       const replyMsg = {
-        id: `reply-${Date.now()}`,
+        id: 'reply-' + Date.now(),
         sender: 'them',
-        text: `Got your message! Great connecting with you on Werash.`,
-        textAr: `وصلتني رسالتك! يسعدني التواصل معك على وِرَش.`,
+        text: replyText,
+        textAr: replyTextAr,
         time: 'Just now'
       };
       setDmHistory(prev => {
         const cur = prev[authorName] || updatedList;
         const next = [...cur, replyMsg];
-        AsyncStorage.setItem(`@werash_dm_${authorName}`, JSON.stringify(next)).catch(() => {});
+        AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(next)).catch(() => {});
         return { ...prev, [authorName]: next };
       });
+      updateInboxConversation(authorName, isRtl ? replyTextAr : replyText, 'Just now');
     }, 1500);
   };
   const handleToggleFriend = async (targetAuthor) => {
@@ -2553,14 +2759,63 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                             isMe ? styles.dmBubbleMe : styles.dmBubbleThem,
                           ]}
                         >
-                          <Text style={[
-                            styles.dmBubbleText,
-                            isMe ? styles.dmBubbleTextMe : styles.dmBubbleTextThem,
-                            isRtl && { textAlign: 'right' },
-                            isRtl && styles.arabicRegularText
-                          ]}>
-                            {isRtl ? (msg.textAr || msg.text) : msg.text}
-                          </Text>
+                          {/* Attached Image inside bubble */}
+                          {msg.mediaType === 'image' && msg.mediaUri && (
+                            <TouchableOpacity
+                              activeOpacity={0.9}
+                              onPress={() => setViewingMedia({ type: 'image', uri: msg.mediaUri })}
+                              style={styles.dmBubbleMediaWrapper}
+                            >
+                              <Image source={{ uri: msg.mediaUri }} style={styles.dmBubbleImage} resizeMode="cover" />
+                              <View style={styles.dmExpandMediaIcon}>
+                                <Ionicons name="expand" size={14} color="#FFFFFF" />
+                              </View>
+                            </TouchableOpacity>
+                          )}
+
+                          {/* Attached Video inside bubble */}
+                          {msg.mediaType === 'video' && msg.mediaUri && (
+                            <TouchableOpacity
+                              activeOpacity={0.9}
+                              onPress={() => setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration })}
+                              style={styles.dmBubbleVideoCard}
+                            >
+                              <View style={styles.dmBubbleVideoThumbnail}>
+                                <View style={styles.dmVideoPlayBtnCircle}>
+                                  <Ionicons name="play" size={22} color="#FFFFFF" style={{ marginLeft: 3 }} />
+                                </View>
+                                <View style={styles.dmVideoBadgeRow}>
+                                  <View style={styles.dmVideoTypeBadge}>
+                                    <Ionicons name="videocam" size={11} color="#FFFFFF" style={{ marginRight: 3 }} />
+                                    <Text style={styles.dmVideoBadgeText}>VIDEO</Text>
+                                  </View>
+                                  {msg.mediaDuration ? (
+                                    <View style={styles.dmVideoDurationBadge}>
+                                      <Text style={styles.dmVideoBadgeText}>{'0:' + (msg.mediaDuration < 10 ? '0' : '') + msg.mediaDuration}</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
+                              </View>
+                              <View style={styles.dmVideoCardFooter}>
+                                <Text style={[styles.dmVideoCardLabel, isMe ? styles.dmVideoCardLabelMe : styles.dmVideoCardLabelThem]}>
+                                  {isRtl ? 'تسجيل فيديو • انقر للعرض' : 'Video recording • Tap to view'}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          )}
+
+                          {/* Message Text */}
+                          {Boolean(msg.text) && (
+                            <Text style={[
+                              styles.dmBubbleText,
+                              isMe ? styles.dmBubbleTextMe : styles.dmBubbleTextThem,
+                              isRtl && { textAlign: 'right' },
+                              isRtl && styles.arabicRegularText
+                            ]}>
+                              {isRtl ? (msg.textAr || msg.text) : msg.text}
+                            </Text>
+                          )}
+
                           <Text style={[
                             styles.dmBubbleTime,
                             isMe ? styles.dmBubbleTimeMe : styles.dmBubbleTimeThem,
@@ -2573,26 +2828,88 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   })}
                 </ScrollView>
 
-                {/* Bottom Composer */}
+                {/* Staged Attachment Preview Bar */}
+                {attachedMedia && (
+                  <View style={[styles.dmAttachedPreviewBar, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={styles.dmAttachedThumbnailBox}>
+                      {attachedMedia.type === 'image' ? (
+                        <Image source={{ uri: attachedMedia.uri }} style={styles.dmAttachedThumbnailImg} />
+                      ) : (
+                        <View style={styles.dmAttachedVideoThumbnail}>
+                          <Ionicons name="videocam" size={20} color="#FFFFFF" />
+                        </View>
+                      )}
+                      <View style={styles.dmAttachedTypePill}>
+                        <Text style={styles.dmAttachedTypePillText}>
+                          {attachedMedia.type === 'video' ? (isRtl ? 'فيديو' : 'Video') : (isRtl ? 'صورة' : 'Photo')}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.dmAttachedInfo, isRtl ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
+                      <Text style={[styles.dmAttachedTitle, isRtl && styles.arabicBoldText]}>
+                        {attachedMedia.type === 'video' ? (isRtl ? 'تسجيل فيديو مرفق' : 'Video recording attached') : (isRtl ? 'صورة مرفقة' : 'Image attached')}
+                      </Text>
+                      <Text style={styles.dmAttachedSubtitle}>
+                        {isRtl ? 'أضف تعليقاً أو اضغط إرسال' : 'Add an optional caption or send'}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.dmAttachedRemoveBtn}
+                      onPress={() => setAttachedMedia(null)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#E53935" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Bottom Composer with Photo & Video Actions */}
                 <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    {/* Add Image Button */}
+                    <TouchableOpacity
+                      style={styles.dmMediaActionBtn}
+                      onPress={handlePickChatImage}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                    </TouchableOpacity>
+
+                    {/* Record / Attach Video Button */}
+                    <TouchableOpacity
+                      style={styles.dmMediaActionBtn}
+                      onPress={handleSelectVideoOption}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="videocam-outline" size={21} color={COLORS.bgBrand} />
+                    </TouchableOpacity>
+                  </View>
+
                   <TextInput
                     style={[
                       styles.dmInput,
                       isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
                     ]}
-                    placeholder={isRtl ? "اكتب رسالة..." : "Type a message..."}
+                    placeholder={
+                      attachedMedia
+                        ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
+                        : (isRtl ? "اكتب رسالة..." : "Type a message...")
+                    }
                     placeholderTextColor="#A0A0A0"
                     value={dmInputText}
                     onChangeText={setDmInputText}
                     multiline
                   />
+
                   <TouchableOpacity
                     style={[
                       styles.dmSendButton,
-                      !dmInputText.trim() && styles.dmSendButtonDisabled
+                      (!dmInputText.trim() && !attachedMedia) && styles.dmSendButtonDisabled
                     ]}
                     onPress={handleSendDirectMessage}
-                    disabled={!dmInputText.trim()}
+                    disabled={!dmInputText.trim() && !attachedMedia}
                     activeOpacity={0.8}
                   >
                     <Ionicons
@@ -2630,26 +2947,64 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 <View style={{ width: 100 }} />
               </View>
 
-              <ScrollView style={{ flex: 1, padding: 20 }}>
-                {mockMessages.map(msg => (
-                  <TouchableOpacity key={msg.id} style={styles.messageRow} activeOpacity={0.8}>
-                    <View style={styles.messageAvatar}>
-                      <Ionicons name="person" size={20} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.messageContent}>
-                      <View style={styles.messageHeader}>
-                        <Text style={styles.messageUser}>{msg.user}</Text>
-                        <Text style={styles.messageTime}>{msg.time}</Text>
-                      </View>
-                      <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread]} numberOfLines={1}>{msg.lastMessage}</Text>
-                    </View>
-                    {msg.unread > 0 && (
-                      <View style={styles.messageBadge}>
-                        <Text style={styles.messageBadgeText}>{msg.unread}</Text>
-                      </View>
-                    )}
+              {/* Search Inbox */}
+              <View style={[styles.inboxSearchBar, isRtl && { flexDirection: 'row-reverse' }]}>
+                <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                <TextInput
+                  style={[styles.inboxSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                  placeholder={isRtl ? "بحث في المحادثات..." : "Search conversations..."}
+                  placeholderTextColor="#A0A0A0"
+                  value={inboxSearch}
+                  onChangeText={setInboxSearch}
+                />
+                {Boolean(inboxSearch) && (
+                  <TouchableOpacity onPress={() => setInboxSearch('')}>
+                    <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
                   </TouchableOpacity>
-                ))}
+                )}
+              </View>
+
+              <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
+                {inboxConversations
+                  .filter(c => !inboxSearch.trim() || c.user.toLowerCase().includes(inboxSearch.toLowerCase().trim()))
+                  .map(msg => (
+                    <TouchableOpacity 
+                      key={msg.id} 
+                      style={[styles.messageRow, isRtl && { flexDirection: 'row-reverse' }]} 
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setShowMessagesPage(false);
+                        handleOpenDirectMessage({
+                          author: msg.user,
+                          handle: msg.handle || ('@' + msg.user.toLowerCase().replace(/\s+/g, '')),
+                          avatar: msg.avatar,
+                          avatarType: msg.avatar ? 'image' : 'icon',
+                        });
+                      }}
+                    >
+                      {msg.avatarType === 'image' && msg.avatar ? (
+                        <Image source={msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
+                      ) : (
+                        <View style={styles.messageAvatar}>
+                          <Ionicons name="person" size={20} color="#FFFFFF" />
+                        </View>
+                      )}
+                      <View style={[styles.messageContent, isRtl ? { marginRight: 14 } : { marginLeft: 0 }]}>
+                        <View style={[styles.messageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Text style={[styles.messageUser, isRtl && styles.arabicBoldText]}>{msg.user}</Text>
+                          <Text style={styles.messageTime}>{msg.time}</Text>
+                        </View>
+                        <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread, isRtl && { textAlign: 'right' }]} numberOfLines={1}>
+                          {msg.lastMessage}
+                        </Text>
+                      </View>
+                      {msg.unread > 0 && (
+                        <View style={[styles.messageBadge, isRtl && { marginLeft: 0, marginRight: 12 }]}>
+                          <Text style={styles.messageBadgeText}>{msg.unread}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
               </ScrollView>
             </View>
           </Modal>
@@ -3062,6 +3417,51 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 </View>
               </View>
             </KeyboardAvoidingView>
+          </Modal>
+
+          {/* Media Fullscreen Preview Modal */}
+          <Modal
+            visible={Boolean(viewingMedia)}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setViewingMedia(null)}
+          >
+            <View style={styles.mediaViewerBackdrop}>
+              <SafeAreaView style={styles.mediaViewerContainer}>
+                <View style={[styles.mediaViewerHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <TouchableOpacity
+                    style={styles.mediaViewerCloseBtn}
+                    onPress={() => setViewingMedia(null)}
+                  >
+                    <Ionicons name="close" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <Text style={styles.mediaViewerTitle}>
+                    {viewingMedia?.type === 'video' ? (isRtl ? 'تسجيل فيديو' : 'Video Recording') : (isRtl ? 'عرض الصورة' : 'Image Preview')}
+                  </Text>
+                  <View style={{ width: 40 }} />
+                </View>
+
+                <View style={styles.mediaViewerContent}>
+                  {viewingMedia?.type === 'image' ? (
+                    <Image source={{ uri: viewingMedia.uri }} style={styles.mediaViewerFullImage} resizeMode="contain" />
+                  ) : (
+                    <View style={styles.mediaViewerVideoBox}>
+                      <View style={styles.mediaViewerVideoPreview}>
+                        <View style={styles.mediaViewerLargePlayBtn}>
+                          <Ionicons name="play" size={44} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                        </View>
+                        <Text style={styles.mediaViewerVideoText}>
+                          {isRtl ? 'تسجيل الفيديو جاهز للعرض' : 'Video Recording Ready'}
+                        </Text>
+                        <Text style={styles.mediaViewerVideoSubtext}>
+                          {viewingMedia?.duration ? ('0:' + (viewingMedia.duration < 10 ? '0' : '') + viewingMedia.duration) : '0:15'}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </SafeAreaView>
+            </View>
           </Modal>
         </View>
       </View>
@@ -3823,6 +4223,494 @@ const createStyles = (colors) => StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  /* Direct Message Chat Styles */
+  dmModalContainer: {
+    flex: 1,
+  },
+  dmHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGreen,
+    backgroundColor: colors.bgCreamy,
+  },
+  dmBackButton: {
+    padding: 6,
+    marginRight: 4,
+  },
+  dmUserHeaderInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dmAvatarSmall: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  dmAvatarSmallIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dmUserName: {
+    fontSize: 14.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  dmOnlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  dmOnlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#4CAF50',
+    marginRight: 5,
+  },
+  dmOnlineText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+  },
+  dmHeaderFriendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgBrandLight,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  dmHeaderFriendBtnActive: {
+    backgroundColor: colors.bgBrand,
+    borderColor: colors.bgBrand,
+  },
+  dmHeaderFriendBtnText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  dmHeaderFriendBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  dmMessagesScroll: {
+    flex: 1,
+  },
+  dmMessagesContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  dmIntroCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGreen,
+  },
+  dmIntroAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+  },
+  dmIntroAvatarIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  dmIntroName: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: colors.textDark,
+    marginBottom: 2,
+  },
+  dmIntroHandle: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    marginBottom: 8,
+  },
+  dmIntroText: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
+  },
+  dmMessageRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  dmMessageRowMe: {
+    justifyContent: 'flex-end',
+  },
+  dmMessageRowThem: {
+    justifyContent: 'flex-start',
+  },
+  dmBubble: {
+    maxWidth: '82%',
+    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  dmBubbleMe: {
+    backgroundColor: colors.bgBrand,
+    borderBottomRightRadius: 4,
+  },
+  dmBubbleThem: {
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  dmBubbleText: {
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    lineHeight: 19,
+  },
+  dmBubbleTextMe: {
+    color: '#F7F5F0',
+  },
+  dmBubbleTextThem: {
+    color: colors.textDark,
+  },
+  dmBubbleTime: {
+    fontSize: 10,
+    marginTop: 4,
+    alignSelf: 'flex-end',
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  dmBubbleTimeMe: {
+    color: 'rgba(247, 245, 240, 0.7)',
+  },
+  dmBubbleTimeThem: {
+    color: colors.textMuted,
+  },
+  dmBubbleMediaWrapper: {
+    width: 220,
+    height: 160,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 6,
+    position: 'relative',
+    backgroundColor: '#1B261D',
+  },
+  dmBubbleImage: {
+    width: '100%',
+    height: '100%',
+  },
+  dmExpandMediaIcon: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dmBubbleVideoCard: {
+    width: 230,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#1E2D20',
+    marginBottom: 6,
+  },
+  dmBubbleVideoThumbnail: {
+    width: '100%',
+    height: 135,
+    backgroundColor: '#141E15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  dmVideoPlayBtnCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(55, 99, 59, 0.85)',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dmVideoBadgeRow: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dmVideoTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  dmVideoDurationBadge: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  dmVideoBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+  },
+  dmVideoCardFooter: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  dmVideoCardLabel: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  dmVideoCardLabelMe: {
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  dmVideoCardLabelThem: {
+    color: colors.textDark,
+  },
+  dmAttachedPreviewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgBrandLight,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGreen,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  dmAttachedThumbnailBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#1E2D20',
+  },
+  dmAttachedThumbnailImg: {
+    width: '100%',
+    height: '100%',
+  },
+  dmAttachedVideoThumbnail: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgBrand,
+  },
+  dmAttachedTypePill: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    right: 2,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 4,
+    alignItems: 'center',
+  },
+  dmAttachedTypePillText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  dmAttachedInfo: {
+    flex: 1,
+  },
+  dmAttachedTitle: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  dmAttachedSubtitle: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+  },
+  dmAttachedRemoveBtn: {
+    padding: 4,
+  },
+  dmComposerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: colors.bgCreamy,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGreen,
+  },
+  dmMediaActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  dmMediaActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bgBrandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  dmInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    fontSize: 13.5,
+    maxHeight: 90,
+    color: colors.textDark,
+  },
+  dmSendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  dmSendButtonDisabled: {
+    backgroundColor: 'rgba(55, 99, 59, 0.25)',
+  },
+  /* Fullscreen Media Viewer */
+  mediaViewerBackdrop: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  mediaViewerContainer: {
+    flex: 1,
+  },
+  mediaViewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  mediaViewerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaViewerTitle: {
+    fontSize: 15,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mediaViewerContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  mediaViewerFullImage: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaViewerVideoBox: {
+    width: '100%',
+    height: '70%',
+    backgroundColor: '#121C13',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  mediaViewerVideoPreview: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  mediaViewerLargePlayBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: colors.bgBrand,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  mediaViewerVideoText: {
+    fontSize: 17,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  mediaViewerVideoSubtext: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  inboxSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  inboxSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textDark,
   },
   commentInputContainer: {
     flexDirection: 'row',
