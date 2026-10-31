@@ -1968,7 +1968,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: showProfile ? topInset + 55 : topInset + 225 }
+              { paddingTop: showProfile ? topInset + 55 : topInset + 118 }
             ]}
             scrollEventThrottle={16}
             onScroll={Animated.event(
@@ -2079,6 +2079,124 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 <View style={styles.profileFeedCountBadge}>
                   <Text style={styles.profileFeedCountBadgeText}>{filteredPosts.length}</Text>
                 </View>
+              </View>
+            )}
+
+            {/* Post Composition Box / Marketplace List Trigger */}
+            {!showProfile && !communitySearch.trim() && (
+              <View style={styles.feedPostSection}>
+                {selectedFeed === 'marketplace' ? (
+                  <View style={[styles.marketControlsContainer, { paddingHorizontal: 0, marginTop: 0 }]}>
+                    <View style={[styles.marketSearchEntity, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="search" size={16} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                      <TextInput
+                        style={[styles.marketSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                        placeholder={isRtl ? "البحث في السوق..." : "Search items, location, sellers..."}
+                        placeholderTextColor="#ADADAD"
+                        value={marketSearch}
+                        onChangeText={setMarketSearch}
+                      />
+                      {marketSearch.trim().length > 0 && (
+                        <TouchableOpacity onPress={() => setMarketSearch('')}>
+                          <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <TouchableOpacity 
+                      activeOpacity={0.8}
+                      style={[styles.marketListEntityBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                      onPress={() => setShowListingPage(true)}
+                    >
+                      <Ionicons name="add" size={18} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                      <Text style={[styles.marketListEntityText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                        {isRtl ? 'إضافة إعلان جديد' : 'LIST A NEW ITEM'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.feedComposerCard}>
+                    <View style={[styles.composerRow, { marginTop: 0 }, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <TouchableOpacity 
+                        activeOpacity={0.8}
+                        onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
+                        style={[
+                          styles.composerAvatar,
+                          { marginTop: 2 },
+                          isRtl ? { marginLeft: 10, marginRight: 0 } : { marginRight: 10 }
+                        ]}
+                      >
+                        <Ionicons name="person" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <View style={styles.postComposer}>
+                        {/* Top Part: Input Area wrapped in Touchable to open Modal */}
+                        <View style={[styles.composerTopRow, { position: 'relative' }]}>
+                          <TextInput
+                            style={[styles.composerInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                            placeholder={isRtl ? "شارك تحديث سيارتك الجديد..." : "Share your latest car update..."}
+                            placeholderTextColor="#ADADAD"
+                            value=""
+                            editable={false}
+                            multiline={true}
+                          />
+                          <TouchableOpacity 
+                            activeOpacity={0.9}
+                            onPress={() => setCreatePostModalVisible(true)}
+                            style={StyleSheet.absoluteFill}
+                          />
+                        </View>
+                        
+                        {/* Bottom Part: Media attachments & POST button */}
+                        <View style={[styles.composerBottomRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          {/* Attachment Icons */}
+                          <View style={[styles.composerIconsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <TouchableOpacity 
+                              style={styles.composerIconButton} 
+                              activeOpacity={0.7}
+                              onPress={() => setCreatePostModalVisible(true)}
+                            >
+                              <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={styles.composerIconButton} 
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                setCreatePostModalVisible(true);
+                                pickPostImage();
+                              }}
+                            >
+                              <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={styles.composerIconButton} 
+                              activeOpacity={0.7}
+                              onPress={() => setCreatePostModalVisible(true)}
+                            >
+                              <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={styles.composerIconButton} 
+                              activeOpacity={0.7}
+                              onPress={() => setCreatePostModalVisible(true)}
+                            >
+                              <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Post Action */}
+                          <TouchableOpacity 
+                            style={styles.postButton} 
+                            onPress={() => setCreatePostModalVisible(true)} 
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.postButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                              {isRtl ? 'نشر' : 'POST'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
 
@@ -2485,124 +2603,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             )}
           </View>
 
-          {/* Premium Post Composition Box / List Item Trigger */}
-            {!showProfile && (
-              <Animated.View style={{
-                opacity: composerOpacity,
-                transform: [{ translateY: composerTranslateY }],
-                width: '100%',
-              }}>
-                {selectedFeed === 'marketplace' ? (
-                  <View style={styles.marketControlsContainer}>
-                    <View style={styles.marketSearchEntity}>
-                      <Ionicons name="search" size={16} color={COLORS.textMuted} style={{ marginRight: 8 }} />
-                      <TextInput
-                        style={styles.marketSearchInput}
-                        placeholder="Search items, location, sellers..."
-                        placeholderTextColor="#ADADAD"
-                        value={marketSearch}
-                        onChangeText={setMarketSearch}
-                      />
-                      {marketSearch.trim().length > 0 && (
-                        <TouchableOpacity onPress={() => setMarketSearch('')}>
-                          <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    <TouchableOpacity 
-                      activeOpacity={0.8}
-                      style={styles.marketListEntityBtn}
-                      onPress={() => setShowListingPage(true)}
-                    >
-                      <Ionicons name="add" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.marketListEntityText}>LIST A NEW ITEM</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={{ width: '100%' }}>
-                    <View style={styles.composerContainer}>
-                      <View style={[styles.composerRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                        <TouchableOpacity 
-                          activeOpacity={0.8}
-                          onPress={() => handleOpenUserProfile({ author: currentAuthorName, isSelf: true })}
-                          style={styles.composerAvatar}
-                        >
-                          <Ionicons name="person" size={18} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        <View style={styles.postComposer}>
-
-                          {/* Top Part: Input Area wrapped in Touchable to open Modal */}
-                          <View style={[styles.composerTopRow, { position: 'relative' }]}>
-                            <TextInput
-                              style={[styles.composerInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                              placeholder={isRtl ? "شارك تحديث سيارتك الجديد..." : "Share your latest car update..."}
-                              placeholderTextColor="#ADADAD"
-                              value=""
-                              editable={false}
-                              multiline={true}
-                            />
-                            <TouchableOpacity 
-                              activeOpacity={0.9}
-                              onPress={() => setCreatePostModalVisible(true)}
-                              style={StyleSheet.absoluteFill}
-                            />
-                          </View>
-                          
-                          {/* Bottom Part: Media attachments & POST button */}
-                          <View style={[styles.composerBottomRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                            {/* Attachment Icons */}
-                            <View style={[styles.composerIconsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                              <TouchableOpacity 
-                                style={styles.composerIconButton} 
-                                activeOpacity={0.7}
-                                onPress={() => setCreatePostModalVisible(true)}
-                              >
-                                <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
-                              </TouchableOpacity>
-                              <TouchableOpacity 
-                                style={styles.composerIconButton} 
-                                activeOpacity={0.7}
-                                onPress={() => {
-                                  setCreatePostModalVisible(true);
-                                  pickPostImage();
-                                }}
-                              >
-                                <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
-                              </TouchableOpacity>
-                              <TouchableOpacity 
-                                style={styles.composerIconButton} 
-                                activeOpacity={0.7}
-                                onPress={() => setCreatePostModalVisible(true)}
-                              >
-                                <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
-                              </TouchableOpacity>
-                              <TouchableOpacity 
-                                style={styles.composerIconButton} 
-                                activeOpacity={0.7}
-                                onPress={() => setCreatePostModalVisible(true)}
-                              >
-                                <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
-                              </TouchableOpacity>
-                            </View>
-
-                            {/* Post Action */}
-                            <TouchableOpacity 
-                              style={styles.postButton} 
-                              onPress={() => setCreatePostModalVisible(true)} 
-                              activeOpacity={0.8}
-                            >
-                              <Text style={[styles.postButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                                {isRtl ? 'نشر' : 'POST'}
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-
-
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Facebook-style Create Post Modal */}
+          {/* Facebook-style Create Post Modal */}
                     <Modal
                       visible={createPostModalVisible}
                       animationType="slide"
@@ -2729,11 +2730,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                           </View>
                         </KeyboardAvoidingView>
                       </SafeAreaView>
-                    </Modal>
-                  </View>
-                )}
-              </Animated.View>
-            )}
+          </Modal>
 
           {/* Expanded Post Overlay (styled like Mechanics details) */}
           {expandedPost && (
@@ -4287,6 +4284,13 @@ const createStyles = (colors) => StyleSheet.create({
   },
   selectorTextUnselected: {
     color: colors.textMuted,
+  },
+  feedPostSection: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  feedComposerCard: {
+    width: '100%',
   },
   composerContainer: {
     width: '100%',
