@@ -332,12 +332,12 @@ function AppContent() {
               fullName: profile?.full_name || session.user.user_metadata?.full_name || 'User',
               phone: profile?.phone || session.user.user_metadata?.phone || '',
               role: profile?.role || 'customer',
-              carBrand: profile?.car_brand || 'Hyundai',
-              carModel: profile?.car_model || 'Coupe',
-              carYear: profile?.car_year || '2005',
-              plateNumber: profile?.plate_number || '1873 RW',
-              plateNumberArabic: profile?.plate_number_arabic || '١٨٧٣ ر و',
-              cc: profile?.cc || '2000 CC',
+              carBrand: profile?.car_brand || null,
+              carModel: profile?.car_model || null,
+              carYear: profile?.car_year || null,
+              plateNumber: profile?.plate_number || null,
+              plateNumberArabic: profile?.plate_number_arabic || null,
+              cc: profile?.cc || null,
               odometer: profile?.odometer || 0,
             };
             setCurrentUser(loadedUser);
@@ -399,6 +399,9 @@ function AppContent() {
             const registeredCar = createRegisteredCar(loadedUser);
             setUserVehicles([registeredCar]);
             setActiveVehicleId(registeredCar.id);
+          } else {
+            setUserVehicles([]);
+            setActiveVehicleId(null);
           }
         }
       } catch (e) {
@@ -483,6 +486,9 @@ function AppContent() {
           setActiveVehicleId(registeredCar.id);
           return [registeredCar];
         });
+      } else {
+        setUserVehicles([]);
+        setActiveVehicleId(null);
       }
     } else {
       setUserVehicles([]);
