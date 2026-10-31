@@ -8,6 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../styles/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, getUserProfile } from '../services/supabase';
 
 const STORAGE_KEY_LOCAL_USERS = '@werash_local_users_db';
 
@@ -274,43 +275,49 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          password: password.trim()
-        })
+      // 1. Authenticate with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailNormalized,
+        password: password.trim(),
       });
-      const data = await response.json();
-      setLoading(false);
-      if (response.ok && data.success) {
-        Alert.alert('Success', `Welcome back, ${data.user.fullName}!`);
+
+      if (error) {
+        setLoading(false);
+        Alert.alert('Login Failed', error.message || 'Invalid email or password.');
+        return;
+      }
+
+      if (data && data.user) {
+        // 2. Fetch profile from public.profiles
+        const profile = await getUserProfile(data.user.id);
+        setLoading(false);
+
+        const authenticatedUser = {
+          id: data.user.id,
+          email: data.user.email,
+          fullName: profile?.full_name || data.user.user_metadata?.full_name || 'User',
+          phone: profile?.phone || data.user.user_metadata?.phone || '',
+          role: profile?.role || 'customer',
+          carBrand: profile?.car_brand || 'Hyundai',
+          carModel: profile?.car_model || 'Coupe',
+          carYear: profile?.car_year || '2005',
+          plateNumber: profile?.plate_number || '1873 RW',
+          plateNumberArabic: profile?.plate_number_arabic || '١٨٧٣ ر و',
+          cc: profile?.cc || '2000 CC',
+          odometer: profile?.odometer || 0,
+        };
+
+        Alert.alert('Success', `Welcome back, ${authenticatedUser.fullName}!`);
         if (onSignInSuccess) {
-          onSignInSuccess(data.user);
+          onSignInSuccess(authenticatedUser);
         }
         handleClose();
-      } else {
-        Alert.alert('Login Failed', data.message || 'Invalid email or password.');
+        return;
       }
     } catch (error) {
       setLoading(false);
-      console.warn('Backend server unreachable, falling back to local mock login.', error);
-      const emailNormalized = email.trim().toLowerCase();
-      const user = localUsersDb.find(u => u.email === emailNormalized && u.password === password.trim());
-      if (user) {
-        Alert.alert('Success (Offline Mode)', `Welcome back, ${user.fullName}! (Offline Mock Mode)`);
-        if (onSignInSuccess) {
-          const { password: _, ...userWithoutPassword } = user;
-          onSignInSuccess(userWithoutPassword);
-        }
-        handleClose();
-      } else {
-        Alert.alert(
-          'Login Failed (Offline Mode)',
-          'Invalid credentials. Either register a new account or sign in with the default test credentials:\n\nEmail: youssef@example.com\nPassword: password123'
-        );
-      }
+      console.warn('Supabase sign-in network error:', error);
+      Alert.alert('Connection Error', 'Could not connect to authentication server. Please check your internet connection.');
     }
   };
 
@@ -345,56 +352,62 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: fullName.trim(),
-          email: registerEmail.trim(),
-          phone: registerPhone.trim(),
-          password: registerPassword.trim(),
-        })
+      const emailNormalized = registerEmail.trim().toLowerCase();
+
+      // Sign up user with metadata (trigger automatically populates public.profiles)
+      const { data, error } = await supabase.auth.signUp({
+        email: emailNormalized,
+        password: registerPassword.trim(),
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            phone: registerPhone.trim(),
+            role: 'customer',
+            car_brand: 'Hyundai',
+            car_model: 'Coupe',
+            car_year: '2005',
+            plate_number: '1873 RW',
+            plate_number_arabic: '١٨٧٣ ر و',
+            cc: '2000 CC',
+            odometer: 290000,
+          }
+        }
       });
-      const data = await response.json();
-      setLoading(false);
-      if (response.ok && data.success) {
-        Alert.alert('Success', 'Your account has been registered successfully! Welcome to Werash.');
+
+      if (error) {
+        setLoading(false);
+        Alert.alert('Registration Failed', error.message || 'An error occurred during registration.');
+        return;
+      }
+
+      if (data && data.user) {
+        setLoading(false);
+        const newUser = {
+          id: data.user.id,
+          email: data.user.email,
+          fullName: fullName.trim(),
+          phone: registerPhone.trim(),
+          role: 'customer',
+          carBrand: 'Hyundai',
+          carModel: 'Coupe',
+          carYear: '2005',
+          plateNumber: '1873 RW',
+          plateNumberArabic: '١٨٧٣ ر و',
+          cc: '2000 CC',
+          odometer: 290000,
+        };
+
+        Alert.alert('Success', 'Your account has been created successfully! Welcome to Werash.');
         if (onSignInSuccess) {
-          onSignInSuccess({ ...data.user, phone: data.user?.phone || registerPhone.trim() });
+          onSignInSuccess(newUser);
         }
         handleClose();
-      } else {
-        Alert.alert('Registration Failed', data.message || 'An error occurred during registration.');
+        return;
       }
     } catch (error) {
       setLoading(false);
-      console.warn('Backend server unreachable, falling back to local mock registration.', error);
-      const emailNormalized = registerEmail.trim().toLowerCase();
-      
-      // Check if already registered locally
-      const existingUser = localUsersDb.find(u => u.email === emailNormalized);
-      if (existingUser) {
-        Alert.alert('Registration Failed (Offline Mode)', 'This email address is already registered locally.');
-        return;
-      }
-      
-      const newUser = {
-        id: Date.now().toString(),
-        fullName: fullName.trim(),
-        email: emailNormalized,
-        phone: registerPhone.trim(),
-        password: registerPassword.trim(),
-      };
-      
-      localUsersDb.push(newUser);
-      AsyncStorage.setItem(STORAGE_KEY_LOCAL_USERS, JSON.stringify(localUsersDb)).catch(() => {});
-      
-      Alert.alert('Success (Offline Mode)', 'Your account has been registered successfully (Offline Mock Mode)! Welcome to Werash.');
-      if (onSignInSuccess) {
-        const { password: _, ...userWithoutPassword } = newUser;
-        onSignInSuccess(userWithoutPassword);
-      }
-      handleClose();
+      console.warn('Supabase sign-up network error:', error);
+      Alert.alert('Registration Error', 'Could not connect to authentication server. Please check your internet connection.');
     }
   };
 

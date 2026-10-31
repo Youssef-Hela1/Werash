@@ -14,6 +14,7 @@ import AdDetailModal from './src/components/AdDetailModal';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, getUserProfile } from './src/services/supabase';
 
 const STORAGE_KEY_USER_VEHICLES = '@werash_user_vehicles';
 const STORAGE_KEY_ACTIVE_VEHICLE_ID = '@werash_active_vehicle_id';
@@ -319,9 +320,31 @@ function AppContent() {
           setSelectedLanguage(storedLang);
         }
 
-        // Restore User (Ignore legacy mock-youssef so fresh app is blank slate)
+        // Restore User from Supabase session or cached storage
         let loadedUser = null;
-        if (storedUser) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && session.user) {
+            const profile = await getUserProfile(session.user.id);
+            loadedUser = {
+              id: session.user.id,
+              email: session.user.email,
+              fullName: profile?.full_name || session.user.user_metadata?.full_name || 'User',
+              phone: profile?.phone || session.user.user_metadata?.phone || '',
+              role: profile?.role || 'customer',
+              carBrand: profile?.car_brand || 'Hyundai',
+              carModel: profile?.car_model || 'Coupe',
+              carYear: profile?.car_year || '2005',
+              plateNumber: profile?.plate_number || '1873 RW',
+              plateNumberArabic: profile?.plate_number_arabic || '١٨٧٣ ر و',
+              cc: profile?.cc || '2000 CC',
+              odometer: profile?.odometer || 0,
+            };
+            setCurrentUser(loadedUser);
+          }
+        } catch (_) {}
+
+        if (!loadedUser && storedUser) {
           try {
             const parsedUser = JSON.parse(storedUser);
             if (parsedUser && parsedUser.id !== 'mock-youssef') {
@@ -474,6 +497,7 @@ function AppContent() {
 
   // Handle explicit Log Out
   const handleLogOut = () => {
+    supabase.auth.signOut().catch(() => {});
     setCurrentUser(null);
     setUserVehicles([]);
     setActiveVehicleId(null);
