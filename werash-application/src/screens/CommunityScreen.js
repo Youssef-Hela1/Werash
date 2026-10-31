@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
-  KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView, PanResponder
+  KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView, PanResponder,
+  Keyboard, TouchableWithoutFeedback
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -624,6 +625,12 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24));
   const isRtl = selectedLanguage === 'Arabic';
+
+  const handleDismissKeyboard = () => {
+    if (!isRecordingVoiceRef.current) {
+      Keyboard.dismiss();
+    }
+  };
   const [feedPosts, setFeedPosts] = useState(initialPosts);
   const [statusText, setStatusText] = useState('');
   const [selectedFeed, setSelectedFeed] = useState('active'); // 'overall', 'active', 'marketplace'
@@ -3111,6 +3118,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     style={styles.dmMessagesScroll}
                     contentContainerStyle={styles.dmMessagesContent}
                     showsVerticalScrollIndicator={false}
+                    keyboardDismissMode="on-drag"
+                    keyboardShouldPersistTaps="handled"
+                    onTouchStart={handleDismissKeyboard}
                     onContentSizeChange={() => dmScrollRef.current?.scrollToEnd({ animated: true })}
                   >
                     {/* Profile Intro Banner inside Chat */}
@@ -3466,40 +3476,46 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 </KeyboardAvoidingView>
               ) : (
                 // --- INBOX CONVERSATIONS LIST VIEW ---
-                <View style={{ flex: 1 }}>
-                  <View style={[styles.inboxHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity 
-                      style={[styles.newPageBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
-                      onPress={() => {
-                        setShowMessagesPage(false);
-                        setDirectMessageUser(null);
-                      }}
-                      activeOpacity={0.8}
-                      hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
-                    >
-                      <Ionicons name={isRtl ? "chevron-forward" : "chevron-back"} size={18} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 2 } : { marginRight: 2 }} />
-                      <Text style={[styles.newPageBackButtonText, isRtl && styles.arabicBoldText]}>{isRtl ? 'المجتمع' : 'Community'}</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Search Inbox */}
-                  <View style={[styles.inboxSearchBar, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-                    <TextInput
-                      style={[styles.inboxSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                      placeholder={isRtl ? "بحث في المحادثات..." : "Search conversations..."}
-                      placeholderTextColor="#A0A0A0"
-                      value={inboxSearch}
-                      onChangeText={setInboxSearch}
-                    />
-                    {Boolean(inboxSearch) && (
-                      <TouchableOpacity onPress={() => setInboxSearch('')}>
-                        <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                <TouchableWithoutFeedback onPress={handleDismissKeyboard} accessible={false}>
+                  <View style={{ flex: 1 }}>
+                    <View style={[styles.inboxHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <TouchableOpacity 
+                        style={[styles.newPageBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
+                        onPress={() => {
+                          setShowMessagesPage(false);
+                          setDirectMessageUser(null);
+                        }}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
+                      >
+                        <Ionicons name={isRtl ? "chevron-forward" : "chevron-back"} size={18} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 2 } : { marginRight: 2 }} />
+                        <Text style={[styles.newPageBackButtonText, isRtl && styles.arabicBoldText]}>{isRtl ? 'المجتمع' : 'Community'}</Text>
                       </TouchableOpacity>
-                    )}
-                  </View>
+                    </View>
 
-                  <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
+                    {/* Search Inbox */}
+                    <View style={[styles.inboxSearchBar, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="search" size={17} color={COLORS.textMuted} style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+                      <TextInput
+                        style={[styles.inboxSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                        placeholder={isRtl ? "بحث في المحادثات..." : "Search conversations..."}
+                        placeholderTextColor="#A0A0A0"
+                        value={inboxSearch}
+                        onChangeText={setInboxSearch}
+                      />
+                      {Boolean(inboxSearch) && (
+                        <TouchableOpacity onPress={() => setInboxSearch('')}>
+                          <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <ScrollView 
+                      style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}
+                      keyboardDismissMode="on-drag"
+                      keyboardShouldPersistTaps="handled"
+                      onTouchStart={handleDismissKeyboard}
+                    >
                     {Boolean(inboxSearch.trim()) && (
                       <View style={[styles.inboxSearchStatusRow, isRtl && { flexDirection: 'row-reverse' }]}>
                         <Text style={[styles.inboxSearchStatusText, isRtl && styles.arabicRegularText]}>
@@ -3584,7 +3600,8 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       ))
                     )}
                   </ScrollView>
-                </View>
+                  </View>
+                </TouchableWithoutFeedback>
               )}
             </SafeAreaView>
           </Modal>
