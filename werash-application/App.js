@@ -663,7 +663,15 @@ function AppContent() {
           />
         );
       case 'community':
-        return <CommunityScreen currentUser={currentUser} scrollToTopTrigger={communityScrollTrigger} selectedLanguage={selectedLanguage} />;
+        return (
+          <CommunityScreen 
+            currentUser={currentUser} 
+            scrollToTopTrigger={communityScrollTrigger} 
+            selectedLanguage={selectedLanguage}
+            userVehicles={userVehicles}
+            activeVehicleId={resolvedActiveVehicleId}
+          />
+        );
       case 'more':
         return (
           <SettingsScreen 

@@ -12,589 +12,9 @@ import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const initialInboxConversations = [
-  {
-    id: 'conv_1',
-    user: 'Samir Fahmy',
-    handle: '@samir_f',
-    avatar: require('../../assets/expert_samir.png'),
-    avatarType: 'image',
-    lastMessage: 'Hey! Thanks for visiting my profile. Feel free to ask about my car or parts!',
-    time: '10:30 AM',
-    unread: 1,
-  },
-  {
-    id: 'conv_2',
-    user: 'Sarah Jenkins',
-    handle: '@sarah_j',
-    avatar: require('../../assets/expert_sarah.png'),
-    avatarType: 'image',
-    lastMessage: 'The ceramic coating holds up for at least 3 years with proper washes.',
-    time: 'Yesterday',
-    unread: 0,
-  },
-  {
-    id: 'conv_3',
-    user: 'Sherif Aly',
-    handle: '@sherif_a',
-    avatar: require('../../assets/expert_sherif.png'),
-    avatarType: 'image',
-    lastMessage: 'Are you coming to the car meet this weekend? 🤝🚗',
-    time: '2d ago',
-    unread: 0,
-  },
-  {
-    id: 'conv_4',
-    user: 'Elena Rostova',
-    handle: '@elena',
-    avatar: require('../../assets/expert_elena.png'),
-    avatarType: 'image',
-    lastMessage: 'The carbon fiber hood weighs only 6.5 kg, great reduction.',
-    time: '3d ago',
-    unread: 0,
-  },
-  {
-    id: 'conv_5',
-    user: 'Ahmed Yassin',
-    handle: '@ahmed_y',
-    avatar: null,
-    avatarType: 'icon',
-    lastMessage: 'Is the BMW part still available?',
-    time: '10:42 AM',
-    unread: 0,
-  },
-];
+const initialInboxConversations = [];
 
-const initialPosts = [
-  {
-    id: 'm1',
-    author: 'Samir Fahmy',
-    handle: '@samir_f',
-    avatar: require('../../assets/expert_samir.png'),
-    avatarType: 'image',
-    time: '1h ago',
-    content: "Finally finished swapping the gearbox on my e46 track car. Took all weekend but she shifts like butter now! 🏎️⚙️ Can't wait for the track day at Autodrome.",
-    postImage: null,
-    likes: 24,
-    comments: 3,
-    liked: false,
-    vehicle: 'BMW E46',
-    commentsList: [
-      {
-        id: 'c_m1_1',
-        author: 'Sherif Aly',
-        handle: '@sherif_a',
-        avatar: require('../../assets/expert_sherif.png'),
-        avatarType: 'image',
-        time: '45m ago',
-        content: 'Nothing beats a fresh gearbox on track day! Did you replace the flywheel too?',
-        likes: 4,
-        liked: false,
-        replies: [
-          {
-            id: 'r_m1_1_1',
-            author: 'Samir Fahmy',
-            handle: '@samir_f',
-            avatar: require('../../assets/expert_samir.png'),
-            avatarType: 'image',
-            time: '35m ago',
-            content: 'Yes! Paired it with an ACT lightweight flywheel and heavy-duty pressure plate.',
-            likes: 3,
-            liked: false,
-          }
-        ],
-      },
-      {
-        id: 'c_m1_2',
-        author: 'Sarah Jenkins',
-        handle: '@sarah_j',
-        avatar: require('../../assets/expert_sarah.png'),
-        avatarType: 'image',
-        time: '30m ago',
-        content: 'Solid work Samir! Which clutch setup did you go with?',
-        likes: 2,
-        liked: false,
-        replies: [
-          {
-            id: 'r_m1_2_1',
-            author: 'Samir Fahmy',
-            handle: '@samir_f',
-            avatar: require('../../assets/expert_samir.png'),
-            avatarType: 'image',
-            time: '20m ago',
-            content: 'Sachs Performance 6-puck sprung disk. Shifting engagement is razor sharp!',
-            likes: 2,
-            liked: false,
-          }
-        ],
-      },
-      {
-        id: 'c_m1_3',
-        author: 'Elena Rostova',
-        handle: '@elena',
-        avatar: require('../../assets/expert_elena.png'),
-        avatarType: 'image',
-        time: '12m ago',
-        content: 'See you at the Autodrome this Friday! 🏁 Bring extra brake pads.',
-        likes: 5,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 'm2',
-    author: 'Sarah Jenkins',
-    handle: '@sarah_j',
-    avatar: require('../../assets/expert_sarah.png'),
-    avatarType: 'image',
-    time: '3h ago',
-    content: "Just detailed this gorgeous classic Porsche 911 Carrera. Paint correction, ceramic coating, and deep interior cleaning. That guards red paint is absolutely popping! 🔴✨ #detailersofinstagram #porsche #911",
-    postImage: require('../../assets/modern_workshop_banner.png'),
-    likes: 56,
-    comments: 3,
-    liked: false,
-    vehicle: 'Porsche 911',
-    commentsList: [
-      {
-        id: 'c_m2_1',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '2h ago',
-        content: 'Guards Red is such an iconic color. That depth of reflection is insane! 🔴✨',
-        likes: 6,
-        liked: false,
-      },
-      {
-        id: 'c_m2_2',
-        author: 'Michael Chang',
-        handle: '@michael_c',
-        avatar: require('../../assets/expert_michael.png'),
-        avatarType: 'image',
-        time: '1h ago',
-        content: 'Which ceramic coating brand did you use on the single stage paint?',
-        likes: 3,
-        liked: false,
-      },
-      {
-        id: 'c_m2_3',
-        author: 'Sherif Aly',
-        handle: '@sherif_a',
-        avatar: require('../../assets/expert_sherif.png'),
-        avatarType: 'image',
-        time: '40m ago',
-        content: 'Museum quality finish right there. Flawless work Sarah!',
-        likes: 5,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 'm3',
-    author: 'Michael Chang',
-    handle: '@michael_c',
-    avatar: require('../../assets/expert_michael.png'),
-    avatarType: 'image',
-    time: '6h ago',
-    content: "Quick oil change and spark plug replacement on my daily driver. Pro tip: always check spark plug gaps before installing them, even if they claim to be pre-gapped! 🔧🔌",
-    postImage: null,
-    likes: 12,
-    comments: 1,
-    liked: false,
-    vehicle: 'Hyundai Coupe',
-    commentsList: [
-      {
-        id: 'c_m3_1',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '4h ago',
-        content: 'Crucial advice! Had one bent right out of the box last year and it caused misfires.',
-        likes: 4,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 'm4',
-    author: 'Sherif Aly',
-    handle: '@sherif_a',
-    avatar: require('../../assets/expert_sherif.png'),
-    avatarType: 'image',
-    time: '12h ago',
-    content: "Had a blast at the local car meet last night! So many amazing builds and great conversations. The car community here is truly unmatched. 🤝🚗 #carmeet #petrolheads",
-    postImage: require('../../assets/car_side_profile.png'),
-    likes: 38,
-    comments: 2,
-    liked: false,
-    vehicle: 'General',
-    commentsList: [
-      {
-        id: 'c_m4_1',
-        author: 'Elena Rostova',
-        handle: '@elena',
-        avatar: require('../../assets/expert_elena.png'),
-        avatarType: 'image',
-        time: '9h ago',
-        content: 'Great turnout! That skyline R34 was stealing the whole show.',
-        likes: 7,
-        liked: false,
-      },
-      {
-        id: 'c_m4_2',
-        author: 'Sarah Jenkins',
-        handle: '@sarah_j',
-        avatar: require('../../assets/expert_sarah.png'),
-        avatarType: 'image',
-        time: '8h ago',
-        content: 'Next meet let us organize a dedicated parking lineup by chassis!',
-        likes: 3,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 'm5',
-    author: 'Elena Rostova',
-    handle: '@elena',
-    avatar: require('../../assets/expert_elena.png'),
-    avatarType: 'image',
-    time: '1d ago',
-    content: "Carbon fiber hood installed on a client's GR Yaris today. Not only does it look mean, but it saved 6.5 kg of weight off the front end! Weight reduction is the best modification. ⚖️🏁",
-    postImage: null,
-    likes: 47,
-    comments: 2,
-    liked: false,
-    vehicle: 'Toyota GR Yaris',
-    commentsList: [
-      {
-        id: 'c_m5_1',
-        author: 'Michael Chang',
-        handle: '@michael_c',
-        avatar: require('../../assets/expert_michael.png'),
-        avatarType: 'image',
-        time: '18h ago',
-        content: '6.5 kg off the front axle makes a noticeable difference in corner entry!',
-        likes: 8,
-        liked: false,
-      },
-      {
-        id: 'c_m5_2',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '15h ago',
-        content: 'Does it retain the factory hood latch or require hood pins?',
-        likes: 2,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '1',
-    author: 'Elena Rostova',
-    handle: '@elena',
-    avatar: require('../../assets/expert_elena.png'),
-    avatarType: 'image',
-    time: '2h ago',
-    content: "Just finalized the ECU calibration on a twin-turbo Golf R. The torque curve is absolutely linear now! 📈💻 Ready for track season. #ecu #tuning #golf-r",
-    postImage: require('../../assets/modern_workshop_banner.png'),
-    likes: 42,
-    comments: 2,
-    liked: false,
-    vehicle: 'Golf R',
-    commentsList: [
-      {
-        id: 'c_1_1',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '1h ago',
-        content: 'Super smooth power band! What peak boost is it running on 95 octane?',
-        likes: 4,
-        liked: false,
-      },
-      {
-        id: 'c_1_2',
-        author: 'Kareem El-Sayed',
-        handle: '@kareem',
-        avatar: require('../../assets/expert_kareem.png'),
-        avatarType: 'image',
-        time: '35m ago',
-        content: 'Clean tune Elena. Linear torque is so much better for corner exit on AWD.',
-        likes: 3,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '2',
-    author: 'Kareem El-Sayed',
-    handle: '@kareem',
-    avatar: require('../../assets/expert_kareem.png'),
-    avatarType: 'image',
-    time: '4h ago',
-    content: "Diagnosed a weird tapping sound in a customer's engine bay. Turned out to be a loose heat shield. Quick fix but saved them a major headache! 🛠️ Always double check the basics first.",
-    postImage: null,
-    likes: 18,
-    comments: 1,
-    liked: false,
-    vehicle: 'General',
-    commentsList: [
-      {
-        id: 'c_2_1',
-        author: 'Tariq Mansour',
-        handle: '@tariq',
-        avatar: require('../../assets/expert_tariq.png'),
-        avatarType: 'image',
-        time: '2h ago',
-        content: 'Heat shield rattles can drive anyone crazy! Good catch.',
-        likes: 3,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '3',
-    author: 'Tariq Mansour',
-    handle: '@tariq',
-    avatar: require('../../assets/expert_tariq.png'),
-    avatarType: 'image',
-    time: '1d ago',
-    content: "Brembo Big Brake Kit upgrade completed for a client's track car. Stop power is immense now! Don't skimp on safety. 🛑 #brakes #trackday #safetyfirst",
-    postImage: require('../../assets/car_side_profile.png'),
-    likes: 29,
-    comments: 1,
-    liked: false,
-    vehicle: 'Hyundai Coupe',
-    commentsList: [
-      {
-        id: 'c_3_1',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '18h ago',
-        content: 'Those calipers look huge behind the spokes. Huge stopping upgrade!',
-        likes: 5,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '4',
-    author: 'Michael Chang',
-    handle: '@michael_c',
-    avatar: require('../../assets/expert_michael.png'),
-    avatarType: 'image',
-    time: '3h ago',
-    content: "Selling my lightly used set of 18\" BBS LM Replica rims. Perfect fitment for Golf R or Audi S3. Zero curb rash, wrapped in Hankook Ventus V12 tires with 80% tread left. DM if interested! 🏎️💨",
-    postImage: require('../../assets/car_side_profile.png'),
-    likes: 15,
-    comments: 2,
-    liked: false,
-    vehicle: 'General',
-    isMarketplace: true,
-    price: '$1,200',
-    location: 'New Cairo',
-    commentsList: [
-      {
-        id: 'c_4_1',
-        author: 'Kareem El-Sayed',
-        handle: '@kareem',
-        avatar: require('../../assets/expert_kareem.png'),
-        avatarType: 'image',
-        time: '2h ago',
-        content: 'What is the offset (ET) on these wheels?',
-        likes: 2,
-        liked: false,
-      },
-      {
-        id: 'c_4_2',
-        author: 'Michael Chang',
-        handle: '@michael_c',
-        avatar: require('../../assets/expert_michael.png'),
-        avatarType: 'image',
-        time: '1h ago',
-        content: 'ET45! Fits flush with zero fender rubbing.',
-        likes: 4,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '5',
-    author: 'Sarah Jenkins',
-    handle: '@sarah_j',
-    avatar: require('../../assets/expert_sarah.png'),
-    avatarType: 'image',
-    time: '5h ago',
-    content: "Looking to sell a brand new OMP Racing Steering Wheel. Leather grip, yellow centering stripe. Bought it for a project car but went a different direction. Box opened only for photos. 📦🏁",
-    postImage: null,
-    likes: 8,
-    comments: 1,
-    liked: false,
-    vehicle: 'General',
-    isMarketplace: true,
-    price: '$250',
-    location: 'Maadi',
-    commentsList: [
-      {
-        id: 'c_5_1',
-        author: 'Tariq Mansour',
-        handle: '@tariq',
-        avatar: require('../../assets/expert_tariq.png'),
-        avatarType: 'image',
-        time: '3h ago',
-        content: 'Does it come with the horn button and wiring harness?',
-        likes: 1,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '6',
-    author: 'Sherif Aly',
-    handle: '@sherif_a',
-    avatar: require('../../assets/expert_sherif.png'),
-    avatarType: 'image',
-    time: '1d ago',
-    content: "Mishimoto Performance Intercooler for Honda Civic Type R (FK8). Excellent condition, used for only 5,000 km. Fits 2017-2021 models. Selling because I upgraded to a full race setup. ❄️🚗",
-    postImage: null,
-    likes: 12,
-    comments: 1,
-    liked: false,
-    vehicle: 'Honda Civic',
-    isMarketplace: true,
-    price: '$450',
-    location: 'Heliopolis',
-    commentsList: [
-      {
-        id: 'c_6_1',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '20h ago',
-        content: 'Great price for a Mishimoto core. Intake air temps will drop significantly.',
-        likes: 3,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '7',
-    author: 'Samir Fahmy',
-    handle: '@samir_f',
-    avatar: require('../../assets/expert_samir.png'),
-    avatarType: 'image',
-    time: '2d ago',
-    content: "Selling a set of 4 Michelin Pilot Sport 4S tires (245/40/R18). 95% tread depth remaining, no punctures or sidewall repairs. Manufactured late 2024. Excellent track/street performance! 🛞💥",
-    postImage: null,
-    likes: 19,
-    comments: 1,
-    liked: false,
-    vehicle: 'General',
-    isMarketplace: true,
-    price: '$600',
-    location: 'Sheikh Zayed',
-    commentsList: [
-      {
-        id: 'c_7_1',
-        author: 'Elena Rostova',
-        handle: '@elena',
-        avatar: require('../../assets/expert_elena.png'),
-        avatarType: 'image',
-        time: '1d ago',
-        content: 'Best daily/track hybrid tire on the market hands down.',
-        likes: 5,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '8',
-    author: 'Elena Rostova',
-    handle: '@elena',
-    avatar: require('../../assets/expert_elena.png'),
-    avatarType: 'image',
-    time: '3d ago',
-    content: "Garrett GTX3071R Gen II Dual Ball Bearing Turbocharger. Brand new, in original packaging. Perfect for 350-650hp custom builds. Comes with T25 inlet flange and V-Band outlet. 🐌🔥",
-    postImage: null,
-    likes: 31,
-    comments: 1,
-    liked: false,
-    vehicle: 'General',
-    isMarketplace: true,
-    price: '$1,600',
-    location: 'Maadi',
-    commentsList: [
-      {
-        id: 'c_8_1',
-        author: 'Samir Fahmy',
-        handle: '@samir_f',
-        avatar: require('../../assets/expert_samir.png'),
-        avatarType: 'image',
-        time: '2d ago',
-        content: 'Spools remarkably fast for a 600hp capable turbo! Absolute unit.',
-        likes: 6,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: '9',
-    author: 'Tariq Mansour',
-    handle: '@tariq',
-    avatar: require('../../assets/expert_tariq.png'),
-    avatarType: 'image',
-    time: '3d ago',
-    content: "Original carbon fiber trunk spoiler for BMW M3 (F80). Gloss finish, perfect weave, zero scratches. Easy double-sided tape install. Adds subtle aggression! 🏁💎",
-    postImage: null,
-    likes: 14,
-    comments: 0,
-    liked: false,
-    vehicle: 'BMW M3',
-    isMarketplace: true,
-    price: '$350',
-    location: 'New Cairo',
-    commentsList: [],
-  },
-  {
-    id: '10',
-    author: 'Kareem El-Sayed',
-    handle: '@kareem',
-    avatar: require('../../assets/expert_kareem.png'),
-    avatarType: 'image',
-    time: '4d ago',
-    content: "Recaro Pole Position fiberglass bucket seat in black velour. FIA approved until 2028. Minimal wear on bolster, shell is pristine. Side mounts included! 💺✊",
-    postImage: null,
-    likes: 22,
-    comments: 1,
-    liked: false,
-    vehicle: 'General',
-    isMarketplace: true,
-    price: '$700',
-    location: 'Sheikh Zayed',
-    commentsList: [
-      {
-        id: 'c_10_1',
-        author: 'Sherif Aly',
-        handle: '@sherif_a',
-        avatar: require('../../assets/expert_sherif.png'),
-        avatarType: 'image',
-        time: '3d ago',
-        content: 'FIA valid until 2028 is a steal for this price.',
-        likes: 4,
-        liked: false,
-      },
-    ],
-  }
-];
+const initialPosts = [];
 
 const REPORT_REASONS = [
   { id: 'offensive', en: 'Inappropriate or offensive content', ar: 'محتوى غير لائق أو مسيء' },
@@ -608,23 +28,26 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
 const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
 
-const getDefaultDmMessages = (authorName) => [
-  {
-    id: 'default-intro-1',
-    sender: 'them',
-    text: `Hey! Thanks for visiting my profile. Feel free to ask about my car or parts!`,
-    textAr: `مرحباً! شكراً لزيارة صفحتي. يمكنك سؤالي عن سيارتي أو أي قطع غيار!`,
-    time: '10:30 AM'
-  }
-];
+const getDefaultDmMessages = (authorName) => [];
 
-export default function CommunityScreen({ currentUser, scrollToTopTrigger, selectedLanguage }) {
+export default function CommunityScreen({
+  currentUser,
+  scrollToTopTrigger,
+  selectedLanguage,
+  userVehicles = [],
+  activeVehicleId,
+}) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const COLORS = colors; // Keep JSX compatibility with dynamic themes
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24));
   const isRtl = selectedLanguage === 'Arabic';
+
+  const activeVehicle = (userVehicles || []).find(v => v.id === activeVehicleId) || (userVehicles || [])[0] || null;
+  const currentCarName = activeVehicle 
+    ? `${activeVehicle.make || ''} ${activeVehicle.model || ''}`.trim()
+    : (currentUser?.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : '');
 
   const handleDismissKeyboard = () => {
     if (!isRecordingVoiceRef.current) {
@@ -1073,7 +496,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
     const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
     const authorPosts = feedPosts.filter((p) => p.author === authorName);
-    const primaryVehicle = authorData.vehicle || authorPosts.find((p) => p.vehicle && p.vehicle !== 'General')?.vehicle || (authorName === currentAuthor ? 'Hyundai Coupe (2005)' : 'BMW E46');
+    const primaryVehicle = authorData.vehicle || authorPosts.find((p) => p.vehicle && p.vehicle !== 'General')?.vehicle || (authorName === currentAuthor ? (currentCarName || '') : '');
     const avatar = authorData.avatar || authorPosts.find((p) => p.avatar)?.avatar || null;
     const avatarType = authorData.avatarType || (avatar ? 'image' : 'icon');
     const handle = authorData.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`;
@@ -1572,7 +995,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     if (!statusText.trim() && !selectedImage) return;
     const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
     const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
-    const currentVehicle = currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel}` : 'Hyundai Coupe';
+    const currentVehicle = currentCarName || (currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : 'General');
 
     const newPost = {
       id: Date.now().toString(),
@@ -1601,7 +1024,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     if (!listingTitle.trim() || !listingPrice.trim()) return;
     const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
     const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
-    const currentVehicle = currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel}` : 'Hyundai Coupe';
+    const currentVehicle = currentCarName || (currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : 'General');
 
     const newPost = {
       id: Date.now().toString(),
@@ -1884,7 +1307,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     if (post.isMarketplace) return false;
     
     if (selectedFeed === 'overall') return true;
-    return post.vehicle === 'Hyundai Coupe' || post.vehicle === 'General' || post.author === 'Guest User';
+    if (selectedFeed === 'active') {
+      if (!currentCarName) return true;
+      return post.vehicle === currentCarName || post.vehicle === 'General' || post.author === currentAuthorName;
+    }
+    return true;
   });
 
   // Calculate active user stats for profile card
@@ -1894,7 +1321,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     handle: `@${currentAuthorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
     avatar: null,
     avatarType: 'icon',
-    vehicle: 'Hyundai Coupe (2005)',
+    vehicle: currentCarName || '',
     isSelf: true,
   };
   const isViewingSelf = activeProfileUser.isSelf || activeProfileUser.author === currentAuthorName;
@@ -2176,10 +1603,10 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             ) : filteredPosts.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="chatbubble-ellipses-outline" size={36} color="rgba(77, 110, 79, 0.18)" style={{ marginBottom: 10 }} />
-                <Text style={styles.emptyText}>
+                <Text style={[styles.emptyText, isRtl && styles.arabicRegularText]}>
                   {showProfile 
-                    ? "You haven't posted anything yet. Share your first status update on the feed!" 
-                    : "No posts found in this feed."}
+                    ? (isRtl ? 'لم تنشر أي شيء بعد. شارك أول منشور لك في المجتمع!' : "You haven't posted anything yet. Share your first status update on the feed!")
+                    : (isRtl ? 'لا توجد منشورات في هذا القسم حالياً.' : 'No posts found in this feed.')}
                 </Text>
                 {showProfile && (
                   <TouchableOpacity 
@@ -2187,7 +1614,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     onPress={() => handleShowProfile(false)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.emptyButtonText}>Back to Feed</Text>
+                    <Text style={[styles.emptyButtonText, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'العودة للموجز' : 'Back to Feed'}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -3532,25 +2961,33 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     {filteredConversations.length === 0 ? (
                       <View style={styles.inboxEmptyContainer}>
                         <View style={styles.inboxEmptyIconBox}>
-                          <Ionicons name="search" size={28} color={COLORS.bgBrand} />
+                          <Ionicons name={inboxSearch.trim() ? "search" : "chatbubbles-outline"} size={28} color={COLORS.bgBrand} />
                         </View>
                         <Text style={[styles.inboxEmptyTitle, isRtl && styles.arabicBoldText]}>
-                          {isRtl ? 'لم يتم العثور على رسائل' : 'No messages or chats found'}
+                          {inboxSearch.trim()
+                            ? (isRtl ? 'لم يتم العثور على رسائل' : 'No messages or chats found')
+                            : (isRtl ? 'لا توجد محادثات بعد' : 'No conversations yet')}
                         </Text>
                         <Text style={[styles.inboxEmptySubtitle, isRtl && styles.arabicRegularText]}>
-                          {isRtl
-                            ? `لا توجد محادثات أو رسائل تطابق "${inboxSearch}"`
-                            : `No conversations or messages matching "${inboxSearch}"`}
+                          {inboxSearch.trim()
+                            ? (isRtl
+                              ? `لا توجد محادثات أو رسائل تطابق "${inboxSearch}"`
+                              : `No conversations or messages matching "${inboxSearch}"`)
+                            : (isRtl
+                              ? 'ستظهر رسائلك ومحادثاتك المباشرة هنا عند التواصل مع أعضاء المجتمع.'
+                              : 'Your direct messages and conversations will appear here when you connect with community members.')}
                         </Text>
-                        <TouchableOpacity
-                          style={styles.inboxClearSearchBtn}
-                          onPress={() => setInboxSearch('')}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={[styles.inboxClearSearchBtnText, isRtl && styles.arabicBoldText]}>
-                            {isRtl ? 'مسح البحث' : 'Clear Search'}
-                          </Text>
-                        </TouchableOpacity>
+                        {Boolean(inboxSearch.trim()) && (
+                          <TouchableOpacity
+                            style={styles.inboxClearSearchBtn}
+                            onPress={() => setInboxSearch('')}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.inboxClearSearchBtnText, isRtl && styles.arabicBoldText]}>
+                              {isRtl ? 'مسح البحث' : 'Clear Search'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     ) : (
                       filteredConversations.map(msg => (
