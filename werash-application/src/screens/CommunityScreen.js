@@ -548,6 +548,14 @@ const initialPosts = [
   }
 ];
 
+const REPORT_REASONS = [
+  { id: 'offensive', en: 'Inappropriate or offensive content', ar: 'محتوى غير لائق أو مسيء' },
+  { id: 'spam', en: 'Spam, scam, or misleading information', ar: 'احتيال أو رسائل غير مرغوب فيها' },
+  { id: 'harassment', en: 'Harassment or hate speech', ar: 'مضايقة أو خطاب كراهية' },
+  { id: 'false_info', en: 'False car/parts description or pricing', ar: 'وصف أو سعر غير صحيح لسيارة/قطع غيار' },
+  { id: 'other', en: 'Other community guideline violation', ar: 'مخالفة أخرى لإرشادات المجتمع' },
+];
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
 const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
@@ -577,6 +585,12 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [replyingTo, setReplyingTo] = useState(null); // { commentId, author }
   const commentsScrollRef = useRef(null);
   const commentInputRef = useRef(null);
+
+  // Report post state
+  const [reportModalPost, setReportModalPost] = useState(null);
+  const [selectedReportReason, setSelectedReportReason] = useState(null);
+  const [reportDetailText, setReportDetailText] = useState('');
+  const [reportedPostIds, setReportedPostIds] = useState([]);
 
   const isCommentsExpandedRef = useRef(false);
   const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
@@ -1093,6 +1107,28 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   };
 
 
+  const handleOpenReportModal = (post) => {
+    setReportModalPost(post);
+    setSelectedReportReason(null);
+    setReportDetailText('');
+  };
+
+  const handleSubmitReport = () => {
+    if (!reportModalPost || !selectedReportReason) return;
+    const reportedId = reportModalPost.id;
+    setReportedPostIds((prev) => [...prev, reportedId]);
+    setReportModalPost(null);
+    setSelectedReportReason(null);
+    setReportDetailText('');
+
+    Alert.alert(
+      isRtl ? 'تم إرسال البلاغ' : 'Report Submitted',
+      isRtl
+        ? 'شكراً لإبلاغنا. سيقوم فريق الإشراف بمراجعة هذا المنشور، وتم إخفاؤه من خلاصتك.'
+        : 'Thank you for letting us know. Our moderation team will review this post, and it has been hidden from your feed.'
+    );
+  };
+
   const handleOpenComments = (post) => {
     // Find the latest version of post from feedPosts to ensure commentsList is fresh
     const freshPost = feedPosts.find(p => p.id === post.id) || post;
@@ -1271,6 +1307,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   // Filter posts based on view state
   // Filter posts based on view state
   const filteredPosts = feedPosts.filter((post) => {
+    if (reportedPostIds.includes(post.id)) {
+      return false;
+    }
     if (showProfile) {
       const targetAuthor = selectedUserProfile?.author || currentAuthorName;
       return post.author === targetAuthor;
@@ -1657,11 +1696,25 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       </View>
                     </TouchableOpacity>
                     {post.isMarketplace ? (
-                      <View style={styles.priceContainer}>
-                        <Text style={styles.priceText}>{post.price}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={styles.priceContainer}>
+                          <Text style={styles.priceText}>{post.price}</Text>
+                        </View>
+                        <TouchableOpacity 
+                          activeOpacity={0.6}
+                          onPress={() => handleOpenReportModal(post)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          style={isRtl ? { marginRight: 8 } : { marginLeft: 8 }}
+                        >
+                          <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.textMuted} />
+                        </TouchableOpacity>
                       </View>
                     ) : (
-                      <TouchableOpacity activeOpacity={0.6}>
+                      <TouchableOpacity 
+                        activeOpacity={0.6}
+                        onPress={() => handleOpenReportModal(post)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
                         <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.textMuted} />
                       </TouchableOpacity>
                     )}
@@ -2892,6 +2945,124 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               </Animated.View>
             </KeyboardAvoidingView>
           </Modal>
+
+          {/* Report Post Modal */}
+          <Modal
+            visible={Boolean(reportModalPost)}
+            animationType="fade"
+            transparent={true}
+            statusBarTranslucent={true}
+            onRequestClose={() => setReportModalPost(null)}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.reportModalBackdrop}
+            >
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setReportModalPost(null)}
+              />
+
+              <View style={[styles.reportModalContainer, { backgroundColor: COLORS.bgCreamy }]}>
+                {/* Header */}
+                <View style={[styles.reportModalHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={styles.reportIconCircle}>
+                      <Ionicons name="flag" size={16} color="#E53935" />
+                    </View>
+                    <Text style={[styles.reportModalTitle, isRtl && styles.arabicBoldText, isRtl ? { marginRight: 8 } : { marginLeft: 8 }]}>
+                      {isRtl ? 'الإبلاغ عن المنشور' : 'Report Post'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.commentsCloseBtn}
+                    onPress={() => setReportModalPost(null)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close" size={18} color={COLORS.textDark} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Subtitle */}
+                <Text style={[styles.reportModalSubtitle, isRtl && styles.arabicBoldText, isRtl && { textAlign: 'right' }]}>
+                  {isRtl
+                    ? `لماذا تبلغ عن منشور ${reportModalPost?.author || ''}؟`
+                    : `Why are you reporting this post by ${reportModalPost?.author || ''}?`}
+                </Text>
+
+                {/* Reasons Radio List */}
+                <ScrollView style={styles.reportReasonsList} showsVerticalScrollIndicator={false}>
+                  {REPORT_REASONS.map((reason) => {
+                    const isSelected = selectedReportReason === reason.id;
+                    return (
+                      <TouchableOpacity
+                        key={reason.id}
+                        activeOpacity={0.75}
+                        style={[
+                          styles.reportReasonItem,
+                          isSelected && styles.reportReasonItemSelected,
+                          isRtl && { flexDirection: 'row-reverse' }
+                        ]}
+                        onPress={() => setSelectedReportReason(reason.id)}
+                      >
+                        <View style={[styles.reportRadioCircle, isSelected && styles.reportRadioCircleSelected]}>
+                          {isSelected && <View style={styles.reportRadioDot} />}
+                        </View>
+                        <Text style={[
+                          styles.reportReasonText,
+                          isSelected && styles.reportReasonTextSelected,
+                          isRtl && styles.arabicBoldText,
+                          isRtl ? { marginRight: 10 } : { marginLeft: 10 }
+                        ]}>
+                          {isRtl ? reason.ar : reason.en}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* Optional extra notes */}
+                  <TextInput
+                    style={[styles.reportDetailInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                    placeholder={isRtl ? 'تفاصيل إضافية (اختياري)...' : 'Additional details (optional)...'}
+                    placeholderTextColor="#8C9B8D"
+                    value={reportDetailText}
+                    onChangeText={setReportDetailText}
+                    multiline={true}
+                    maxLength={200}
+                  />
+                </ScrollView>
+
+                {/* Action Buttons */}
+                <View style={[styles.reportActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <TouchableOpacity
+                    style={styles.reportCancelButton}
+                    onPress={() => setReportModalPost(null)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.reportCancelButtonText, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'إلغاء' : 'Cancel'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.reportSubmitButton,
+                      !selectedReportReason && styles.reportSubmitButtonDisabled
+                    ]}
+                    disabled={!selectedReportReason}
+                    onPress={handleSubmitReport}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="shield-checkmark" size={15} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                    <Text style={[styles.reportSubmitButtonText, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'إرسال البلاغ' : 'Submit Report'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         </View>
       </View>
     </View>
@@ -3494,6 +3665,164 @@ const createStyles = (colors) => StyleSheet.create({
   },
   cancelReplyBtn: {
     padding: 2,
+  },
+  /* Report Modal Styles */
+  reportModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  reportModalContainer: {
+    width: '100%',
+    maxHeight: '75%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.borderGreen,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    elevation: 20,
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  reportIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(229, 57, 53, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportModalTitle: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  reportModalSubtitle: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  reportReasonsList: {
+    maxHeight: 280,
+  },
+  reportReasonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.12)',
+  },
+  reportReasonItemSelected: {
+    borderColor: colors.bgBrand,
+    backgroundColor: colors.bgBrandLight,
+  },
+  reportRadioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportRadioCircleSelected: {
+    borderColor: colors.bgBrand,
+  },
+  reportRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.bgBrand,
+  },
+  reportReasonText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textDark,
+  },
+  reportReasonTextSelected: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  reportDetailInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 12.5,
+    color: colors.textDark,
+    minHeight: 50,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  reportActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+  },
+  reportCancelButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportCancelButtonText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  reportSubmitButton: {
+    flex: 1.5,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#E53935',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#E53935',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  reportSubmitButtonDisabled: {
+    backgroundColor: 'rgba(229, 57, 53, 0.35)',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  reportSubmitButtonText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   commentInputContainer: {
     flexDirection: 'row',
