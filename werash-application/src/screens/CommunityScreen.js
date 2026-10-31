@@ -1677,44 +1677,41 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
                   {/* Actions Row */}
                   <View style={styles.actionDivider} />
-                  <View style={styles.actionsRow}>
-                    <TouchableOpacity 
-                      style={styles.actionButton} 
-                      activeOpacity={0.7}
-                      onPress={() => handleLike(post.id)}
-                    >
-                      <Ionicons 
-                        name={post.liked ? "heart" : "heart-outline"} 
-                        size={20} 
-                        color={post.liked ? COLORS.accentRed : COLORS.textMuted} 
-                      />
-                      <Text style={[
-                        styles.actionText,
-                        post.liked && { color: COLORS.accentRed, fontWeight: '700' }
-                      ]}>
-                        {post.likes}
-                      </Text>
-                    </TouchableOpacity>
+                  <View style={[styles.actionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={[styles.actionsLeftGroup, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <TouchableOpacity 
+                        style={styles.actionButton} 
+                        activeOpacity={0.7}
+                        onPress={() => handleLike(post.id)}
+                      >
+                        <Ionicons 
+                          name={post.liked ? "heart" : "heart-outline"} 
+                          size={20} 
+                          color={post.liked ? COLORS.accentRed : COLORS.textMuted} 
+                        />
+                        <Text style={[
+                          styles.actionText,
+                          post.liked && { color: COLORS.accentRed, fontWeight: '700' }
+                        ]}>
+                          {post.likes}
+                        </Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      activeOpacity={0.7}
-                      onPress={() => handleOpenComments(post)}
-                    >
-                      <Ionicons name="chatbubble-outline" size={19} color={COLORS.textMuted} />
-                      <Text style={styles.actionText}>{post.comments || (post.commentsList ? post.commentsList.length : 0)}</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.actionButton, isRtl ? { marginRight: 20 } : { marginLeft: 20 }]}
+                        activeOpacity={0.7}
+                        onPress={() => handleOpenComments(post)}
+                      >
+                        <Ionicons name="chatbubble-outline" size={19} color={COLORS.textMuted} />
+                        <Text style={styles.actionText}>{post.comments || (post.commentsList ? post.commentsList.length : 0)}</Text>
+                      </TouchableOpacity>
+                    </View>
 
-                    {post.isMarketplace ? (
+                    {post.isMarketplace && (
                       <TouchableOpacity style={styles.contactSellerButton} activeOpacity={0.8}>
                         <Ionicons name="chatbubble-ellipses" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
                         <Text style={styles.contactSellerText}>Message Seller</Text>
                       </TouchableOpacity>
-                    ) : (
-                      <View style={styles.actionButton}>
-                        <Ionicons name="paper-plane-outline" size={19} color={COLORS.textMuted} />
-                        <Text style={styles.actionText}>Share</Text>
-                      </View>
                     )}
                   </View>
 
@@ -3791,6 +3788,10 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 8,
+  },
+  actionsLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   actionButton: {
     flexDirection: 'row',
