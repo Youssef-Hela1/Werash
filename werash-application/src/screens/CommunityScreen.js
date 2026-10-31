@@ -641,6 +641,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const isRecordingLockedRef = useRef(false);
   const recordingDurationRef = useRef(0);
   const voiceDragY = useRef(new Animated.Value(0)).current;
+  const voiceDragX = useRef(new Animated.Value(0)).current;
   const micScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Fresh refs to prevent stale closures in PanResponder
@@ -1178,6 +1179,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     setIsRecordingLocked(false);
     setRecordingDuration(0);
     voiceDragY.setValue(0);
+    Animated.spring(voiceDragX, {
+      toValue: 0,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
     Animated.spring(micScaleAnim, {
       toValue: 1,
       friction: 5,
@@ -1196,6 +1202,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     setIsRecordingLocked(false);
     setRecordingDuration(0);
     voiceDragY.setValue(0);
+    voiceDragX.setValue(0);
     Animated.spring(micScaleAnim, {
       toValue: 1,
       friction: 5,
@@ -1279,6 +1286,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         }).start();
 
         voiceDragY.setValue(0);
+        voiceDragX.setValue(0);
 
         if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = setInterval(() => {
@@ -1297,6 +1305,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             toValue: -60,
             useNativeDriver: true,
           }).start();
+          Animated.spring(voiceDragX, {
+            toValue: 0,
+            friction: 5,
+            useNativeDriver: true,
+          }).start();
           Animated.spring(micScaleAnim, {
             toValue: 1,
             friction: 5,
@@ -1312,7 +1325,36 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
           voiceDragY.setValue(0);
         }
 
-        // 2. Slide to cancel: dx > 65 in RTL, dx < -65 in LTR
+        // 2. Drag mic horizontally to cancel
+        const rtlActive = isRtlRef.current;
+        const slideDistance = rtlActive ? gestureState.dx : -gestureState.dx;
+
+        if (rtlActive) {
+          // Slide to the right (positive dx)
+          voiceDragX.setValue(Math.max(0, Math.min(gestureState.dx, 150)));
+        } else {
+          // Slide to the left (negative dx)
+          voiceDragX.setValue(Math.min(0, Math.max(gestureState.dx, -150)));
+        }
+
+        // If dragged all the way past 115px, trigger cancel
+        if (slideDistance > 115) {
+          if (handleCancelVoiceRecordingRef.current) {
+            handleCancelVoiceRecordingRef.current();
+          } else {
+            handleCancelVoiceRecording();
+          }
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (!isRecordingVoiceRef.current) return;
+
+        // If locked hands-free, releasing finger should NOT stop or send
+        if (isRecordingLockedRef.current) {
+          return;
+        }
+
+        // If released while dragged into cancel zone (> 65px), cancel
         const rtlActive = isRtlRef.current;
         const slideDistance = rtlActive ? gestureState.dx : -gestureState.dx;
         if (slideDistance > 65) {
@@ -1321,13 +1363,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
           } else {
             handleCancelVoiceRecording();
           }
-        }
-      },
-      onPanResponderRelease: () => {
-        if (!isRecordingVoiceRef.current) return;
-
-        // If locked hands-free, releasing finger should NOT stop or send
-        if (isRecordingLockedRef.current) {
           return;
         }
 
@@ -3298,7 +3333,12 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                             style={[
                               styles.dmMicButton,
                               isRecordingVoice && styles.dmMicButtonActive,
-                              { transform: [{ scale: micScaleAnim }] }
+                              {
+                                transform: [
+                                  { scale: micScaleAnim },
+                                  { translateX: voiceDragX },
+                                ]
+                              }
                             ]}
                           >
                             <Ionicons
