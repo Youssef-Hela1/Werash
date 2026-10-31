@@ -824,36 +824,34 @@ export default function GarageScreen({
     return (
       <TouchableOpacity
         style={[
-          styles.notebookStickyStackRelative,
-          isRtl 
-            ? { alignSelf: 'flex-start', marginLeft: 14 } 
-            : { alignSelf: 'flex-end', marginRight: 14 },
+          styles.notebookStickyStackBottom,
+          isRtl ? { left: 18 } : { right: 18 },
           extraStyle
         ]}
         onPress={() => setIsImageModalOpen(true)}
-        activeOpacity={0.9}
+        activeOpacity={0.92}
       >
         {cards.map(({ uri, originalIdx }) => {
-          let rotateDeg = '-2deg';
+          let rotateDeg = '-2.5deg';
           let translateX = 0;
           let translateY = 0;
           let zIndex = 3 - originalIdx;
           
           if (originalIdx === 0) {
-            rotateDeg = '-2deg';
+            rotateDeg = '-2.5deg';
             translateX = 0;
             translateY = 0;
           } else if (originalIdx === 1) {
-            rotateDeg = '4deg';
-            translateX = 3;
-            translateY = 4;
+            rotateDeg = '3.5deg';
+            translateX = 4;
+            translateY = 3;
           } else if (originalIdx === 2) {
-            rotateDeg = '-6deg';
-            translateX = -3;
-            translateY = 8;
+            rotateDeg = '-5.5deg';
+            translateX = -4;
+            translateY = 6;
           }
           
-          const stickyColors = ['#FFF9C4', '#FFE0B2', '#E0F7FA', '#FCE4EC', '#F1F8E9'];
+          const stickyColors = ['#FEFDF8', '#FFF9DB', '#EFF7EF'];
           const bgColor = stickyColors[originalIdx % stickyColors.length];
           
           return (
@@ -873,20 +871,31 @@ export default function GarageScreen({
               ]}
             >
               {originalIdx === 0 && (
-                <View style={[styles.stickyPanelTape, { backgroundColor: bgColor + 'B3', width: 22, height: 9, marginBottom: -5 }]} />
+                <View style={styles.stickyPanelTape} />
               )}
-              <Image
-                source={{ uri }}
-                style={styles.stickyStackImage}
-                resizeMode="cover"
-              />
+              <View style={styles.stickyPhotoInnerFrame}>
+                <Image
+                  source={{ uri }}
+                  style={styles.stickyStackImage}
+                  resizeMode="cover"
+                />
+              </View>
+              {originalIdx === 0 && (
+                <View style={styles.stickyBottomBar}>
+                  <Ionicons name="expand-outline" size={10} color={colors.textMuted} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
+                  <Text style={styles.stickyBottomText}>
+                    {isRtl ? 'معاينة' : 'VIEW'}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         })}
-        {pageImages.length > 3 && (
-          <View style={styles.stickyStackBadge}>
+        {pageImages.length > 1 && (
+          <View style={[styles.stickyStackBadge, isRtl ? { left: -4 } : { right: -4 }]}>
+            <Ionicons name="images" size={10} color={colors.white} />
             <Text style={styles.stickyStackBadgeText}>
-              +{pageImages.length - 3}
+              {pageImages.length}
             </Text>
           </View>
         )}
@@ -1775,6 +1784,9 @@ export default function GarageScreen({
                     {notePages[currentPage] || ' '}
                   </Text>
                 )}
+
+                {/* Sticky Note at the Bottom */}
+                {renderStickyStack({ bottom: 12 })}
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -2611,85 +2623,32 @@ export default function GarageScreen({
                         )}
 
                         <TouchableOpacity
-                          style={{ flex: 1, minHeight: 380 }}
+                          style={{ flex: 1, minHeight: 420 }}
                           onPress={handleStartEditing}
                           activeOpacity={0.95}
                         >
-                          {(noteImages[currentPage] || []).length > 0 && (textTop || textBottom) ? (
-                            <View style={{ flex: 1 }}>
-                              {/* Top section: text and sticky note stack side-by-side */}
-                              <View style={{ 
-                                flexDirection: isRtl ? 'row-reverse' : 'row', 
-                                paddingTop: 52,
+                          <Text
+                            style={[
+                              hasArabicCharacters(notePages[currentPage]) 
+                                ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
+                                : { fontFamily: 'Caveat-Regular', fontSize: 19 },
+                              { 
+                                lineHeight: 32, 
+                                color: colors.textDark,
                                 paddingLeft: 14,
                                 paddingRight: 14,
-                              }}>
-                                <Text
-                                  style={[
-                                    hasArabicCharacters(textTop) 
-                                      ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
-                                      : { fontFamily: 'Caveat-Regular', fontSize: 19 },
-                                    { 
-                                      lineHeight: 32, 
-                                      color: colors.textDark,
-                                      width: paperWidth > 0 ? paperWidth - 110 - 28 - 24 : '60%', 
-                                    }
-                                  ]}
-                                >
-                                  {textTop || ' '}
-                                </Text>
-                                
-                                {/* Inline Sticky Note Stack in Read Mode */}
-                                {renderStickyStack({
-                                  marginTop: 0,
-                                  marginBottom: 0,
-                                  alignSelf: 'flex-start',
-                                  marginRight: isRtl ? 0 : 24,
-                                  marginLeft: isRtl ? 24 : 0,
-                                })}
-                              </View>
-                              
-                              {/* Bottom section: remaining text full-width */}
-                              {textBottom ? (
-                                <Text
-                                  style={[
-                                    hasArabicCharacters(textBottom) 
-                                      ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
-                                      : { fontFamily: 'Caveat-Regular', fontSize: 19 },
-                                    { 
-                                      lineHeight: 32, 
-                                      color: colors.textDark,
-                                      paddingLeft: 14,
-                                      paddingRight: 14,
-                                      marginTop: 0,
-                                    }
-                                  ]}
-                                >
-                                  {textBottom}
-                                </Text>
-                              ) : null}
-                            </View>
-                          ) : (
-                            // No images, or layout not calculated yet: render full-width
-                            <Text
-                              style={[
-                                hasArabicCharacters(notePages[currentPage]) 
-                                  ? { textAlign: 'right', writingDirection: 'rtl', fontFamily: 'ArefRuqaa-Regular', fontSize: 16.5 } 
-                                  : { fontFamily: 'Caveat-Regular', fontSize: 19 },
-                                { 
-                                  lineHeight: 32, 
-                                  color: colors.textDark,
-                                  paddingLeft: 14,
-                                  paddingRight: 14,
-                                  paddingTop: 52,
-                                }
-                              ]}
-                            >
-                              {notePages[currentPage] || (selectedLanguage === 'Arabic' ? 'اكتب ملاحظاتك هنا...' : 'Start writing your notes here...')}
-                            </Text>
-                          )}
+                                paddingTop: 52,
+                                paddingBottom: (noteImages[currentPage] || []).length > 0 ? 140 : 20,
+                              }
+                            ]}
+                          >
+                            {notePages[currentPage] || (selectedLanguage === 'Arabic' ? 'اكتب ملاحظاتك هنا...' : 'Start writing your notes here...')}
+                          </Text>
                         </TouchableOpacity>
                       </ScrollView>
+
+                      {/* Sticky Note at the Bottom */}
+                      {renderStickyStack()}
                     </View>
 
                     {/* Character count */}
@@ -4836,61 +4795,92 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingTop: 52,
     minHeight: 180,
   },
-  notebookStickyStackRelative: {
-    width: 110,
-    height: 130,
-    zIndex: 5,
-    marginTop: 14,
-    marginBottom: 14,
+  notebookStickyStackBottom: {
+    position: 'absolute',
+    bottom: 16,
+    width: 108,
+    height: 122,
+    zIndex: 10,
   },
   stickyStackCard: {
     position: 'absolute',
     left: 0,
     top: 0,
-    width: 100,
-    height: 115,
-    borderRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 1.5, height: 3 },
-    shadowOpacity: 0.16,
-    shadowRadius: 3,
-    elevation: 4,
-    padding: 4,
-    paddingBottom: 6,
+    width: 104,
+    height: 118,
+    borderRadius: 6,
+    padding: 5,
+    paddingBottom: 15,
+    shadowColor: '#1A291B',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 7,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  stickyPhotoInnerFrame: {
+    width: '100%',
+    flex: 1,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: '#EAE6DD',
   },
   stickyStackImage: {
     width: '100%',
     height: '100%',
+  },
+  stickyBottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 3,
+  },
+  stickyBottomText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: colors.textMuted,
+    letterSpacing: 0.3,
+  },
+  stickyPanelTape: {
+    position: 'absolute',
+    top: -7,
+    alignSelf: 'center',
+    width: 36,
+    height: 12,
+    backgroundColor: 'rgba(230, 220, 190, 0.85)',
     borderRadius: 2,
+    borderWidth: 0.5,
+    borderColor: 'rgba(180, 170, 140, 0.35)',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 1,
   },
   stickyStackBadge: {
     position: 'absolute',
-    bottom: 12,
-    right: 6,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.bgBrand,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    borderWidth: 1.5,
+    borderColor: '#FFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
-    elevation: 3,
-    zIndex: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+    zIndex: 15,
   },
   stickyStackBadgeText: {
-    fontSize: 9,
+    fontSize: 9.5,
     color: colors.white,
     fontWeight: '700',
-  },
-  stickyPanelTape: {
-    height: 8,
-    width: 20,
-    alignSelf: 'center',
-    borderRadius: 1,
-    marginBottom: -4,
-    zIndex: 1,
-    opacity: 0.7,
+    marginLeft: 3,
   },
   galleryModalContainer: {
     flex: 1,
