@@ -1002,7 +1002,7 @@ export default function GarageScreen({
     }
   };
 
-  const handleUpdatePartStatus = (itemKey) => {
+  const handleUpdatePartStatus = async (itemKey) => {
     if (!tempOdometer.trim()) {
       Alert.alert(
         selectedLanguage === 'Arabic' ? 'تنبيه' : 'Validation Error',
@@ -1059,6 +1059,11 @@ export default function GarageScreen({
     });
 
     setUserVehicles(updatedVehicles);
+    if (currentUser?.id && activeVehicleId) {
+      try {
+        await supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId);
+      } catch (_) {}
+    }
     setTempOdometer(odoVal.toLocaleString('en-US'));
     setSelectedPartKey(null);
     setIsDirectPartEdit(false);
@@ -1103,7 +1108,7 @@ export default function GarageScreen({
     return { text, color };
   };
 
-  const handleUpdateStatus = () => {
+  const handleUpdateStatus = async () => {
     if (!tempOdometer.trim()) {
       Alert.alert(
         selectedLanguage === 'Arabic' ? 'تنبيه' : 'Validation Error',
@@ -1158,6 +1163,11 @@ export default function GarageScreen({
     });
 
     setUserVehicles(updatedVehicles);
+    if (currentUser?.id && activeVehicleId) {
+      try {
+        await supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId);
+      } catch (_) {}
+    }
     setIsEditingStatus(false);
 
     Alert.alert(
@@ -1288,7 +1298,9 @@ export default function GarageScreen({
           style: 'destructive',
           onPress: async () => {
             if (currentUser?.id) {
-              supabase.from('vehicles').delete().eq('id', carId).catch(() => {});
+              try {
+                await supabase.from('vehicles').delete().eq('id', carId);
+              } catch (_) {}
             }
             const filtered = userVehicles.filter(v => v.id !== carId);
             setUserVehicles(filtered);
@@ -1296,7 +1308,9 @@ export default function GarageScreen({
               const nextActiveId = filtered.length > 0 ? filtered[0].id : null;
               setActiveVehicleId(nextActiveId);
               if (nextActiveId && currentUser?.id) {
-                supabase.from('vehicles').update({ is_active: true }).eq('id', nextActiveId).catch(() => {});
+                try {
+                  await supabase.from('vehicles').update({ is_active: true }).eq('id', nextActiveId);
+                } catch (_) {}
               }
             }
             if (filtered.length <= 1) {
@@ -1386,7 +1400,7 @@ export default function GarageScreen({
           <TouchableOpacity
             style={[styles.submitBtn, { flex: 1 }]}
             activeOpacity={0.8}
-            onPress={() => {
+            onPress={async () => {
               const cleaned = tempOdometer.replace(/[^0-9]/g, '');
               if (!cleaned) {
                 Alert.alert(
@@ -1403,7 +1417,9 @@ export default function GarageScreen({
               );
               setUserVehicles(updated);
               if (currentUser?.id && activeVehicleId) {
-                supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId).catch(() => {});
+                try {
+                  await supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId);
+                } catch (_) {}
               }
               setIsOdoSetupStep(false);
               setIsEditingStatus(false);
@@ -3542,9 +3558,12 @@ export default function GarageScreen({
                     if (!isActive) {
                       setActiveVehicleId(car.id);
                       if (currentUser?.id) {
-                        supabase.from('vehicles').update({ is_active: false }).eq('user_id', currentUser.id).then(() => {
-                          supabase.from('vehicles').update({ is_active: true }).eq('id', car.id).catch(() => {});
-                        }).catch(() => {});
+                        (async () => {
+                          try {
+                            await supabase.from('vehicles').update({ is_active: false }).eq('user_id', currentUser.id);
+                            await supabase.from('vehicles').update({ is_active: true }).eq('id', car.id);
+                          } catch (_) {}
+                        })();
                       }
                       setIsSwitchingVehicle(false);
                       Alert.alert(
