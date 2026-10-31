@@ -4143,8 +4143,6 @@ const createStyles = (colors) => StyleSheet.create({
   expandedHeaderWrapper: {
     width: '100%',
     backgroundColor: colors.bgCreamy,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderGreen,
     paddingBottom: 10,
   },
   selectorContainer: {
