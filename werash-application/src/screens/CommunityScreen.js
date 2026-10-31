@@ -2993,7 +2993,7 @@ const createStyles = (colors) => StyleSheet.create({
   /* Comments Bottom Sheet & Component Styles */
   commentsBackdrop: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
     justifyContent: 'flex-end',
   },
   commentsSheetContainer: {
