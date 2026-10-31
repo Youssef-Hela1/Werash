@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
-  KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView
+  KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView, PanResponder
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -522,7 +522,9 @@ const initialPosts = [
   }
 ];
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
+const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
 
 export default function CommunityScreen({ currentUser, scrollToTopTrigger, selectedLanguage }) {
   const { colors, isDarkMode } = useTheme();
@@ -547,6 +549,93 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
   const [commentInputText, setCommentInputText] = useState('');
   const commentsScrollRef = useRef(null);
+
+  const isCommentsExpandedRef = useRef(false);
+  const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
+
+  useEffect(() => {
+    if (activeCommentsPost) {
+      isCommentsExpandedRef.current = false;
+      commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
+    }
+  }, [activeCommentsPost]);
+
+  const commentsPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 4,
+      onPanResponderGrant: () => {
+        commentsHeightAnim.stopAnimation();
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const baseHeight = isCommentsExpandedRef.current ? EXPANDED_COMMENTS_HEIGHT : DEFAULT_COMMENTS_HEIGHT;
+        const targetHeight = baseHeight - gestureState.dy;
+        const clampedHeight = Math.max(140, Math.min(EXPANDED_COMMENTS_HEIGHT, targetHeight));
+        commentsHeightAnim.setValue(clampedHeight);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // Tap to toggle full height
+        if (Math.abs(gestureState.dy) < 5 && Math.abs(gestureState.dx) < 5) {
+          const nextExpanded = !isCommentsExpandedRef.current;
+          isCommentsExpandedRef.current = nextExpanded;
+          Animated.spring(commentsHeightAnim, {
+            toValue: nextExpanded ? EXPANDED_COMMENTS_HEIGHT : DEFAULT_COMMENTS_HEIGHT,
+            useNativeDriver: false,
+            friction: 8,
+            tension: 50,
+          }).start();
+          return;
+        }
+
+        const isExpanded = isCommentsExpandedRef.current;
+        if (!isExpanded) {
+          // If pulled UP (dy < -45 or upward flick vy < -0.35) -> pull up to full page
+          if (gestureState.dy < -45 || gestureState.vy < -0.35) {
+            isCommentsExpandedRef.current = true;
+            Animated.spring(commentsHeightAnim, {
+              toValue: EXPANDED_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+              tension: 50,
+            }).start();
+          } else if (gestureState.dy > 80 || gestureState.vy > 0.6) {
+            // Pulled down significantly -> dismiss
+            Animated.timing(commentsHeightAnim, {
+              toValue: 0,
+              duration: 180,
+              useNativeDriver: false,
+            }).start(() => setActiveCommentsPost(null));
+          } else {
+            // Rebound to default height
+            Animated.spring(commentsHeightAnim, {
+              toValue: DEFAULT_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+            }).start();
+          }
+        } else {
+          // Currently at full expanded height
+          // If pulled DOWN (dy > 50 or downward flick vy > 0.35) -> pull down to default height
+          if (gestureState.dy > 50 || gestureState.vy > 0.35) {
+            isCommentsExpandedRef.current = false;
+            Animated.spring(commentsHeightAnim, {
+              toValue: DEFAULT_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+              tension: 50,
+            }).start();
+          } else {
+            // Rebound to full height
+            Animated.spring(commentsHeightAnim, {
+              toValue: EXPANDED_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+            }).start();
+          }
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     AsyncStorage.getItem('@werash_community_friendships').then((raw) => {
@@ -2421,9 +2510,19 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                 onPress={() => setActiveCommentsPost(null)}
               />
 
-              <View style={[styles.commentsSheetContainer, { backgroundColor: COLORS.bgCreamy }]}>
-                {/* Drag handle pill */}
-                <View style={styles.commentsHandleBar} />
+              <Animated.View 
+                style={[
+                  styles.commentsSheetContainer, 
+                  { backgroundColor: COLORS.bgCreamy, height: commentsHeightAnim }
+                ]}
+              >
+                {/* Draggable Handle Bar Area */}
+                <View 
+                  style={styles.commentsHandleArea}
+                  {...commentsPanResponder.panHandlers}
+                >
+                  <View style={styles.commentsHandleBar} />
+                </View>
 
                 {/* Header */}
                 <View style={[styles.commentsHeader, isRtl && { flexDirection: 'row-reverse' }]}>
@@ -2570,7 +2669,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     </TouchableOpacity>
                   </View>
                 </View>
-              </View>
+              </Animated.View>
             </KeyboardAvoidingView>
           </Modal>
         </View>
@@ -2899,10 +2998,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   commentsSheetContainer: {
     width: '100%',
-    maxHeight: '62%',
-    minHeight: 280,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     borderTopWidth: 1.5,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -2912,15 +3009,20 @@ const createStyles = (colors) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 14,
     elevation: 16,
+    overflow: 'hidden',
+  },
+  commentsHandleArea: {
+    width: '100%',
+    paddingTop: 10,
+    paddingBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   commentsHandleBar: {
-    width: 38,
-    height: 4.5,
+    width: 44,
+    height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(0, 0, 0, 0.16)',
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.22)',
   },
   commentsHeader: {
     flexDirection: 'row',
