@@ -42,6 +42,19 @@ const initialPosts = [
         content: 'Nothing beats a fresh gearbox on track day! Did you replace the flywheel too?',
         likes: 4,
         liked: false,
+        replies: [
+          {
+            id: 'r_m1_1_1',
+            author: 'Samir Fahmy',
+            handle: '@samir_f',
+            avatar: require('../../assets/expert_samir.png'),
+            avatarType: 'image',
+            time: '35m ago',
+            content: 'Yes! Paired it with an ACT lightweight flywheel and heavy-duty pressure plate.',
+            likes: 3,
+            liked: false,
+          }
+        ],
       },
       {
         id: 'c_m1_2',
@@ -53,6 +66,19 @@ const initialPosts = [
         content: 'Solid work Samir! Which clutch setup did you go with?',
         likes: 2,
         liked: false,
+        replies: [
+          {
+            id: 'r_m1_2_1',
+            author: 'Samir Fahmy',
+            handle: '@samir_f',
+            avatar: require('../../assets/expert_samir.png'),
+            avatarType: 'image',
+            time: '20m ago',
+            content: 'Sachs Performance 6-puck sprung disk. Shifting engagement is razor sharp!',
+            likes: 2,
+            liked: false,
+          }
+        ],
       },
       {
         id: 'c_m1_3',
@@ -548,7 +574,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   // Interactive Comments state
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
   const [commentInputText, setCommentInputText] = useState('');
+  const [replyingTo, setReplyingTo] = useState(null); // { commentId, author }
   const commentsScrollRef = useRef(null);
+  const commentInputRef = useRef(null);
 
   const isCommentsExpandedRef = useRef(false);
   const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
@@ -1073,6 +1101,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
     setActiveCommentsPost(freshPost);
     setCommentInputText('');
+    setReplyingTo(null);
     Animated.spring(commentsSlideAnim, {
       toValue: 0,
       useNativeDriver: false,
@@ -1081,12 +1110,68 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     }).start();
   };
 
+  const handleStartReply = (comment, specificAuthor) => {
+    const authorToReply = specificAuthor || comment.author;
+    setReplyingTo({
+      commentId: comment.id,
+      author: authorToReply,
+    });
+    setTimeout(() => {
+      if (commentInputRef.current) {
+        commentInputRef.current.focus();
+      }
+    }, 100);
+  };
+
   const handleSubmitComment = () => {
     if (!commentInputText.trim() || !activeCommentsPost) return;
 
     const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
     const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
 
+    if (replyingTo) {
+      // It's a reply to an existing comment
+      const newReply = {
+        id: `r_${Date.now()}`,
+        author: currentAuthorName,
+        handle: currentHandle,
+        avatar: currentUser?.avatar || null,
+        avatarType: currentUser?.avatar ? 'image' : 'icon',
+        time: isRtl ? 'الآن' : 'Just now',
+        content: commentInputText.trim(),
+        likes: 0,
+        liked: false,
+      };
+
+      const updateRepliesOnPost = (p) => {
+        if (p.id !== activeCommentsPost.id) return p;
+        const updatedComments = (p.commentsList || []).map((c) => {
+          if (c.id === replyingTo.commentId) {
+            const currentReplies = c.replies || [];
+            return {
+              ...c,
+              replies: [...currentReplies, newReply],
+            };
+          }
+          return c;
+        });
+
+        const totalCount = updatedComments.reduce((acc, c) => acc + 1 + (c.replies ? c.replies.length : 0), 0);
+        return {
+          ...p,
+          commentsList: updatedComments,
+          comments: totalCount,
+        };
+      };
+
+      setFeedPosts((prev) => prev.map(updateRepliesOnPost));
+      setActiveCommentsPost((prev) => (prev ? updateRepliesOnPost(prev) : null));
+      setReplyingTo(null);
+      setCommentInputText('');
+      return;
+    }
+
+    // Top-level comment
     const newComment = {
       id: `c_${Date.now()}`,
       author: currentAuthorName,
@@ -1097,32 +1182,22 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       content: commentInputText.trim(),
       likes: 0,
       liked: false,
+      replies: [],
     };
 
-    setFeedPosts((prevPosts) =>
-      prevPosts.map((p) => {
-        if (p.id === activeCommentsPost.id) {
-          const updatedComments = [...(p.commentsList || []), newComment];
-          return {
-            ...p,
-            commentsList: updatedComments,
-            comments: updatedComments.length,
-          };
-        }
-        return p;
-      })
-    );
-
-    setActiveCommentsPost((prev) => {
-      if (!prev) return null;
-      const updatedComments = [...(prev.commentsList || []), newComment];
+    const updateCommentsOnPost = (p) => {
+      if (p.id !== activeCommentsPost.id) return p;
+      const updatedComments = [...(p.commentsList || []), newComment];
+      const totalCount = updatedComments.reduce((acc, c) => acc + 1 + (c.replies ? c.replies.length : 0), 0);
       return {
-        ...prev,
+        ...p,
         commentsList: updatedComments,
-        comments: updatedComments.length,
+        comments: totalCount,
       };
-    });
+    };
 
+    setFeedPosts((prev) => prev.map(updateCommentsOnPost));
+    setActiveCommentsPost((prev) => (prev ? updateCommentsOnPost(prev) : null));
     setCommentInputText('');
 
     setTimeout(() => {
@@ -1130,6 +1205,33 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         commentsScrollRef.current.scrollToEnd({ animated: true });
       }
     }, 120);
+  };
+
+  const handleToggleReplyLike = (postId, commentId, replyId) => {
+    const updatePost = (p) => {
+      if (p.id !== postId) return p;
+      const updatedComments = (p.commentsList || []).map((c) => {
+        if (c.id === commentId) {
+          const updatedReplies = (c.replies || []).map((r) => {
+            if (r.id === replyId) {
+              const isLiked = !r.liked;
+              return {
+                ...r,
+                liked: isLiked,
+                likes: isLiked ? (r.likes || 0) + 1 : Math.max(0, (r.likes || 1) - 1),
+              };
+            }
+            return r;
+          });
+          return { ...c, replies: updatedReplies };
+        }
+        return c;
+      });
+      return { ...p, commentsList: updatedComments };
+    };
+
+    setFeedPosts((prev) => prev.map(updatePost));
+    setActiveCommentsPost((prev) => (prev ? updatePost(prev) : null));
   };
 
   const handleToggleCommentLike = (postId, commentId) => {
@@ -2617,9 +2719,18 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                             <Text style={styles.commentBodyText}>{c.content}</Text>
                           </View>
 
-                          {/* Time & Like toggle */}
+                          {/* Time & Like toggle & Reply */}
                           <View style={[styles.commentMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
                             <Text style={styles.commentTimeText}>{c.time}</Text>
+                            <TouchableOpacity
+                              style={styles.commentReplyBtn}
+                              activeOpacity={0.7}
+                              onPress={() => handleStartReply(c)}
+                            >
+                              <Text style={[styles.commentReplyBtnText, isRtl && styles.arabicBoldText]}>
+                                {isRtl ? 'رد' : 'Reply'}
+                              </Text>
+                            </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.commentLikeBtn, isRtl && { flexDirection: 'row-reverse' }]}
                               activeOpacity={0.7}
@@ -2637,11 +2748,104 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                               )}
                             </TouchableOpacity>
                           </View>
+
+                          {/* Nested Replies */}
+                          {c.replies && c.replies.length > 0 && (
+                            <View style={[
+                              styles.repliesListContainer, 
+                              isRtl && { borderLeftWidth: 0, borderRightWidth: 1.5, paddingLeft: 0, paddingRight: 10, marginLeft: 0, marginRight: 6 }
+                            ]}>
+                              {c.replies.map((reply) => (
+                                <View key={reply.id} style={[styles.replyItemRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                  <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    onPress={() => {
+                                      setActiveCommentsPost(null);
+                                      handleOpenUserProfile(reply);
+                                    }}
+                                  >
+                                    {reply.avatarType === 'image' && reply.avatar ? (
+                                      <Image source={reply.avatar} style={styles.replyAvatar} />
+                                    ) : (
+                                      <View style={styles.replyAvatarIcon}>
+                                        <Ionicons name="person" size={11} color="#FFFFFF" />
+                                      </View>
+                                    )}
+                                  </TouchableOpacity>
+
+                                  <View style={[styles.replyBubbleContainer, isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
+                                    <View style={styles.replyBubble}>
+                                      <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        onPress={() => {
+                                          setActiveCommentsPost(null);
+                                          handleOpenUserProfile(reply);
+                                        }}
+                                      >
+                                        <Text style={[styles.replyAuthorName, isRtl && styles.arabicBoldText]}>
+                                          {reply.author}
+                                        </Text>
+                                      </TouchableOpacity>
+                                      <Text style={styles.replyBodyText}>{reply.content}</Text>
+                                    </View>
+
+                                    <View style={[styles.commentMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                      <Text style={styles.commentTimeText}>{reply.time}</Text>
+                                      <TouchableOpacity
+                                        style={styles.commentReplyBtn}
+                                        activeOpacity={0.7}
+                                        onPress={() => handleStartReply(c, reply.author)}
+                                      >
+                                        <Text style={[styles.commentReplyBtnText, isRtl && styles.arabicBoldText]}>
+                                          {isRtl ? 'رد' : 'Reply'}
+                                        </Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity
+                                        style={[styles.commentLikeBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                                        activeOpacity={0.7}
+                                        onPress={() => handleToggleReplyLike(activeCommentsPost.id, c.id, reply.id)}
+                                      >
+                                        <Ionicons
+                                          name={reply.liked ? "heart" : "heart-outline"}
+                                          size={12}
+                                          color={reply.liked ? COLORS.accentRed : COLORS.textMuted}
+                                        />
+                                        {(reply.likes > 0) && (
+                                          <Text style={[styles.commentLikeCount, reply.liked && { color: COLORS.accentRed }]}>
+                                            {reply.likes}
+                                          </Text>
+                                        )}
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                </View>
+                              ))}
+                            </View>
+                          )}
                         </View>
                       </View>
                     ))
                   )}
                 </ScrollView>
+
+                {/* Replying To Banner */}
+                {replyingTo && (
+                  <View style={[styles.replyingToBanner, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="arrow-undo-outline" size={13} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                      <Text style={[styles.replyingToText, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? `الرد على ${replyingTo.author}` : `Replying to ${replyingTo.author}`}
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={() => setReplyingTo(null)} 
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={styles.cancelReplyBtn}
+                    >
+                      <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Comment Input Footer */}
                 <View style={[
@@ -2656,8 +2860,13 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
                   <View style={[styles.commentInputWrapper, isRtl && { flexDirection: 'row-reverse', marginLeft: 0, marginRight: 8 }]}>
                     <TextInput
+                      ref={commentInputRef}
                       style={[styles.commentTextInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
-                      placeholder={isRtl ? 'اكتب تعليقاً...' : 'Add a comment...'}
+                      placeholder={
+                        replyingTo 
+                          ? (isRtl ? `رد على ${replyingTo.author}...` : `Reply to ${replyingTo.author}...`)
+                          : (isRtl ? 'اكتب تعليقاً...' : 'Add a comment...')
+                      }
                       placeholderTextColor="#8C9B8D"
                       value={commentInputText}
                       onChangeText={setCommentInputText}
@@ -3209,6 +3418,85 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 11,
     fontFamily: 'PlusJakartaSans-Bold',
     color: colors.textMuted,
+  },
+  commentReplyBtn: {
+    paddingVertical: 1,
+    paddingHorizontal: 2,
+  },
+  commentReplyBtnText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  repliesListContainer: {
+    marginTop: 8,
+    marginLeft: 6,
+    paddingLeft: 10,
+    borderLeftWidth: 1.5,
+    borderLeftColor: colors.borderGreen,
+  },
+  replyItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 8,
+  },
+  replyAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  replyAvatarIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replyBubbleContainer: {
+    flex: 1,
+  },
+  replyBubble: {
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderRadius: 13,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    maxWidth: '96%',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.12)',
+  },
+  replyAuthorName: {
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.textDark,
+    marginBottom: 2,
+  },
+  replyBodyText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textDark,
+    lineHeight: 16,
+  },
+  replyingToBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.bgBrandLight,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGreen,
+  },
+  replyingToText: {
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  cancelReplyBtn: {
+    padding: 2,
   },
   commentInputContainer: {
     flexDirection: 'row',
