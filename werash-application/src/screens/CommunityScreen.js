@@ -1968,7 +1968,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: showProfile ? topInset + 55 : topInset + 215 }
+              { paddingTop: showProfile ? topInset + 55 : topInset + 230 }
             ]}
             scrollEventThrottle={16}
             onScroll={Animated.event(
@@ -2373,7 +2373,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               styles.collapsibleHeader,
               {
                 top: topInset + 6,
-                height: showProfile ? 55 : 205,
+                height: showProfile ? 55 : 220,
                 opacity: headerOpacity,
                 transform: [{ translateY: headerTranslateY }],
                 justifyContent: showProfile ? 'center' : 'flex-start',
