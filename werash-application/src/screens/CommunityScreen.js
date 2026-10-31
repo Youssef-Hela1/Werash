@@ -1170,13 +1170,14 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     voiceDragY.setValue(0);
     Animated.spring(micScaleAnim, {
       toValue: 1,
+      friction: 5,
       useNativeDriver: true,
     }).start();
   };
 
   const handleStopAndSendVoiceRecording = async () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    const finalSecs = recordingDurationRef.current > 0 ? recordingDurationRef.current : 2;
+    const finalSecs = recordingDurationRef.current > 0 ? recordingDurationRef.current : 1;
 
     isRecordingVoiceRef.current = false;
     isRecordingLockedRef.current = false;
@@ -1187,6 +1188,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     voiceDragY.setValue(0);
     Animated.spring(micScaleAnim, {
       toValue: 1,
+      friction: 5,
       useNativeDriver: true,
     }).start();
 
@@ -1249,8 +1251,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         setIsRecordingLocked(false);
         setRecordingDuration(0);
 
+        // Noticeable expansion in size (1.7x)
         Animated.spring(micScaleAnim, {
-          toValue: 1.25,
+          toValue: 1.7,
+          friction: 4,
+          tension: 50,
           useNativeDriver: true,
         }).start();
 
@@ -1265,27 +1270,32 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       onPanResponderMove: (_, gestureState) => {
         if (!isRecordingVoiceRef.current || isRecordingLockedRef.current) return;
 
-        // 1. Drag up to lock threshold: dy < -50
-        if (gestureState.dy < -50) {
+        // 1. Drag up to lock: dy < -45
+        if (gestureState.dy < -45) {
           isRecordingLockedRef.current = true;
           setIsRecordingLocked(true);
           Animated.spring(voiceDragY, {
-            toValue: -65,
+            toValue: -60,
+            useNativeDriver: true,
+          }).start();
+          Animated.spring(micScaleAnim, {
+            toValue: 1,
+            friction: 5,
             useNativeDriver: true,
           }).start();
           return;
         }
 
-        // Live visual drag toward lock
-        if (gestureState.dy < 0 && gestureState.dy >= -50) {
+        // Live visual drag toward lock bubble
+        if (gestureState.dy < 0 && gestureState.dy >= -45) {
           voiceDragY.setValue(gestureState.dy);
         } else if (gestureState.dy >= 0) {
           voiceDragY.setValue(0);
         }
 
-        // 2. Slide to cancel: dx > 70 in RTL, dx < -70 in LTR
+        // 2. Slide to cancel: dx > 65 in RTL, dx < -65 in LTR
         const slideDistance = isRtl ? gestureState.dx : -gestureState.dx;
-        if (slideDistance > 75) {
+        if (slideDistance > 65) {
           handleCancelVoiceRecording();
         }
       },
@@ -1297,21 +1307,14 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
           return;
         }
 
-        const elapsed = Date.now() - recordingStartTimeRef.current;
-        if (elapsed < 600) {
-          // Quick tap: cancel and show hint
-          handleCancelVoiceRecording();
-          setVoiceTapTipVisible(true);
-          setTimeout(() => setVoiceTapTipVisible(false), 2400);
-        } else {
-          // Normal hold-and-release: send voice note immediately!
-          handleStopAndSendVoiceRecording();
-        }
+        // Release immediately sends voice note automatically!
+        handleStopAndSendVoiceRecording();
       },
       onPanResponderTerminate: () => {
         if (!isRecordingVoiceRef.current) return;
         if (!isRecordingLockedRef.current) {
-          handleCancelVoiceRecording();
+          // Ensure release always sends automatically!
+          handleStopAndSendVoiceRecording();
         }
       },
     })
@@ -3136,7 +3139,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                         onPress={handleCancelVoiceRecording}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="trash-outline" size={19} color="#E53935" />
+                        <Ionicons name="trash-outline" size={20} color="#E53935" />
                         <Text style={[styles.dmRecordingCancelText, isRtl && styles.arabicRegularText]}>
                           {isRtl ? 'إلغاء' : 'Cancel'}
                         </Text>
@@ -3167,94 +3170,65 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       >
                         <Ionicons
                           name="send"
-                          size={15}
+                          size={16}
                           color="#FFFFFF"
                           style={isRtl ? { transform: [{ rotate: '180deg' }] } : { marginLeft: 2 }}
                         />
                       </TouchableOpacity>
                     </View>
-                  ) : isRecordingVoice && !isRecordingLocked ? (
-                    /* Holding State: Currently pressing down on mic button */
-                    <View style={[styles.dmComposerContainer, styles.dmRecordingHoldingBar, isRtl && { flexDirection: 'row-reverse' }]}>
-                      {/* Floating Lock indicator above mic */}
-                      <Animated.View
-                        style={[
-                          styles.dmLockIndicatorContainer,
-                          isRtl ? { left: 8 } : { right: 8 },
-                          { transform: [{ translateY: voiceDragY }] }
-                        ]}
-                        pointerEvents="none"
-                      >
-                        <View style={styles.dmLockBubble}>
-                          <Ionicons name="lock-closed" size={14} color={COLORS.bgBrand} />
-                          <Ionicons name="chevron-up" size={13} color="#888888" style={{ marginTop: 2 }} />
-                        </View>
-                      </Animated.View>
-
-                      {/* Blinking indicator & Live Timer */}
-                      <View style={[styles.dmHoldingTimerRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                        <View style={styles.dmRecordingDot} />
-                        <Text style={styles.dmRecordingTimer}>
-                          {formatAudioDuration(recordingDuration)}
-                        </Text>
-                      </View>
-
-                      {/* Slide to Cancel hint */}
-                      <View style={[styles.dmSlideToCancelRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                        <Ionicons
-                          name={isRtl ? "chevron-forward" : "chevron-back"}
-                          size={16}
-                          color={COLORS.textMuted}
-                        />
-                        <Text style={[styles.dmSlideToCancelText, isRtl && styles.arabicRegularText]}>
-                          {isRtl ? "اسحب للإلغاء" : "Slide to cancel"}
-                        </Text>
-                      </View>
-
-                      {/* Active Held Mic Button */}
-                      <Animated.View
-                        {...voicePanResponder.panHandlers}
-                        style={[
-                          styles.dmMicButton,
-                          styles.dmMicButtonActive,
-                          { transform: [{ scale: micScaleAnim }] }
-                        ]}
-                      >
-                        <Ionicons
-                          name="mic"
-                          size={19}
-                          color="#FFFFFF"
-                        />
-                      </Animated.View>
-                    </View>
                   ) : (
-                    /* Idle State Composer */
+                    /* Unified Composer: Keeps the Mic Button Mounted without interrupting touch */
                     <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                        <TouchableOpacity
-                          style={styles.dmMediaActionBtn}
-                          onPress={handlePickChatImage}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
-                        </TouchableOpacity>
-                      </View>
+                      {/* Holding overlay: shown only during active hold */}
+                      {isRecordingVoice && !isRecordingLocked ? (
+                        <View style={[styles.dmHoldingOverlay, isRtl && { flexDirection: 'row-reverse' }]} pointerEvents="none">
+                          <View style={[styles.dmHoldingTimerRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <View style={styles.dmRecordingDot} />
+                            <Text style={styles.dmRecordingTimer}>
+                              {formatAudioDuration(recordingDuration)}
+                            </Text>
+                          </View>
 
-                      <TextInput
-                        style={[
-                          styles.dmInput,
-                          isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
-                        ]}
-                        placeholder={
-                          attachedMedia
-                            ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
-                            : (isRtl ? "اكتب رسالة..." : "Type a message...")
-                        }
-                        placeholderTextColor="#A0A0A0"
-                        value={dmInputText}
-                        onChangeText={setDmInputText}
-                        multiline
-                      />
+                          <View style={[styles.dmSlideToCancelRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <Ionicons
+                              name={isRtl ? "chevron-forward" : "chevron-back"}
+                              size={16}
+                              color={COLORS.textMuted}
+                            />
+                            <Text style={[styles.dmSlideToCancelText, isRtl && styles.arabicRegularText]}>
+                              {isRtl ? "اسحب للإلغاء" : "Slide to cancel"}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <>
+                          <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <TouchableOpacity
+                              style={styles.dmMediaActionBtn}
+                              onPress={handlePickChatImage}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                            </TouchableOpacity>
+                          </View>
+
+                          <TextInput
+                            style={[
+                              styles.dmInput,
+                              isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
+                            ]}
+                            placeholder={
+                              attachedMedia
+                                ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
+                                : (isRtl ? "اكتب رسالة..." : "Type a message...")
+                            }
+                            placeholderTextColor="#A0A0A0"
+                            value={dmInputText}
+                            onChangeText={setDmInputText}
+                            multiline
+                          />
+                        </>
+                      )}
 
                       {Boolean(dmInputText.trim() || attachedMedia) ? (
                         <TouchableOpacity
@@ -3270,27 +3244,35 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                           />
                         </TouchableOpacity>
                       ) : (
-                        <View style={{ position: 'relative' }}>
-                          {voiceTapTipVisible && (
-                            <View style={[
-                              styles.dmTapTipBubble,
-                              isRtl ? { left: -70 } : { right: -10 }
-                            ]}>
-                              <Text style={[styles.dmTapTipText, isRtl && styles.arabicRegularText]}>
-                                {isRtl ? "اضغط مطولاً للتسجيل واسحب لأعلى للقفل" : "Hold to record, drag up to lock"}
-                              </Text>
-                            </View>
+                        <View style={{ position: 'relative', alignItems: 'center' }}>
+                          {/* Floating Lock indicator: ONLY VISIBLE WHILE ACTIVELY RECORDING (HOLDING) */}
+                          {isRecordingVoice && !isRecordingLocked && (
+                            <Animated.View
+                              style={[
+                                styles.dmLockIndicatorContainer,
+                                { transform: [{ translateY: voiceDragY }] }
+                              ]}
+                              pointerEvents="none"
+                            >
+                              <View style={styles.dmLockBubble}>
+                                <Ionicons name="lock-closed" size={16} color="#25D366" />
+                                <Ionicons name="chevron-up" size={13} color="#888888" style={{ marginTop: 2 }} />
+                              </View>
+                            </Animated.View>
                           )}
+
+                          {/* The ONE and ONLY Mic Button with panHandlers */}
                           <Animated.View
                             {...voicePanResponder.panHandlers}
                             style={[
                               styles.dmMicButton,
+                              isRecordingVoice && styles.dmMicButtonActive,
                               { transform: [{ scale: micScaleAnim }] }
                             ]}
                           >
                             <Ionicons
                               name="mic"
-                              size={18}
+                              size={isRecordingVoice ? 22 : 18}
                               color="#FFFFFF"
                             />
                           </Animated.View>
@@ -4998,9 +4980,9 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'rgba(55, 99, 59, 0.25)',
   },
   dmMicButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.bgBrand,
     alignItems: 'center',
     justifyContent: 'center',
@@ -5012,16 +4994,19 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 3,
   },
   dmMicButtonActive: {
-    backgroundColor: '#2E7D32',
-    shadowOpacity: 0.45,
-    shadowRadius: 6,
-    elevation: 6,
+    backgroundColor: '#25D366',
+    shadowColor: '#25D366',
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 12,
   },
-  /* Holding State Composer bar */
-  dmRecordingHoldingBar: {
-    position: 'relative',
+  /* Holding overlay inside composer */
+  dmHoldingOverlay: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingRight: 10,
   },
   dmHoldingTimerRow: {
     flexDirection: 'row',
@@ -5031,25 +5016,25 @@ const createStyles = (colors) => StyleSheet.create({
   /* WhatsApp-style Floating Lock Track */
   dmLockIndicatorContainer: {
     position: 'absolute',
-    bottom: 52,
+    bottom: 56,
     alignItems: 'center',
     zIndex: 9999,
   },
   dmLockBubble: {
     backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 7,
-    borderRadius: 20,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderWidth: 1.5,
+    borderColor: '#25D366',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-    elevation: 6,
-    width: 34,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 8,
+    width: 38,
   },
   /* Slide to cancel row */
   dmSlideToCancelRow: {
