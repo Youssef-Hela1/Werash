@@ -907,7 +907,7 @@ export default function GarageScreen({
             </Text>
             <View style={styles.belowPaperCountPill}>
               <Text style={styles.belowPaperCountPillText}>
-                {pageImages.length}/4
+                {pageImages.length}/10
               </Text>
             </View>
           </View>
@@ -916,7 +916,7 @@ export default function GarageScreen({
               ? 'ملاحظة لاصقة مرفقة بصفحة الملاحظات. اضغط للمعاينة.' 
               : 'Sticky note attached below this page. Tap to view.'}
           </Text>
-          {pageImages.length < 4 && (
+          {pageImages.length < 10 && (
             <TouchableOpacity 
               style={[styles.belowPaperAddBtn, isRtl && { flexDirection: 'row-reverse' }]}
               onPress={handleAddImage}
@@ -960,12 +960,12 @@ export default function GarageScreen({
 
   const handleAddImage = async () => {
     const pageImages = noteImages[currentPage] || [];
-    if (pageImages.length >= 4) {
+    if (pageImages.length >= 10) {
       Alert.alert(
         selectedLanguage === 'Arabic' ? 'الحد الأقصى للصور' : 'Photo Limit Reached',
         selectedLanguage === 'Arabic'
-          ? 'يمكنك إضافة ٤ صور كحد أقصى لكل صفحة.'
-          : 'You can add a maximum of 4 photos per page.',
+          ? 'يمكنك إضافة ١٠ صور كحد أقصى لكل صفحة.'
+          : 'You can add a maximum of 10 photos per page.',
       );
       return;
     }
@@ -2069,7 +2069,7 @@ export default function GarageScreen({
             })}
             
             {/* Dashed Add card at the end of carousel */}
-            {((noteImages[currentPage] || []).length < 4) && (
+            {((noteImages[currentPage] || []).length < 10) && (
               <TouchableOpacity
                 style={styles.galleryPolaroidAddBtn}
                 onPress={handleAddImage}
