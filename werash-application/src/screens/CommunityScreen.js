@@ -643,6 +643,16 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const voiceDragY = useRef(new Animated.Value(0)).current;
   const micScaleAnim = useRef(new Animated.Value(1)).current;
 
+  // Fresh refs to prevent stale closures in PanResponder
+  const directMessageUserRef = useRef(directMessageUser);
+  directMessageUserRef.current = directMessageUser;
+  const dmHistoryRef = useRef(dmHistory);
+  dmHistoryRef.current = dmHistory;
+  const isRtlRef = useRef(isRtl);
+  isRtlRef.current = isRtl;
+  const handleStopAndSendVoiceRecordingRef = useRef(null);
+  const handleCancelVoiceRecordingRef = useRef(null);
+
   const formatAudioDuration = (secs) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
@@ -1192,8 +1202,9 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       useNativeDriver: true,
     }).start();
 
-    if (!directMessageUser) return;
-    const authorName = directMessageUser.author;
+    const targetUser = directMessageUserRef.current || directMessageUser;
+    if (!targetUser) return;
+    const authorName = targetUser.author;
     const durationLabel = formatAudioDuration(finalSecs);
 
     const newMsg = {
@@ -1206,11 +1217,13 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       time: 'Just now'
     };
 
-    const currentList = dmHistory[authorName] || getDefaultDmMessages(authorName);
+    const curHist = dmHistoryRef.current || dmHistory;
+    const currentList = curHist[authorName] || getDefaultDmMessages(authorName);
     const updatedList = [...currentList, newMsg];
 
     setDmHistory(prev => ({ ...prev, [authorName]: updatedList }));
-    const summaryText = isRtl ? (`🎤 تسجيل صوتي (${durationLabel})`) : (`🎤 Voice message (${durationLabel})`);
+    const rtlActive = isRtlRef.current;
+    const summaryText = rtlActive ? (`🎤 تسجيل صوتي (${durationLabel})`) : (`🎤 Voice message (${durationLabel})`);
     updateInboxConversation(authorName, summaryText, 'Just now');
 
     try {
@@ -1231,14 +1244,20 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(next)).catch(() => {});
         return { ...prev, [authorName]: next };
       });
-      updateInboxConversation(authorName, isRtl ? replyMsg.textAr : replyMsg.text, 'Just now');
+      updateInboxConversation(authorName, rtlActive ? replyMsg.textAr : replyMsg.text, 'Just now');
     }, 1500);
   };
+
+  handleStopAndSendVoiceRecordingRef.current = handleStopAndSendVoiceRecording;
+  handleCancelVoiceRecordingRef.current = handleCancelVoiceRecording;
 
   const voicePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         if (isRecordingVoiceRef.current && isRecordingLockedRef.current) return;
 
@@ -1294,9 +1313,14 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         }
 
         // 2. Slide to cancel: dx > 65 in RTL, dx < -65 in LTR
-        const slideDistance = isRtl ? gestureState.dx : -gestureState.dx;
+        const rtlActive = isRtlRef.current;
+        const slideDistance = rtlActive ? gestureState.dx : -gestureState.dx;
         if (slideDistance > 65) {
-          handleCancelVoiceRecording();
+          if (handleCancelVoiceRecordingRef.current) {
+            handleCancelVoiceRecordingRef.current();
+          } else {
+            handleCancelVoiceRecording();
+          }
         }
       },
       onPanResponderRelease: () => {
@@ -1308,13 +1332,20 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
         }
 
         // Release immediately sends voice note automatically!
-        handleStopAndSendVoiceRecording();
+        if (handleStopAndSendVoiceRecordingRef.current) {
+          handleStopAndSendVoiceRecordingRef.current();
+        } else {
+          handleStopAndSendVoiceRecording();
+        }
       },
       onPanResponderTerminate: () => {
         if (!isRecordingVoiceRef.current) return;
         if (!isRecordingLockedRef.current) {
-          // Ensure release always sends automatically!
-          handleStopAndSendVoiceRecording();
+          if (handleStopAndSendVoiceRecordingRef.current) {
+            handleStopAndSendVoiceRecordingRef.current();
+          } else {
+            handleStopAndSendVoiceRecording();
+          }
         }
       },
     })
