@@ -31,6 +31,41 @@ const initialPosts = [
     comments: 3,
     liked: false,
     vehicle: 'BMW E46',
+    commentsList: [
+      {
+        id: 'c_m1_1',
+        author: 'Sherif Aly',
+        handle: '@sherif_a',
+        avatar: require('../../assets/expert_sherif.png'),
+        avatarType: 'image',
+        time: '45m ago',
+        content: 'Nothing beats a fresh gearbox on track day! Did you replace the flywheel too?',
+        likes: 4,
+        liked: false,
+      },
+      {
+        id: 'c_m1_2',
+        author: 'Sarah Jenkins',
+        handle: '@sarah_j',
+        avatar: require('../../assets/expert_sarah.png'),
+        avatarType: 'image',
+        time: '30m ago',
+        content: 'Solid work Samir! Which clutch setup did you go with?',
+        likes: 2,
+        liked: false,
+      },
+      {
+        id: 'c_m1_3',
+        author: 'Elena Rostova',
+        handle: '@elena',
+        avatar: require('../../assets/expert_elena.png'),
+        avatarType: 'image',
+        time: '12m ago',
+        content: 'See you at the Autodrome this Friday! 🏁 Bring extra brake pads.',
+        likes: 5,
+        liked: false,
+      },
+    ],
   },
   {
     id: 'm2',
@@ -42,9 +77,44 @@ const initialPosts = [
     content: "Just detailed this gorgeous classic Porsche 911 Carrera. Paint correction, ceramic coating, and deep interior cleaning. That guards red paint is absolutely popping! 🔴✨ #detailersofinstagram #porsche #911",
     postImage: require('../../assets/modern_workshop_banner.png'),
     likes: 56,
-    comments: 9,
+    comments: 3,
     liked: false,
     vehicle: 'Porsche 911',
+    commentsList: [
+      {
+        id: 'c_m2_1',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '2h ago',
+        content: 'Guards Red is such an iconic color. That depth of reflection is insane! 🔴✨',
+        likes: 6,
+        liked: false,
+      },
+      {
+        id: 'c_m2_2',
+        author: 'Michael Chang',
+        handle: '@michael_c',
+        avatar: require('../../assets/expert_michael.png'),
+        avatarType: 'image',
+        time: '1h ago',
+        content: 'Which ceramic coating brand did you use on the single stage paint?',
+        likes: 3,
+        liked: false,
+      },
+      {
+        id: 'c_m2_3',
+        author: 'Sherif Aly',
+        handle: '@sherif_a',
+        avatar: require('../../assets/expert_sherif.png'),
+        avatarType: 'image',
+        time: '40m ago',
+        content: 'Museum quality finish right there. Flawless work Sarah!',
+        likes: 5,
+        liked: false,
+      },
+    ],
   },
   {
     id: 'm3',
@@ -59,6 +129,19 @@ const initialPosts = [
     comments: 1,
     liked: false,
     vehicle: 'Hyundai Coupe',
+    commentsList: [
+      {
+        id: 'c_m3_1',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '4h ago',
+        content: 'Crucial advice! Had one bent right out of the box last year and it caused misfires.',
+        likes: 4,
+        liked: false,
+      },
+    ],
   },
   {
     id: 'm4',
@@ -70,9 +153,33 @@ const initialPosts = [
     content: "Had a blast at the local car meet last night! So many amazing builds and great conversations. The car community here is truly unmatched. 🤝🚗 #carmeet #petrolheads",
     postImage: require('../../assets/car_side_profile.png'),
     likes: 38,
-    comments: 5,
+    comments: 2,
     liked: false,
     vehicle: 'General',
+    commentsList: [
+      {
+        id: 'c_m4_1',
+        author: 'Elena Rostova',
+        handle: '@elena',
+        avatar: require('../../assets/expert_elena.png'),
+        avatarType: 'image',
+        time: '9h ago',
+        content: 'Great turnout! That skyline R34 was stealing the whole show.',
+        likes: 7,
+        liked: false,
+      },
+      {
+        id: 'c_m4_2',
+        author: 'Sarah Jenkins',
+        handle: '@sarah_j',
+        avatar: require('../../assets/expert_sarah.png'),
+        avatarType: 'image',
+        time: '8h ago',
+        content: 'Next meet let us organize a dedicated parking lineup by chassis!',
+        likes: 3,
+        liked: false,
+      },
+    ],
   },
   {
     id: 'm5',
@@ -84,9 +191,33 @@ const initialPosts = [
     content: "Carbon fiber hood installed on a client's GR Yaris today. Not only does it look mean, but it saved 6.5 kg of weight off the front end! Weight reduction is the best modification. ⚖️🏁",
     postImage: null,
     likes: 47,
-    comments: 8,
+    comments: 2,
     liked: false,
     vehicle: 'Toyota GR Yaris',
+    commentsList: [
+      {
+        id: 'c_m5_1',
+        author: 'Michael Chang',
+        handle: '@michael_c',
+        avatar: require('../../assets/expert_michael.png'),
+        avatarType: 'image',
+        time: '18h ago',
+        content: '6.5 kg off the front axle makes a noticeable difference in corner entry!',
+        likes: 8,
+        liked: false,
+      },
+      {
+        id: 'c_m5_2',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '15h ago',
+        content: 'Does it retain the factory hood latch or require hood pins?',
+        likes: 2,
+        liked: false,
+      },
+    ],
   },
   {
     id: '1',
@@ -98,9 +229,33 @@ const initialPosts = [
     content: "Just finalized the ECU calibration on a twin-turbo Golf R. The torque curve is absolutely linear now! 📈💻 Ready for track season. #ecu #tuning #golf-r",
     postImage: require('../../assets/modern_workshop_banner.png'),
     likes: 42,
-    comments: 7,
+    comments: 2,
     liked: false,
     vehicle: 'Golf R',
+    commentsList: [
+      {
+        id: 'c_1_1',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '1h ago',
+        content: 'Super smooth power band! What peak boost is it running on 95 octane?',
+        likes: 4,
+        liked: false,
+      },
+      {
+        id: 'c_1_2',
+        author: 'Kareem El-Sayed',
+        handle: '@kareem',
+        avatar: require('../../assets/expert_kareem.png'),
+        avatarType: 'image',
+        time: '35m ago',
+        content: 'Clean tune Elena. Linear torque is so much better for corner exit on AWD.',
+        likes: 3,
+        liked: false,
+      },
+    ],
   },
   {
     id: '2',
@@ -112,9 +267,22 @@ const initialPosts = [
     content: "Diagnosed a weird tapping sound in a customer's engine bay. Turned out to be a loose heat shield. Quick fix but saved them a major headache! 🛠️ Always double check the basics first.",
     postImage: null,
     likes: 18,
-    comments: 2,
+    comments: 1,
     liked: false,
     vehicle: 'General',
+    commentsList: [
+      {
+        id: 'c_2_1',
+        author: 'Tariq Mansour',
+        handle: '@tariq',
+        avatar: require('../../assets/expert_tariq.png'),
+        avatarType: 'image',
+        time: '2h ago',
+        content: 'Heat shield rattles can drive anyone crazy! Good catch.',
+        likes: 3,
+        liked: false,
+      },
+    ],
   },
   {
     id: '3',
@@ -126,9 +294,22 @@ const initialPosts = [
     content: "Brembo Big Brake Kit upgrade completed for a client's track car. Stop power is immense now! Don't skimp on safety. 🛑 #brakes #trackday #safetyfirst",
     postImage: require('../../assets/car_side_profile.png'),
     likes: 29,
-    comments: 4,
+    comments: 1,
     liked: false,
     vehicle: 'Hyundai Coupe',
+    commentsList: [
+      {
+        id: 'c_3_1',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '18h ago',
+        content: 'Those calipers look huge behind the spokes. Huge stopping upgrade!',
+        likes: 5,
+        liked: false,
+      },
+    ],
   },
   {
     id: '4',
@@ -140,12 +321,36 @@ const initialPosts = [
     content: "Selling my lightly used set of 18\" BBS LM Replica rims. Perfect fitment for Golf R or Audi S3. Zero curb rash, wrapped in Hankook Ventus V12 tires with 80% tread left. DM if interested! 🏎️💨",
     postImage: require('../../assets/car_side_profile.png'),
     likes: 15,
-    comments: 3,
+    comments: 2,
     liked: false,
     vehicle: 'General',
     isMarketplace: true,
     price: '$1,200',
     location: 'New Cairo',
+    commentsList: [
+      {
+        id: 'c_4_1',
+        author: 'Kareem El-Sayed',
+        handle: '@kareem',
+        avatar: require('../../assets/expert_kareem.png'),
+        avatarType: 'image',
+        time: '2h ago',
+        content: 'What is the offset (ET) on these wheels?',
+        likes: 2,
+        liked: false,
+      },
+      {
+        id: 'c_4_2',
+        author: 'Michael Chang',
+        handle: '@michael_c',
+        avatar: require('../../assets/expert_michael.png'),
+        avatarType: 'image',
+        time: '1h ago',
+        content: 'ET45! Fits flush with zero fender rubbing.',
+        likes: 4,
+        liked: false,
+      },
+    ],
   },
   {
     id: '5',
@@ -163,6 +368,19 @@ const initialPosts = [
     isMarketplace: true,
     price: '$250',
     location: 'Maadi',
+    commentsList: [
+      {
+        id: 'c_5_1',
+        author: 'Tariq Mansour',
+        handle: '@tariq',
+        avatar: require('../../assets/expert_tariq.png'),
+        avatarType: 'image',
+        time: '3h ago',
+        content: 'Does it come with the horn button and wiring harness?',
+        likes: 1,
+        liked: false,
+      },
+    ],
   },
   {
     id: '6',
@@ -174,12 +392,25 @@ const initialPosts = [
     content: "Mishimoto Performance Intercooler for Honda Civic Type R (FK8). Excellent condition, used for only 5,000 km. Fits 2017-2021 models. Selling because I upgraded to a full race setup. ❄️🚗",
     postImage: null,
     likes: 12,
-    comments: 2,
+    comments: 1,
     liked: false,
     vehicle: 'Honda Civic',
     isMarketplace: true,
     price: '$450',
     location: 'Heliopolis',
+    commentsList: [
+      {
+        id: 'c_6_1',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '20h ago',
+        content: 'Great price for a Mishimoto core. Intake air temps will drop significantly.',
+        likes: 3,
+        liked: false,
+      },
+    ],
   },
   {
     id: '7',
@@ -191,12 +422,25 @@ const initialPosts = [
     content: "Selling a set of 4 Michelin Pilot Sport 4S tires (245/40/R18). 95% tread depth remaining, no punctures or sidewall repairs. Manufactured late 2024. Excellent track/street performance! 🛞💥",
     postImage: null,
     likes: 19,
-    comments: 4,
+    comments: 1,
     liked: false,
     vehicle: 'General',
     isMarketplace: true,
     price: '$600',
     location: 'Sheikh Zayed',
+    commentsList: [
+      {
+        id: 'c_7_1',
+        author: 'Elena Rostova',
+        handle: '@elena',
+        avatar: require('../../assets/expert_elena.png'),
+        avatarType: 'image',
+        time: '1d ago',
+        content: 'Best daily/track hybrid tire on the market hands down.',
+        likes: 5,
+        liked: false,
+      },
+    ],
   },
   {
     id: '8',
@@ -208,12 +452,25 @@ const initialPosts = [
     content: "Garrett GTX3071R Gen II Dual Ball Bearing Turbocharger. Brand new, in original packaging. Perfect for 350-650hp custom builds. Comes with T25 inlet flange and V-Band outlet. 🐌🔥",
     postImage: null,
     likes: 31,
-    comments: 5,
+    comments: 1,
     liked: false,
     vehicle: 'General',
     isMarketplace: true,
     price: '$1,600',
     location: 'Maadi',
+    commentsList: [
+      {
+        id: 'c_8_1',
+        author: 'Samir Fahmy',
+        handle: '@samir_f',
+        avatar: require('../../assets/expert_samir.png'),
+        avatarType: 'image',
+        time: '2d ago',
+        content: 'Spools remarkably fast for a 600hp capable turbo! Absolute unit.',
+        likes: 6,
+        liked: false,
+      },
+    ],
   },
   {
     id: '9',
@@ -231,6 +488,7 @@ const initialPosts = [
     isMarketplace: true,
     price: '$350',
     location: 'New Cairo',
+    commentsList: [],
   },
   {
     id: '10',
@@ -242,12 +500,25 @@ const initialPosts = [
     content: "Recaro Pole Position fiberglass bucket seat in black velour. FIA approved until 2028. Minimal wear on bolster, shell is pristine. Side mounts included! 💺✊",
     postImage: null,
     likes: 22,
-    comments: 3,
+    comments: 1,
     liked: false,
     vehicle: 'General',
     isMarketplace: true,
     price: '$700',
     location: 'Sheikh Zayed',
+    commentsList: [
+      {
+        id: 'c_10_1',
+        author: 'Sherif Aly',
+        handle: '@sherif_a',
+        avatar: require('../../assets/expert_sherif.png'),
+        avatarType: 'image',
+        time: '3d ago',
+        content: 'FIA valid until 2028 is a steal for this price.',
+        likes: 4,
+        liked: false,
+      },
+    ],
   }
 ];
 
@@ -271,6 +542,11 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [dmInputText, setDmInputText] = useState('');
   const dmTimerRef = useRef(null);
   const dmScrollRef = useRef(null);
+  
+  // Interactive Comments state
+  const [activeCommentsPost, setActiveCommentsPost] = useState(null);
+  const [commentInputText, setCommentInputText] = useState('');
+  const commentsScrollRef = useRef(null);
 
   useEffect(() => {
     AsyncStorage.getItem('@werash_community_friendships').then((raw) => {
@@ -633,6 +909,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       content: statusText.trim(),
       likes: 0,
       comments: 0,
+      commentsList: [],
       liked: false,
       postImage: selectedImage,
       vehicle: currentVehicle,
@@ -661,6 +938,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       content: `${listingTitle.trim()}\n\n${listingDesc.trim()}`,
       likes: 0,
       comments: 0,
+      commentsList: [],
       liked: false,
       postImage: listingImageUri ? { uri: listingImageUri } : null,
       vehicle: currentVehicle,
@@ -696,6 +974,85 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     }
   };
 
+
+  const handleOpenComments = (post) => {
+    // Find the latest version of post from feedPosts to ensure commentsList is fresh
+    const freshPost = feedPosts.find(p => p.id === post.id) || post;
+    setActiveCommentsPost(freshPost);
+    setCommentInputText('');
+  };
+
+  const handleSubmitComment = () => {
+    if (!commentInputText.trim() || !activeCommentsPost) return;
+
+    const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
+    const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
+
+    const newComment = {
+      id: `c_${Date.now()}`,
+      author: currentAuthorName,
+      handle: currentHandle,
+      avatar: currentUser?.avatar || null,
+      avatarType: currentUser?.avatar ? 'image' : 'icon',
+      time: isRtl ? 'الآن' : 'Just now',
+      content: commentInputText.trim(),
+      likes: 0,
+      liked: false,
+    };
+
+    setFeedPosts((prevPosts) =>
+      prevPosts.map((p) => {
+        if (p.id === activeCommentsPost.id) {
+          const updatedComments = [...(p.commentsList || []), newComment];
+          return {
+            ...p,
+            commentsList: updatedComments,
+            comments: updatedComments.length,
+          };
+        }
+        return p;
+      })
+    );
+
+    setActiveCommentsPost((prev) => {
+      if (!prev) return null;
+      const updatedComments = [...(prev.commentsList || []), newComment];
+      return {
+        ...prev,
+        commentsList: updatedComments,
+        comments: updatedComments.length,
+      };
+    });
+
+    setCommentInputText('');
+
+    setTimeout(() => {
+      if (commentsScrollRef.current) {
+        commentsScrollRef.current.scrollToEnd({ animated: true });
+      }
+    }, 120);
+  };
+
+  const handleToggleCommentLike = (postId, commentId) => {
+    const updatePostComments = (p) => {
+      if (p.id !== postId) return p;
+      const updatedList = (p.commentsList || []).map((c) => {
+        if (c.id === commentId) {
+          const isLiked = !c.liked;
+          return {
+            ...c,
+            liked: isLiked,
+            likes: isLiked ? (c.likes || 0) + 1 : Math.max(0, (c.likes || 1) - 1),
+          };
+        }
+        return c;
+      });
+      return { ...p, commentsList: updatedList };
+    };
+
+    setFeedPosts((prev) => prev.map(updatePostComments));
+    setActiveCommentsPost((prev) => (prev ? updatePostComments(prev) : null));
+  };
 
   const handleLike = (id) => {
     setFeedPosts(feedPosts.map((post) => {
@@ -1138,10 +1495,14 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       </Text>
                     </TouchableOpacity>
 
-                    <View style={styles.actionButton}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      activeOpacity={0.7}
+                      onPress={() => handleOpenComments(post)}
+                    >
                       <Ionicons name="chatbubble-outline" size={19} color={COLORS.textMuted} />
-                      <Text style={styles.actionText}>{post.comments}</Text>
-                    </View>
+                      <Text style={styles.actionText}>{post.comments || (post.commentsList ? post.commentsList.length : 0)}</Text>
+                    </TouchableOpacity>
 
                     {post.isMarketplace ? (
                       <TouchableOpacity style={styles.contactSellerButton} activeOpacity={0.8}>
@@ -2041,6 +2402,198 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
               </ScrollView>
             </View>
           </Modal>
+
+          {/* Interactive Comments Modal / Bottom Sheet */}
+          <Modal
+            visible={Boolean(activeCommentsPost)}
+            animationType="slide"
+            transparent={true}
+            statusBarTranslucent={true}
+            onRequestClose={() => setActiveCommentsPost(null)}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.commentsBackdrop}
+            >
+              <TouchableOpacity 
+                style={StyleSheet.absoluteFill} 
+                activeOpacity={1} 
+                onPress={() => setActiveCommentsPost(null)}
+              />
+
+              <View style={[styles.commentsSheetContainer, { backgroundColor: COLORS.bgCreamy }]}>
+                {/* Drag handle pill */}
+                <View style={styles.commentsHandleBar} />
+
+                {/* Header */}
+                <View style={[styles.commentsHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.commentsHeaderTitle, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'التعليقات' : 'Comments'}
+                    </Text>
+                    <View style={[styles.commentsCountBadge, isRtl && { marginLeft: 0, marginRight: 8 }]}>
+                      <Text style={styles.commentsCountBadgeText}>
+                        {(activeCommentsPost?.commentsList || []).length}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity 
+                    style={styles.commentsCloseBtn} 
+                    onPress={() => setActiveCommentsPost(null)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close" size={20} color={COLORS.textDark} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Post Context Preview */}
+                {activeCommentsPost && (
+                  <View style={[styles.commentsPostPreview, isRtl && { flexDirection: 'row-reverse' }]}>
+                    {activeCommentsPost.avatarType === 'image' && activeCommentsPost.avatar ? (
+                      <Image source={activeCommentsPost.avatar} style={styles.commentsPostPreviewAvatar} />
+                    ) : (
+                      <View style={styles.commentsPostPreviewAvatarIcon}>
+                        <Ionicons name="person" size={13} color="#FFFFFF" />
+                      </View>
+                    )}
+                    <View style={[styles.commentsPostPreviewBody, isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
+                      <Text style={[styles.commentsPostPreviewAuthor, isRtl && styles.arabicBoldText]}>
+                        {activeCommentsPost.author}
+                      </Text>
+                      <Text style={styles.commentsPostPreviewText} numberOfLines={2}>
+                        {activeCommentsPost.content}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.commentsDivider} />
+
+                {/* Comments List Scroll */}
+                <ScrollView 
+                  ref={commentsScrollRef}
+                  style={styles.commentsListScroll}
+                  contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {(activeCommentsPost?.commentsList || []).length === 0 ? (
+                    <View style={styles.emptyCommentsBox}>
+                      <Ionicons name="chatbubbles-outline" size={40} color="rgba(55, 99, 59, 0.25)" />
+                      <Text style={[styles.emptyCommentsTitle, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? 'لا توجد تعليقات بعد' : 'No comments yet'}
+                      </Text>
+                      <Text style={styles.emptyCommentsSubtitle}>
+                        {isRtl ? 'كن أول من يشارك برأيه حول هذا المنشور!' : 'Be the first to share your thoughts on this post!'}
+                      </Text>
+                    </View>
+                  ) : (
+                    (activeCommentsPost?.commentsList || []).map((c) => (
+                      <View key={c.id} style={[styles.commentItemRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                        {/* Avatar */}
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setActiveCommentsPost(null);
+                            handleOpenUserProfile(c);
+                          }}
+                        >
+                          {c.avatarType === 'image' && c.avatar ? (
+                            <Image source={c.avatar} style={styles.commentAvatar} />
+                          ) : (
+                            <View style={styles.commentAvatarIcon}>
+                              <Ionicons name="person" size={14} color="#FFFFFF" />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+
+                        {/* Comment Bubble & Meta */}
+                        <View style={[styles.commentBubbleContainer, isRtl ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
+                          <View style={styles.commentBubble}>
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              onPress={() => {
+                                setActiveCommentsPost(null);
+                                handleOpenUserProfile(c);
+                              }}
+                            >
+                              <Text style={[styles.commentAuthorName, isRtl && styles.arabicBoldText]}>
+                                {c.author}
+                              </Text>
+                            </TouchableOpacity>
+                            <Text style={styles.commentBodyText}>{c.content}</Text>
+                          </View>
+
+                          {/* Time & Like toggle */}
+                          <View style={[styles.commentMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <Text style={styles.commentTimeText}>{c.time}</Text>
+                            <TouchableOpacity
+                              style={[styles.commentLikeBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                              activeOpacity={0.7}
+                              onPress={() => handleToggleCommentLike(activeCommentsPost.id, c.id)}
+                            >
+                              <Ionicons
+                                name={c.liked ? "heart" : "heart-outline"}
+                                size={13}
+                                color={c.liked ? COLORS.accentRed : COLORS.textMuted}
+                              />
+                              {(c.likes > 0) && (
+                                <Text style={[styles.commentLikeCount, c.liked && { color: COLORS.accentRed }]}>
+                                  {c.likes}
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+
+                {/* Comment Input Footer */}
+                <View style={[
+                  styles.commentInputContainer, 
+                  { paddingBottom: Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 16 : 10) },
+                  isRtl && { flexDirection: 'row-reverse' }
+                ]}>
+                  {/* Current User Avatar */}
+                  <View style={styles.commentInputUserAvatar}>
+                    <Ionicons name="person" size={14} color="#FFFFFF" />
+                  </View>
+
+                  <View style={[styles.commentInputWrapper, isRtl && { flexDirection: 'row-reverse', marginLeft: 0, marginRight: 8 }]}>
+                    <TextInput
+                      style={[styles.commentTextInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
+                      placeholder={isRtl ? 'اكتب تعليقاً...' : 'Add a comment...'}
+                      placeholderTextColor="#8C9B8D"
+                      value={commentInputText}
+                      onChangeText={setCommentInputText}
+                      multiline={true}
+                      maxLength={300}
+                    />
+
+                    <TouchableOpacity
+                      style={[
+                        styles.commentSendBtn,
+                        !commentInputText.trim() && styles.commentSendBtnDisabled,
+                        isRtl && { marginLeft: 0, marginRight: 6 }
+                      ]}
+                      disabled={!commentInputText.trim()}
+                      activeOpacity={0.8}
+                      onPress={handleSubmitComment}
+                    >
+                      <Ionicons
+                        name="send"
+                        size={14}
+                        color={commentInputText.trim() ? '#FFFFFF' : '#A0AFA2'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         </View>
       </View>
     </View>
@@ -2358,6 +2911,253 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
     color: colors.bgBrand,
     letterSpacing: 0.1,
+  },
+  /* Comments Bottom Sheet & Component Styles */
+  commentsBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  commentsSheetContainer: {
+    width: '100%',
+    maxHeight: '80%',
+    minHeight: 380,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  commentsHandleBar: {
+    width: 38,
+    height: 4.5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.16)',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  commentsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  commentsHeaderTitle: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  commentsCountBadge: {
+    backgroundColor: colors.bgBrandLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  commentsCountBadgeText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  commentsCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.bgBrandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentsPostPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(55, 99, 59, 0.05)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+  },
+  commentsPostPreviewAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  commentsPostPreviewAvatarIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentsPostPreviewBody: {
+    flex: 1,
+  },
+  commentsPostPreviewAuthor: {
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.textDark,
+  },
+  commentsPostPreviewText: {
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  commentsDivider: {
+    height: 1,
+    backgroundColor: colors.borderGreen,
+    opacity: 0.6,
+    marginHorizontal: 16,
+    marginBottom: 6,
+  },
+  commentsListScroll: {
+    flex: 1,
+  },
+  emptyCommentsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyCommentsTitle: {
+    fontSize: 14.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.textDark,
+    marginTop: 12,
+  },
+  emptyCommentsSubtitle: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 240,
+  },
+  commentItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 12,
+  },
+  commentAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  commentAvatarIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentBubbleContainer: {
+    flex: 1,
+  },
+  commentBubble: {
+    backgroundColor: colors.bgBrandLight,
+    borderRadius: 15,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    maxWidth: '94%',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.1)',
+  },
+  commentAuthorName: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    color: colors.textDark,
+    marginBottom: 2,
+  },
+  commentBodyText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textDark,
+    lineHeight: 18,
+  },
+  commentMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 6,
+    gap: 12,
+  },
+  commentTimeText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  commentLikeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  commentLikeCount: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.textMuted,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGreen,
+    backgroundColor: colors.bgCreamy,
+  },
+  commentInputUserAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 7 : 3,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    marginLeft: 8,
+  },
+  commentTextInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textDark,
+    maxHeight: 75,
+    paddingVertical: 2,
+  },
+  commentSendBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  commentSendBtnDisabled: {
+    backgroundColor: 'rgba(55, 99, 59, 0.22)',
   },
   profileFeedHeaderRow: {
     flexDirection: 'row',
