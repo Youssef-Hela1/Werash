@@ -628,6 +628,17 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
   const [viewingMedia, setViewingMedia] = useState(null);
   const [inboxConversations, setInboxConversations] = useState(initialInboxConversations);
   const [inboxSearch, setInboxSearch] = useState('');
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [playingAudioId, setPlayingAudioId] = useState(null);
+  const recordingTimerRef = useRef(null);
+  const audioPlaybackTimerRef = useRef(null);
+
+  const formatAudioDuration = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
   const dmTimerRef = useRef(null);
   const dmScrollRef = useRef(null);
   
@@ -1139,6 +1150,83 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       updateInboxConversation(authorName, isRtl ? replyTextAr : replyText, 'Just now');
     }, 1500);
   };
+  const handleStartVoiceRecording = () => {
+    setIsRecordingVoice(true);
+    setRecordingDuration(0);
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingDuration(prev => prev + 1);
+    }, 1000);
+  };
+
+  const handleCancelVoiceRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setIsRecordingVoice(false);
+    setRecordingDuration(0);
+  };
+
+  const handleStopAndSendVoiceRecording = async () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    const finalSecs = recordingDuration > 0 ? recordingDuration : 2;
+    setIsRecordingVoice(false);
+    setRecordingDuration(0);
+
+    if (!directMessageUser) return;
+    const authorName = directMessageUser.author;
+    const durationLabel = formatAudioDuration(finalSecs);
+
+    const newMsg = {
+      id: 'dm-' + Date.now(),
+      sender: 'user',
+      mediaType: 'audio',
+      audioDuration: durationLabel,
+      text: '',
+      textAr: '',
+      time: 'Just now'
+    };
+
+    const currentList = dmHistory[authorName] || getDefaultDmMessages(authorName);
+    const updatedList = [...currentList, newMsg];
+
+    setDmHistory(prev => ({ ...prev, [authorName]: updatedList }));
+    const summaryText = isRtl ? (`🎤 تسجيل صوتي (${durationLabel})`) : (`🎤 Voice message (${durationLabel})`);
+    updateInboxConversation(authorName, summaryText, 'Just now');
+
+    try {
+      await AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(updatedList));
+    } catch (_) {}
+
+    setTimeout(async () => {
+      const replyMsg = {
+        id: 'reply-' + Date.now(),
+        sender: 'them',
+        text: 'Heard your voice note! Loud and clear 👍',
+        textAr: 'استمعت إلى رسالتك الصوتية! واضحة وممتازة 👍',
+        time: 'Just now'
+      };
+      setDmHistory(prev => {
+        const cur = prev[authorName] || updatedList;
+        const next = [...cur, replyMsg];
+        AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(next)).catch(() => {});
+        return { ...prev, [authorName]: next };
+      });
+      updateInboxConversation(authorName, isRtl ? replyMsg.textAr : replyMsg.text, 'Just now');
+    }, 1500);
+  };
+
+  const handleTogglePlayAudio = (msgId) => {
+    if (playingAudioId === msgId) {
+      if (audioPlaybackTimerRef.current) clearTimeout(audioPlaybackTimerRef.current);
+      setPlayingAudioId(null);
+    } else {
+      if (audioPlaybackTimerRef.current) clearTimeout(audioPlaybackTimerRef.current);
+      setPlayingAudioId(msgId);
+      audioPlaybackTimerRef.current = setTimeout(() => {
+        setPlayingAudioId(null);
+      }, 3500);
+    }
+  };
+
   const handleToggleFriend = async (targetAuthor) => {
     const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
     if (!targetAuthor || targetAuthor === currentAuthor) return;
@@ -2824,6 +2912,57 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                               </TouchableOpacity>
                             )}
 
+                            {/* Voice Note / Audio Message */}
+                            {msg.mediaType === 'audio' && (
+                              <TouchableOpacity
+                                style={[
+                                  styles.dmAudioCard,
+                                  isMe ? styles.dmAudioCardMe : styles.dmAudioCardThem,
+                                  isRtl && { flexDirection: 'row-reverse' }
+                                ]}
+                                onPress={() => handleTogglePlayAudio(msg.id)}
+                                activeOpacity={0.8}
+                              >
+                                <View style={[
+                                  styles.dmAudioPlayBtn,
+                                  isMe ? styles.dmAudioPlayBtnMe : styles.dmAudioPlayBtnThem
+                                ]}>
+                                  <Ionicons
+                                    name={playingAudioId === msg.id ? "pause" : "play"}
+                                    size={15}
+                                    color={isMe ? "#FFFFFF" : "#FFFFFF"}
+                                    style={playingAudioId === msg.id ? {} : { marginLeft: 2 }}
+                                  />
+                                </View>
+                                <View style={styles.dmAudioWaveCol}>
+                                  <View style={[styles.dmAudioWaveformRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                    {[10, 18, 8, 16, 22, 13, 20, 9, 17, 24, 14, 19, 11, 16].map((barH, barIdx) => {
+                                      const isPlayed = playingAudioId === msg.id;
+                                      return (
+                                        <View
+                                          key={barIdx}
+                                          style={[
+                                            styles.dmAudioWaveBar,
+                                            { height: barH },
+                                            isMe ? styles.dmAudioWaveBarMe : styles.dmAudioWaveBarThem,
+                                            isPlayed && styles.dmAudioWaveBarActive
+                                          ]}
+                                        />
+                                      );
+                                    })}
+                                  </View>
+                                  <View style={[styles.dmAudioMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                    <Text style={[styles.dmAudioDurationText, isMe ? styles.dmAudioDurationMe : styles.dmAudioDurationThem]}>
+                                      {msg.audioDuration || '0:03'}
+                                    </Text>
+                                    <Text style={[styles.dmAudioBadgeText, isMe ? styles.dmAudioDurationMe : styles.dmAudioDurationThem]}>
+                                      {isRtl ? 'تسجيل صوتي' : 'Voice note'}
+                                    </Text>
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                            )}
+
                             {/* Message Text */}
                             {Boolean(msg.text) && (
                               <Text style={[
@@ -2886,58 +3025,106 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                   )}
 
                   {/* Bottom Composer */}
-                  <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                  {isRecordingVoice ? (
+                    <View style={[styles.dmRecordingBar, isRtl && { flexDirection: 'row-reverse' }]}>
                       <TouchableOpacity
-                        style={styles.dmMediaActionBtn}
-                        onPress={handlePickChatImage}
+                        style={[styles.dmRecordingCancelBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                        onPress={handleCancelVoiceRecording}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                        <Ionicons name="trash-outline" size={19} color="#E53935" />
+                        <Text style={[styles.dmRecordingCancelText, isRtl && styles.arabicRegularText]}>
+                          {isRtl ? 'إلغاء' : 'Cancel'}
+                        </Text>
                       </TouchableOpacity>
 
+                      <View style={[styles.dmRecordingStatus, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <View style={styles.dmRecordingDot} />
+                        <Text style={styles.dmRecordingTimer}>
+                          {formatAudioDuration(recordingDuration)}
+                        </Text>
+                        <View style={[styles.dmRecordingWaveBars, isRtl && { flexDirection: 'row-reverse' }]}>
+                          {[10, 16, 22, 14, 20, 24, 13, 19].map((h, idx) => (
+                            <View
+                              key={idx}
+                              style={[
+                                styles.dmRecordingWaveBar,
+                                { height: recordingDuration % 2 === 0 ? h : (26 - h / 2) }
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      </View>
+
                       <TouchableOpacity
-                        style={styles.dmMediaActionBtn}
-                        onPress={handleSelectVideoOption}
-                        activeOpacity={0.7}
+                        style={styles.dmRecordingSendBtn}
+                        onPress={handleStopAndSendVoiceRecording}
+                        activeOpacity={0.8}
                       >
-                        <Ionicons name="videocam-outline" size={21} color={COLORS.bgBrand} />
+                        <Ionicons
+                          name="send"
+                          size={15}
+                          color="#FFFFFF"
+                          style={isRtl ? { transform: [{ rotate: '180deg' }] } : { marginLeft: 2 }}
+                        />
                       </TouchableOpacity>
                     </View>
+                  ) : (
+                    <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={[styles.dmMediaActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                        <TouchableOpacity
+                          style={styles.dmMediaActionBtn}
+                          onPress={handlePickChatImage}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
+                        </TouchableOpacity>
+                      </View>
 
-                    <TextInput
-                      style={[
-                        styles.dmInput,
-                        isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
-                      ]}
-                      placeholder={
-                        attachedMedia
-                          ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
-                          : (isRtl ? "اكتب رسالة..." : "Type a message...")
-                      }
-                      placeholderTextColor="#A0A0A0"
-                      value={dmInputText}
-                      onChangeText={setDmInputText}
-                      multiline
-                    />
-
-                    <TouchableOpacity
-                      style={[
-                        styles.dmSendButton,
-                        (!dmInputText.trim() && !attachedMedia) && styles.dmSendButtonDisabled
-                      ]}
-                      onPress={handleSendDirectMessage}
-                      disabled={!dmInputText.trim() && !attachedMedia}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name="send"
-                        size={15}
-                        color="#FFFFFF"
-                        style={isRtl ? { transform: [{ rotate: '180deg' }] } : { marginLeft: 2 }}
+                      <TextInput
+                        style={[
+                          styles.dmInput,
+                          isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }
+                        ]}
+                        placeholder={
+                          attachedMedia
+                            ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
+                            : (isRtl ? "اكتب رسالة..." : "Type a message...")
+                        }
+                        placeholderTextColor="#A0A0A0"
+                        value={dmInputText}
+                        onChangeText={setDmInputText}
+                        multiline
                       />
-                    </TouchableOpacity>
-                  </View>
+
+                      {Boolean(dmInputText.trim() || attachedMedia) ? (
+                        <TouchableOpacity
+                          style={styles.dmSendButton}
+                          onPress={handleSendDirectMessage}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name="send"
+                            size={15}
+                            color="#FFFFFF"
+                            style={isRtl ? { transform: [{ rotate: '180deg' }] } : { marginLeft: 2 }}
+                          />
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.dmMicButton}
+                          onPress={handleStartVoiceRecording}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name="mic"
+                            size={18}
+                            color="#FFFFFF"
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
                 </KeyboardAvoidingView>
               ) : (
                 // --- INBOX CONVERSATIONS LIST VIEW ---
@@ -4636,6 +4823,154 @@ const createStyles = (colors) => StyleSheet.create({
   },
   dmSendButtonDisabled: {
     backgroundColor: 'rgba(55, 99, 59, 0.25)',
+  },
+  dmMicButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  /* Voice recording in-progress bar */
+  dmRecordingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: colors.bgCreamy,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGreen,
+  },
+  dmRecordingCancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  dmRecordingCancelText: {
+    fontSize: 13,
+    color: '#E53935',
+    marginLeft: 4,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+  },
+  dmRecordingStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  dmRecordingDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#E53935',
+    marginRight: 6,
+  },
+  dmRecordingTimer: {
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: colors.textDark,
+    marginRight: 10,
+  },
+  dmRecordingWaveBars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 26,
+    gap: 3,
+  },
+  dmRecordingWaveBar: {
+    width: 3,
+    backgroundColor: colors.bgBrand,
+    borderRadius: 1.5,
+  },
+  dmRecordingSendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  /* Audio Card in Chat */
+  dmAudioCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    minWidth: 190,
+    marginBottom: 4,
+  },
+  dmAudioCardMe: {
+    backgroundColor: colors.bgBrandDark || '#1C3A27',
+  },
+  dmAudioCardThem: {
+    backgroundColor: colors.bgBrandLight,
+  },
+  dmAudioPlayBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  dmAudioPlayBtnMe: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  dmAudioPlayBtnThem: {
+    backgroundColor: colors.bgBrand,
+  },
+  dmAudioWaveCol: {
+    flex: 1,
+  },
+  dmAudioWaveformRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 26,
+    gap: 3,
+    marginBottom: 4,
+  },
+  dmAudioWaveBar: {
+    width: 3,
+    borderRadius: 1.5,
+  },
+  dmAudioWaveBarMe: {
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  dmAudioWaveBarThem: {
+    backgroundColor: colors.borderGreen,
+  },
+  dmAudioWaveBarActive: {
+    backgroundColor: '#4CAF50',
+  },
+  dmAudioMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dmAudioDurationText: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+  },
+  dmAudioDurationMe: {
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  dmAudioDurationThem: {
+    color: colors.textMuted,
+  },
+  dmAudioBadgeText: {
+    fontSize: 10.5,
+    fontFamily: 'PlusJakartaSans-Medium',
   },
   /* Fullscreen Media Viewer */
   mediaViewerBackdrop: {
