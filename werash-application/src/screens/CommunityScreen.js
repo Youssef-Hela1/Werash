@@ -3368,8 +3368,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                       <Ionicons name={isRtl ? "chevron-forward" : "chevron-back"} size={18} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 2 } : { marginRight: 2 }} />
                       <Text style={[styles.newPageBackButtonText, isRtl && styles.arabicBoldText]}>{isRtl ? 'المجتمع' : 'Community'}</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.newPageHeaderTitle, isRtl && styles.arabicBoldText]}>{isRtl ? 'الرسائل' : 'Inbox'}</Text>
-                    <View style={{ width: 80 }} />
                   </View>
 
                   {/* Search Inbox */}
