@@ -372,36 +372,64 @@ function AppContent() {
           if (loadedUser.email === 'customer@werash.com' || loadedUser.id === 'customer-admin') {
             setUserVehicles([CUSTOMER_ADMIN_COUPE]);
             setActiveVehicleId(CUSTOMER_ADMIN_COUPE.id);
-          } else if (storedVehicles) {
-            try {
-              const parsedVehicles = JSON.parse(storedVehicles);
-              if (Array.isArray(parsedVehicles) && parsedVehicles.length > 0) {
-                // Filter out any stale mock vehicles for real users
-                const cleanVehicles = loadedUser.id === 'mock-youssef'
-                  ? parsedVehicles
-                  : parsedVehicles.filter(v => v && !String(v.id || '').startsWith('mock-'));
-
-                if (cleanVehicles.length > 0) {
-                  setUserVehicles(cleanVehicles);
-                  const exists = storedActiveId && cleanVehicles.some(v => v.id === storedActiveId);
-                  setActiveVehicleId(exists ? storedActiveId : cleanVehicles[0].id);
-                } else if (loadedUser.carBrand && loadedUser.carModel) {
-                  const registeredCar = createRegisteredCar(loadedUser);
-                  setUserVehicles([registeredCar]);
-                  setActiveVehicleId(registeredCar.id);
-                } else {
-                  setUserVehicles([]);
-                  setActiveVehicleId(null);
-                }
-              }
-            } catch (_) {}
-          } else if (loadedUser.carBrand && loadedUser.carModel) {
-            const registeredCar = createRegisteredCar(loadedUser);
-            setUserVehicles([registeredCar]);
-            setActiveVehicleId(registeredCar.id);
           } else {
-            setUserVehicles([]);
-            setActiveVehicleId(null);
+            let vehiclesLoadedFromDb = false;
+            if (loadedUser.id) {
+              try {
+                const { data: dbVehicles, error: dbErr } = await supabase
+                  .from('vehicles')
+                  .select('*')
+                  .eq('user_id', loadedUser.id)
+                  .order('created_at', { ascending: true });
+
+                if (!dbErr && Array.isArray(dbVehicles)) {
+                  vehiclesLoadedFromDb = true;
+                  if (dbVehicles.length > 0) {
+                    const mapped = dbVehicles.map(v => ({
+                      id: v.id,
+                      brand: v.brand,
+                      model: v.model,
+                      year: v.year || new Date().getFullYear().toString(),
+                      plateNumber: v.plate_number || '',
+                      plateNumberArabic: v.plate_number_arabic || '',
+                      cc: v.cc || '1600 CC',
+                      odometer: v.odometer || 0,
+                      isManual: !!v.is_manual,
+                      is4WD: false,
+                      hasHydraulicPS: false,
+                      hasTimingBelt: false,
+                      services: {},
+                      logs: [],
+                    }));
+                    setUserVehicles(mapped);
+                    const activeCar = dbVehicles.find(v => v.is_active) || mapped[0];
+                    setActiveVehicleId(activeCar.id);
+                  } else {
+                    setUserVehicles([]);
+                    setActiveVehicleId(null);
+                  }
+                }
+              } catch (fetchErr) {
+                console.warn('Supabase vehicles fetch error:', fetchErr);
+              }
+            }
+
+            if (!vehiclesLoadedFromDb && storedVehicles) {
+              try {
+                const parsedVehicles = JSON.parse(storedVehicles);
+                if (Array.isArray(parsedVehicles) && parsedVehicles.length > 0) {
+                  const cleanVehicles = parsedVehicles.filter(v => v && !String(v.id || '').startsWith('mock-'));
+                  if (cleanVehicles.length > 0) {
+                    setUserVehicles(cleanVehicles);
+                    const exists = storedActiveId && cleanVehicles.some(v => v.id === storedActiveId);
+                    setActiveVehicleId(exists ? storedActiveId : cleanVehicles[0].id);
+                  } else {
+                    setUserVehicles([]);
+                    setActiveVehicleId(null);
+                  }
+                }
+              } catch (_) {}
+            }
           }
         }
       } catch (e) {
@@ -469,7 +497,7 @@ function AppContent() {
   }, [currentUser, isStorageReady]);
 
   // Sync user cars on explicit login / profile update
-  const handleSetCurrentUser = (user) => {
+  const handleSetCurrentUser = async (user) => {
     setCurrentUser(user);
     if (user) {
       if (user.email === 'customer@werash.com' || user.id === 'customer-admin') {
@@ -478,14 +506,43 @@ function AppContent() {
       } else if (user.id === 'mock-youssef') {
         setUserVehicles(MOCK_VEHICLES);
         setActiveVehicleId(MOCK_VEHICLES[0].id);
-      } else if (user.carBrand && user.carModel) {
-        setUserVehicles(prev => {
-          const cleanPrev = (prev || []).filter(v => v && !String(v.id || '').startsWith('mock-'));
-          if (cleanPrev.length > 0) return cleanPrev;
-          const registeredCar = createRegisteredCar(user);
-          setActiveVehicleId(registeredCar.id);
-          return [registeredCar];
-        });
+      } else if (user.id) {
+        // Fetch from Supabase for real user
+        try {
+          const { data: dbVehicles, error: dbErr } = await supabase
+            .from('vehicles')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
+
+          if (!dbErr && Array.isArray(dbVehicles) && dbVehicles.length > 0) {
+            const mapped = dbVehicles.map(v => ({
+              id: v.id,
+              brand: v.brand,
+              model: v.model,
+              year: v.year || new Date().getFullYear().toString(),
+              plateNumber: v.plate_number || '',
+              plateNumberArabic: v.plate_number_arabic || '',
+              cc: v.cc || '1600 CC',
+              odometer: v.odometer || 0,
+              isManual: !!v.is_manual,
+              is4WD: false,
+              hasHydraulicPS: false,
+              hasTimingBelt: false,
+              services: {},
+              logs: [],
+            }));
+            setUserVehicles(mapped);
+            const activeCar = dbVehicles.find(v => v.is_active) || mapped[0];
+            setActiveVehicleId(activeCar.id);
+          } else {
+            setUserVehicles([]);
+            setActiveVehicleId(null);
+          }
+        } catch (_) {
+          setUserVehicles([]);
+          setActiveVehicleId(null);
+        }
       } else {
         setUserVehicles([]);
         setActiveVehicleId(null);

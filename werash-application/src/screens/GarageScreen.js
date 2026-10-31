@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -1165,7 +1166,7 @@ export default function GarageScreen({
     );
   };
 
-  const handleSaveCar = () => {
+  const handleSaveCar = async () => {
     if (!brand.trim()) {
       Alert.alert(
         selectedLanguage === 'Arabic' ? 'تنبيه' : 'Validation Error',
@@ -1220,9 +1221,42 @@ export default function GarageScreen({
       oilLife: 0,
     };
 
-    const updated = [...userVehicles, newCar];
+    let createdCar = newCar;
+    if (currentUser?.id) {
+      try {
+        const { data: inserted, error: insertErr } = await supabase
+          .from('vehicles')
+          .insert({
+            user_id: currentUser.id,
+            brand: brand.trim(),
+            model: model.trim(),
+            year: year.trim() || new Date().getFullYear().toString(),
+            plate_number: plateNumber.trim(),
+            plate_number_arabic: plateNumber.trim(),
+            cc: cc.trim() || '1600 CC',
+            is_manual: isManualCar,
+            odometer: odoVal,
+            is_active: userVehicles.length === 0,
+          })
+          .select()
+          .single();
+
+        if (!insertErr && inserted) {
+          createdCar = {
+            ...newCar,
+            id: inserted.id,
+          };
+        } else if (insertErr) {
+          console.warn('Supabase vehicle insert error:', insertErr);
+        }
+      } catch (err) {
+        console.warn('Supabase vehicle insert exception:', err);
+      }
+    }
+
+    const updated = [...userVehicles, createdCar];
     setUserVehicles(updated);
-    setActiveVehicleId(newCar.id);
+    setActiveVehicleId(createdCar.id);
     setShowAddForm(false);
     setWizardStep(1);
     
@@ -1252,11 +1286,18 @@ export default function GarageScreen({
         { 
           text: t.confirmRemoveYes, 
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            if (currentUser?.id) {
+              supabase.from('vehicles').delete().eq('id', carId).catch(() => {});
+            }
             const filtered = userVehicles.filter(v => v.id !== carId);
             setUserVehicles(filtered);
             if (activeVehicleId === carId) {
-              setActiveVehicleId(filtered.length > 0 ? filtered[0].id : null);
+              const nextActiveId = filtered.length > 0 ? filtered[0].id : null;
+              setActiveVehicleId(nextActiveId);
+              if (nextActiveId && currentUser?.id) {
+                supabase.from('vehicles').update({ is_active: true }).eq('id', nextActiveId).catch(() => {});
+              }
             }
             if (filtered.length <= 1) {
               setIsSwitchingVehicle(false);
@@ -1361,6 +1402,9 @@ export default function GarageScreen({
                   : car
               );
               setUserVehicles(updated);
+              if (currentUser?.id && activeVehicleId) {
+                supabase.from('vehicles').update({ odometer: odoVal }).eq('id', activeVehicleId).catch(() => {});
+              }
               setIsOdoSetupStep(false);
               setIsEditingStatus(false);
             }}
@@ -3497,6 +3541,11 @@ export default function GarageScreen({
                   onPress={() => {
                     if (!isActive) {
                       setActiveVehicleId(car.id);
+                      if (currentUser?.id) {
+                        supabase.from('vehicles').update({ is_active: false }).eq('user_id', currentUser.id).then(() => {
+                          supabase.from('vehicles').update({ is_active: true }).eq('id', car.id).catch(() => {});
+                        }).catch(() => {});
+                      }
                       setIsSwitchingVehicle(false);
                       Alert.alert(
                         selectedLanguage === 'Arabic' ? 'تم التغيير' : 'Vehicle Switched',
