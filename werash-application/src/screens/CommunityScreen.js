@@ -607,6 +607,16 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
 const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
 
+const getDefaultDmMessages = (authorName) => [
+  {
+    id: 'default-intro-1',
+    sender: 'them',
+    text: `Hey! Thanks for visiting my profile. Feel free to ask about my car or parts!`,
+    textAr: `مرحباً! شكراً لزيارة صفحتي. يمكنك سؤالي عن سيارتي أو أي قطع غيار!`,
+    time: '10:30 AM'
+  }
+];
+
 export default function CommunityScreen({ currentUser, scrollToTopTrigger, selectedLanguage }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -671,41 +681,48 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
 
   // Comprehensive conversation search across usernames, handles, and all chat message contents
   const filteredConversations = useMemo(() => {
-    const q = inboxSearch.toLowerCase().trim();
+    const q = (inboxSearch || '').toLowerCase().trim();
     if (!q) {
-      return inboxConversations;
+      return inboxConversations || [];
     }
 
     // Combine inboxConversations with all users in dmHistory
     const allConversationsMap = new Map();
-    inboxConversations.forEach(c => allConversationsMap.set(c.user, { ...c }));
-
-    Object.keys(dmHistory).forEach(author => {
-      if (!allConversationsMap.has(author)) {
-        const msgs = dmHistory[author] || [];
-        const lastMsg = msgs[msgs.length - 1];
-        allConversationsMap.set(author, {
-          id: 'conv_' + author,
-          user: author,
-          handle: '@' + author.toLowerCase().replace(/\s+/g, ''),
-          avatar: null,
-          avatarType: 'icon',
-          lastMessage: lastMsg ? (lastMsg.text || (lastMsg.mediaType ? `[${lastMsg.mediaType}]` : '')) : '',
-          time: lastMsg?.time || 'Recent',
-          unread: 0,
-        });
-      }
+    (inboxConversations || []).forEach(c => {
+      if (c && c.user) allConversationsMap.set(c.user, { ...c });
     });
+
+    if (dmHistory && typeof dmHistory === 'object') {
+      Object.keys(dmHistory).forEach(author => {
+        if (author && !allConversationsMap.has(author)) {
+          const msgs = Array.isArray(dmHistory[author]) ? dmHistory[author] : [];
+          const lastMsg = msgs[msgs.length - 1];
+          allConversationsMap.set(author, {
+            id: 'conv_' + author,
+            user: author,
+            handle: '@' + author.toLowerCase().replace(/\s+/g, ''),
+            avatar: null,
+            avatarType: 'icon',
+            lastMessage: lastMsg ? (lastMsg.text || (lastMsg.mediaType ? `[${lastMsg.mediaType}]` : '')) : '',
+            time: lastMsg?.time || 'Recent',
+            unread: 0,
+          });
+        }
+      });
+    }
 
     const results = [];
     allConversationsMap.forEach(conv => {
-      const userMatch = conv.user.toLowerCase().includes(q);
-      const handleMatch = conv.handle && conv.handle.toLowerCase().includes(q);
-      const lastMsgMatch = conv.lastMessage && conv.lastMessage.toLowerCase().includes(q);
+      if (!conv || !conv.user) return;
+      const userMatch = (conv.user || '').toLowerCase().includes(q);
+      const handleMatch = Boolean(conv.handle && conv.handle.toLowerCase().includes(q));
+      const lastMsgMatch = Boolean(conv.lastMessage && conv.lastMessage.toLowerCase().includes(q));
 
       // Search all messages in this conversation
-      const chatMessages = dmHistory[conv.user] || getDefaultDmMessages(conv.user);
+      const rawMessages = (dmHistory && dmHistory[conv.user]) ? dmHistory[conv.user] : getDefaultDmMessages(conv.user);
+      const chatMessages = Array.isArray(rawMessages) ? rawMessages : [];
       const matchedChatMsg = chatMessages.slice().reverse().find(m => {
+        if (!m) return false;
         const en = (m.text || '').toLowerCase();
         const ar = (m.textAr || '').toLowerCase();
         if (en.includes(q) || ar.includes(q)) return true;
@@ -716,7 +733,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
       });
 
       if (userMatch || handleMatch || lastMsgMatch || matchedChatMsg) {
-        let snippet = conv.lastMessage;
+        let snippet = conv.lastMessage || '';
         let matchReason = null;
 
         if (matchedChatMsg) {
@@ -1043,15 +1060,7 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
     }
   };
 
-  const getDefaultDmMessages = (authorName) => [
-    {
-      id: 'default-intro-1',
-      sender: 'them',
-      text: `Hey! Thanks for visiting my profile. Feel free to ask about my car or parts!`,
-      textAr: `مرحباً! شكراً لزيارة صفحتي. يمكنك سؤالي عن سيارتي أو أي قطع غيار!`,
-      time: '10:30 AM'
-    }
-  ];
+// (getDefaultDmMessages defined at module level)
 
   const handleOpenDirectMessage = async (user, fromInbox = false) => {
     if (!user) return;
