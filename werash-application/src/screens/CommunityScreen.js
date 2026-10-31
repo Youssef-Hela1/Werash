@@ -750,19 +750,6 @@ export default function CommunityScreen({ currentUser, scrollToTopTrigger, selec
                     {activeProfileUser.handle}
                   </Text>
 
-                  {/* Centered Active Vehicle Pill */}
-                  <View style={[styles.carBadge, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <Ionicons 
-                      name="car-outline" 
-                      size={13} 
-                      color={COLORS.bgBrand} 
-                      style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
-                    />
-                    <Text style={[styles.carText, isRtl && styles.arabicBoldText]}>
-                      {isRtl ? `السيارة: ${activeProfileUser.vehicle}` : `Active: ${activeProfileUser.vehicle}`}
-                    </Text>
-                  </View>
-
                   {/* Centered Add Friend Button / Self Badge */}
                   <View style={styles.profileActionAreaCenter}>
                     {isViewingSelf ? (
