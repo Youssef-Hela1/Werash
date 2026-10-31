@@ -7,7 +7,6 @@ import SignInScreen from '../screens/SignInScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import NotificationsModal from './NotificationsModal';
 import ChatsModal from './ChatsModal';
-import { STORAGE_KEY_MECHANIC_SHARED } from '../screens/CertifiedMechanicPage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
@@ -61,45 +60,13 @@ export default function Header({
 }) {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [notifications, setNotifications] = useState(BASE_NOTIFICATIONS);
-  const alertedIdsRef = useRef(new Set());
 
   const [chatsVisible, setChatsVisible] = useState(false);
 
   const [localLanguage, setLocalLanguage] = useState('English');
   const selectedLanguage = propSelectedLanguage || localLanguage;
 
-  useEffect(() => {
-    const syncReceiptNotifications = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY_MECHANIC_SHARED);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.customerNotifications) && parsed.customerNotifications.length > 0) {
-          setNotifications((prev) => {
-            const existingMap = new Map(prev.map((n) => [n.id, n]));
-            const incoming = parsed.customerNotifications.map((n) =>
-              existingMap.has(n.id) ? existingMap.get(n.id) : n
-            );
-            const incomingIds = new Set(incoming.map((n) => n.id));
-            return [...incoming, ...prev.filter((n) => !incomingIds.has(n.id))];
-          });
 
-          const latest = parsed.customerNotifications[0];
-          if (latest && !latest.read && !alertedIdsRef.current.has(latest.id)) {
-            alertedIdsRef.current.add(latest.id);
-            const isAr = selectedLanguage === 'Arabic';
-            Alert.alert(
-              isAr ? latest.titleAr : latest.title,
-              isAr ? latest.bodyAr : latest.body
-            );
-          }
-        }
-      } catch (e) {
-        console.warn('Error syncing receipt notifications:', e);
-      }
-    };
-    syncReceiptNotifications();
-  }, [currentUser, currentTab, notificationsVisible, selectedLanguage]);
   const setSelectedLanguage = onSelectLanguage || setLocalLanguage;
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);

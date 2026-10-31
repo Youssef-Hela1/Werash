@@ -29,7 +29,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       id: 'ad-tuning', serviceBrand: 'mobil',
       sponsor: isRtl ? 'ميونخ للضبط والتعديل' : 'Munich Tuning Studio',
       title: isRtl ? 'خصم ١٥٪ على باقات التعديل' : '15% Off ECU Tuning',
-      desc: isRtl ? 'قم بتحسين أداء المحرك واستجابة دواسة الوقود مع مهندسينا المعتمدين.' : 'Boost engine performance and throttle response with certified specialists.',
+      desc: isRtl ? 'قم بتحسين أداء المحرك واستجابة دواسة الوقود مع أفضل المتخصصين.' : 'Boost engine performance and throttle response with top specialists.',
       coupon: 'TUNEMAX',
       image: require('../../assets/tuning_ad_banner.png'),
       website: 'https://munichtuning.com',

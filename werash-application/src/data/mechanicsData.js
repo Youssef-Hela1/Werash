@@ -2,13 +2,10 @@
 export const ALL_MECHANICS = [
   {
     "id": "m-1",
-    "isCertified": true,
-    "mechanicName": "Eng. Hamdy El-Sayed",
-    "mechanicNameAr": "م. حمدي السيد",
     "name": "Hamdy Hyundai Workshop",
     "nameAr": "ورشة حمدي هيونداي",
-    "specialty": "Certified Hyundai Specialist",
-    "specialtyAr": "متخصص هيونداي معتمد",
+    "specialty": "Hyundai Specialist",
+    "specialtyAr": "متخصص هيونداي",
     "rating": "4.8",
     "reviews": "64",
     "location": "October & Sheikh Zayed",
@@ -22,8 +19,8 @@ export const ALL_MECHANICS = [
     ],
     "region": "october_zayed",
     "area": "October & Sheikh Zayed",
-    "description": "Certified Hyundai & Korean Car Specialist (Eng. Hamdy El-Sayed) in October & Sheikh Zayed.",
-    "descriptionAr": "متخصص هيونداي وسيارات كوري معتمد (م. حمدي السيد) في أكتوبر والشيخ زايد."
+    "description": "Hyundai & Korean Car Specialist (Eng. Hamdy El-Sayed) in October & Sheikh Zayed.",
+    "descriptionAr": "متخصص هيونداي وسيارات كوري (م. حمدي السيد) في أكتوبر والشيخ زايد."
   },
   {
     "id": "m-2",

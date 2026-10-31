@@ -24,21 +24,6 @@ const API_URL = Platform.select({
   default: 'http://localhost:3000',
 });
 
-const DEFAULT_MECHANIC_USER = {
-  id: 'mechanic-1',
-  role: 'mechanic',
-  fullName: 'Eng. Hamdy El-Sayed',
-  fullNameAr: 'م. حمدي السيد',
-  workshopName: 'Hamdy Hyundai Workshop',
-  workshopNameAr: 'ورشة حمدي هيونداي المعتمدة',
-  email: 'admin@werash.com',
-  password: '123456789',
-  rating: '4.8',
-  reviewsCount: 64,
-  customersCount: 48,
-  totalEarnings: 34500,
-};
-
 const DEFAULT_CUSTOMER_USER = {
   id: 'customer-admin',
   role: 'customer',
@@ -63,9 +48,7 @@ AsyncStorage.getItem(STORAGE_KEY_LOCAL_USERS).then(stored => {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
         let updated = [...parsed];
-        if (!updated.some(u => u.email === DEFAULT_MECHANIC_USER.email)) {
-          updated.push(DEFAULT_MECHANIC_USER);
-        }
+        
         if (!updated.some(u => u.email === DEFAULT_CUSTOMER_USER.email)) {
           updated.push(DEFAULT_CUSTOMER_USER);
         }
@@ -87,7 +70,6 @@ let localUsersDb = [
     plateNumber: '1873 RW',
     plateNumberArabic: '١٨٧٣ ر و'
   },
-  DEFAULT_MECHANIC_USER,
   DEFAULT_CUSTOMER_USER
 ];
 
@@ -278,18 +260,6 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
     }
 
     const emailNormalized = email.trim().toLowerCase();
-    if (
-      emailNormalized === DEFAULT_MECHANIC_USER.email &&
-      password.trim() === DEFAULT_MECHANIC_USER.password
-    ) {
-      const { password: _, ...mechanicWithoutPassword } = DEFAULT_MECHANIC_USER;
-      if (onSignInSuccess) {
-        onSignInSuccess(mechanicWithoutPassword);
-      }
-      handleClose();
-      return;
-    }
-
     if (
       emailNormalized === DEFAULT_CUSTOMER_USER.email &&
       password.trim() === DEFAULT_CUSTOMER_USER.password

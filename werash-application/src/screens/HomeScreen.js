@@ -112,7 +112,7 @@ export default function HomeScreen({
                     ]}
                     numberOfLines={1}
                   >
-                    {isRtl ? 'فنيين معتمدين' : 'Certified Experts'}
+                    {isRtl ? 'فنيين وورش' : 'Top Specialists'}
                   </Text>
                 </View>
 

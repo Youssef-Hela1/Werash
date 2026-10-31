@@ -12,8 +12,6 @@ import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
 import SettingsScreen from './src/screens/SettingsScreen';
-import MechanicAppScreen from './src/screens/MechanicAppScreen';
-import CertifiedMechanicPage from './src/screens/CertifiedMechanicPage';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -526,23 +524,6 @@ function AppContent() {
     );
   }
 
-  // If logged in as a scouted Mechanic, render the dedicated Mechanic interface
-  if (currentUser && (currentUser.role === 'mechanic' || currentUser.email === 'admin@werash.com')) {
-    return (
-      <MechanicAppScreen
-        currentUser={currentUser}
-        onUpdateUser={handleSetCurrentUser}
-        onLogOut={() => {
-          handleLogOut();
-          setCurrentTab('home');
-          setSignInVisible(true);
-        }}
-        selectedLanguage={selectedLanguage}
-        onSelectLanguage={handleSelectLanguage}
-      />
-    );
-  }
-
   // Render active screen content
   const renderScreen = () => {
     switch (currentTab) {
@@ -651,24 +632,14 @@ function AppContent() {
         />
       )}
 
-      {/* Specialist Detail: Full Page for Certified Mechanics, Popup Modal for Non-Certified */}
+      {/* Specialist Detail Modal */}
       {activeSpecialist && (
-        activeSpecialist.isCertified ? (
-          <CertifiedMechanicPage
-            specialist={activeSpecialist}
-            onClose={() => setActiveSpecialist(null)}
-            selectedLanguage={selectedLanguage}
-            currentUser={currentUser}
-            activeVehicle={activeVehicle}
-          />
-        ) : (
-          <SpecialistDetailModal 
-            specialist={activeSpecialist} 
-            onClose={() => setActiveSpecialist(null)} 
-            selectedLanguage={selectedLanguage}
-            activeVehicle={activeVehicle}
-          />
-        )
+        <SpecialistDetailModal 
+          specialist={activeSpecialist} 
+          onClose={() => setActiveSpecialist(null)} 
+          selectedLanguage={selectedLanguage}
+          activeVehicle={activeVehicle}
+        />
       )}
 
       {/* Ad Detail Modal */}
