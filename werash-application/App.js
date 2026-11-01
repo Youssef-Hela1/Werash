@@ -670,6 +670,7 @@ function AppContent() {
             selectedLanguage={selectedLanguage}
             userVehicles={userVehicles}
             activeVehicleId={resolvedActiveVehicleId}
+            onOpenSignIn={() => setSignInVisible(true)}
           />
         );
       case 'more':

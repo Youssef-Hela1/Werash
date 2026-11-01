@@ -3,7 +3,7 @@ import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
   KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView, PanResponder,
-  Keyboard, TouchableWithoutFeedback
+  Keyboard, TouchableWithoutFeedback, RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,10 +11,26 @@ import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../services/supabase';
 
 const initialInboxConversations = [];
 
 const initialPosts = [];
+
+const formatTimeAgo = (dateString, isRtl) => {
+  if (!dateString) return isRtl ? 'الآن' : 'Just now';
+  const diffMs = Date.now() - new Date(dateString).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return isRtl ? 'الآن' : 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return isRtl ? `منذ ${diffMin} د` : `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return isRtl ? `منذ ${diffHr} س` : `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return isRtl ? 'أمس' : 'Yesterday';
+  if (diffDay < 7) return isRtl ? `منذ ${diffDay} أيام` : `${diffDay}d ago`;
+  return new Date(dateString).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
+};
 
 const REPORT_REASONS = [
   { id: 'offensive', en: 'Inappropriate or offensive content', ar: 'محتوى غير لائق أو مسيء' },
@@ -36,6 +52,7 @@ export default function CommunityScreen({
   selectedLanguage,
   userVehicles = [],
   activeVehicleId,
+  onOpenSignIn,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -49,12 +66,36 @@ export default function CommunityScreen({
     ? `${activeVehicle.make || ''} ${activeVehicle.model || ''}`.trim()
     : (currentUser?.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : '');
 
+  const requireAuth = (actionCallback) => {
+    if (currentUser?.id) {
+      if (typeof actionCallback === 'function') actionCallback();
+      return true;
+    }
+    Alert.alert(
+      isRtl ? 'تسجيل الدخول مطلوب' : 'Sign In Required',
+      isRtl
+        ? 'يرجى تسجيل الدخول أو إنشاء حساب للتفاعل مع المجتمع أو نشر إعلان.'
+        : 'Please sign in or create an account to share posts, list items, or interact with the community.',
+      [
+        { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRtl ? 'تسجيل الدخول' : 'Sign In',
+          onPress: () => {
+            if (typeof onOpenSignIn === 'function') onOpenSignIn();
+          },
+        },
+      ]
+    );
+    return false;
+  };
+
   const handleDismissKeyboard = () => {
     if (!isRecordingVoiceRef.current) {
       Keyboard.dismiss();
     }
   };
   const [feedPosts, setFeedPosts] = useState(initialPosts);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [selectedFeed, setSelectedFeed] = useState('feed'); // 'feed', 'profile', 'souq'
   const [showProfile, setShowProfile] = useState(false);
@@ -62,6 +103,97 @@ export default function CommunityScreen({
   const [directMessageUser, setDirectMessageUser] = useState(null);
   const [openedFromMessagesPage, setOpenedFromMessagesPage] = useState(false);
   const [dmHistory, setDmHistory] = useState({});
+
+  const fetchCommunityPosts = async () => {
+    try {
+      const { data: postsData, error: postsError } = await supabase
+        .from('community_posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (postsError) {
+        console.warn('Error fetching community posts:', postsError.message);
+        return;
+      }
+
+      let likedPostIds = new Set();
+      if (currentUser?.id) {
+        try {
+          const { data: likesData } = await supabase
+            .from('community_post_likes')
+            .select('post_id')
+            .eq('user_id', currentUser.id);
+          likedPostIds = new Set((likesData || []).map(l => l.post_id));
+        } catch (_) {}
+      }
+
+      const mapped = (postsData || []).map(p => ({
+        id: p.id,
+        author: p.author_name,
+        handle: p.author_handle,
+        avatar: p.author_avatar ? { uri: p.author_avatar } : null,
+        avatarType: p.author_avatar ? 'image' : 'icon',
+        time: formatTimeAgo(p.created_at, isRtl),
+        content: p.content,
+        postImage: p.media_url ? { uri: p.media_url } : null,
+        likes: p.likes_count || 0,
+        comments: p.comments_count || 0,
+        liked: likedPostIds.has(p.id),
+        vehicle: p.vehicle || 'General',
+        isMarketplace: Boolean(p.is_marketplace),
+        price: p.price || null,
+        location: p.location || null,
+        commentsList: [],
+      }));
+
+      setFeedPosts(mapped);
+    } catch (err) {
+      console.warn('fetchCommunityPosts error:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCommunityPosts();
+
+    const channel = supabase
+      .channel('community_posts_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'community_posts' },
+        (payload) => {
+          if (payload.new) {
+            const p = payload.new;
+            setFeedPosts(prev => {
+              if (prev.some(item => item.id === p.id)) return prev;
+              const newMapped = {
+                id: p.id,
+                author: p.author_name,
+                handle: p.author_handle,
+                avatar: p.author_avatar ? { uri: p.author_avatar } : null,
+                avatarType: p.author_avatar ? 'image' : 'icon',
+                time: formatTimeAgo(p.created_at, isRtl),
+                content: p.content,
+                postImage: p.media_url ? { uri: p.media_url } : null,
+                likes: p.likes_count || 0,
+                comments: p.comments_count || 0,
+                liked: false,
+                vehicle: p.vehicle || 'General',
+                isMarketplace: Boolean(p.is_marketplace),
+                price: p.price || null,
+                location: p.location || null,
+                commentsList: [],
+              };
+              return [newMapped, ...prev];
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id, isRtl]);
   const [dmInputText, setDmInputText] = useState('');
   const [attachedMedia, setAttachedMedia] = useState(null); // { type: 'image' | 'video', uri, duration }
   const [viewingMedia, setViewingMedia] = useState(null);
@@ -514,6 +646,7 @@ export default function CommunityScreen({
 
   const handleOpenDirectMessage = async (user, fromInbox = false) => {
     if (!user) return;
+    if (!requireAuth()) return;
     setOpenedFromMessagesPage(Boolean(fromInbox));
     setDirectMessageUser(user);
     setShowMessagesPage(true);
@@ -973,72 +1106,194 @@ export default function CommunityScreen({
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.8
+      quality: 0.7
     });
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setSelectedImage(result.assets[0].uri);
     }
   };
 
-  const handleCreatePost = () => {
+  const handleCreatePost = async () => {
+    if (!requireAuth()) return;
     if (!statusText.trim() && !selectedImage) return;
-    const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
-    const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
-    const currentVehicle = currentCarName || (currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : 'General');
 
-    const newPost = {
-      id: Date.now().toString(),
-      author: currentAuthorName,
-      handle: currentHandle,
-      avatarType: 'icon',
-      time: 'Just now',
-      content: statusText.trim(),
-      likes: 0,
-      comments: 0,
-      commentsList: [],
-      liked: false,
-      postImage: selectedImage,
-      vehicle: currentVehicle,
-      isMarketplace: selectedFeed === 'souq' || selectedFeed === 'marketplace',
-      price: (selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 'Ask Price' : null,
-      location: (selectedFeed === 'souq' || selectedFeed === 'marketplace') ? 'Cairo' : null,
-    };
-    setFeedPosts([newPost, ...feedPosts]);
+    const currentAuthorName = currentUser.fullName || 'User';
+    const currentHandle = `@${(currentUser.fullName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`;
+    const currentVehicle = currentCarName || (currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : 'General');
+    const localContent = statusText.trim();
+    const localImageUri = selectedImage;
+
     setStatusText('');
     setSelectedImage(null);
     setCreatePostModalVisible(false);
+
+    let mediaUrl = null;
+    if (localImageUri) {
+      try {
+        const response = await fetch(localImageUri);
+        const blob = await response.blob();
+        const ext = localImageUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const fileName = `${currentUser.id}/${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+            upsert: true,
+          });
+
+        if (!uploadErr && uploadData) {
+          const { data: publicData } = supabase.storage
+            .from('community-media')
+            .getPublicUrl(fileName);
+          mediaUrl = publicData?.publicUrl || null;
+        } else if (uploadErr) {
+          console.warn('Storage upload error:', uploadErr);
+        }
+      } catch (uploadErr) {
+        console.warn('Community image upload failed:', uploadErr);
+      }
+    }
+
+    try {
+      const { data: insertedPost, error: insertErr } = await supabase
+        .from('community_posts')
+        .insert({
+          user_id: currentUser.id,
+          author_name: currentAuthorName,
+          author_handle: currentHandle,
+          author_avatar: currentUser.avatarUrl || null,
+          vehicle: currentVehicle,
+          content: localContent,
+          media_url: mediaUrl,
+          media_type: 'image',
+          is_marketplace: false,
+        })
+        .select()
+        .single();
+
+      if (!insertErr && insertedPost) {
+        const mappedPost = {
+          id: insertedPost.id,
+          author: insertedPost.author_name,
+          handle: insertedPost.author_handle,
+          avatar: insertedPost.author_avatar ? { uri: insertedPost.author_avatar } : null,
+          avatarType: insertedPost.author_avatar ? 'image' : 'icon',
+          time: isRtl ? 'الآن' : 'Just now',
+          content: insertedPost.content,
+          postImage: insertedPost.media_url ? { uri: insertedPost.media_url } : null,
+          likes: 0,
+          comments: 0,
+          liked: false,
+          vehicle: insertedPost.vehicle,
+          isMarketplace: false,
+          commentsList: [],
+        };
+        setFeedPosts(prev => [mappedPost, ...prev.filter(p => p.id !== mappedPost.id)]);
+      } else if (insertErr) {
+        console.warn('Insert post error:', insertErr);
+      }
+    } catch (err) {
+      console.warn('Post creation exception:', err);
+    }
   };
 
-  const handlePublishListing = () => {
+  const handlePublishListing = async () => {
+    if (!requireAuth()) return;
     if (!listingTitle.trim() || !listingPrice.trim()) return;
-    const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
-    const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
-    const currentVehicle = currentCarName || (currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : 'General');
 
-    const newPost = {
-      id: Date.now().toString(),
-      author: currentAuthorName,
-      handle: currentHandle,
-      avatarType: 'icon',
-      time: 'Just now',
-      content: `${listingTitle.trim()}\n\n${listingDesc.trim()}`,
-      likes: 0,
-      comments: 0,
-      commentsList: [],
-      liked: false,
-      postImage: listingImageUri ? { uri: listingImageUri } : null,
-      vehicle: currentVehicle,
-      isMarketplace: true,
-      price: listingPrice.trim(),
-      location: listingLocation.trim() || 'Cairo',
-    };
-    setFeedPosts([newPost, ...feedPosts]);
+    const currentAuthorName = currentUser.fullName || 'User';
+    const currentHandle = `@${(currentUser.fullName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`;
+    const currentVehicle = currentCarName || (currentUser && currentUser.carBrand ? `${currentUser.carBrand} ${currentUser.carModel || ''}`.trim() : 'General');
+    const localTitle = listingTitle.trim();
+    const localDesc = listingDesc.trim();
+    const localPrice = listingPrice.trim();
+    const localLocation = listingLocation.trim() || 'Cairo';
+    const localImageUri = listingImageUri;
+
     setListingTitle('');
     setListingPrice('');
     setListingLocation('');
     setListingDesc('');
     setListingImageUri(null);
     setShowListingPage(false);
+
+    let mediaUrl = null;
+    if (localImageUri) {
+      try {
+        const response = await fetch(localImageUri);
+        const blob = await response.blob();
+        const ext = localImageUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const fileName = `${currentUser.id}/listing_${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+            upsert: true,
+          });
+
+        if (!uploadErr && uploadData) {
+          const { data: publicData } = supabase.storage
+            .from('community-media')
+            .getPublicUrl(fileName);
+          mediaUrl = publicData?.publicUrl || null;
+        } else if (uploadErr) {
+          console.warn('Listing upload error:', uploadErr);
+        }
+      } catch (uploadErr) {
+        console.warn('Listing image upload failed:', uploadErr);
+      }
+    }
+
+    try {
+      const fullContent = localDesc ? `${localTitle}\n\n${localDesc}` : localTitle;
+      const formattedPrice = localPrice.startsWith('$') || localPrice.toUpperCase().includes('EGP') ? localPrice : `${localPrice} EGP`;
+
+      const { data: insertedPost, error: insertErr } = await supabase
+        .from('community_posts')
+        .insert({
+          user_id: currentUser.id,
+          author_name: currentAuthorName,
+          author_handle: currentHandle,
+          author_avatar: currentUser.avatarUrl || null,
+          vehicle: currentVehicle,
+          content: fullContent,
+          media_url: mediaUrl,
+          media_type: 'image',
+          is_marketplace: true,
+          price: formattedPrice,
+          location: localLocation,
+        })
+        .select()
+        .single();
+
+      if (!insertErr && insertedPost) {
+        const mappedPost = {
+          id: insertedPost.id,
+          author: insertedPost.author_name,
+          handle: insertedPost.author_handle,
+          avatar: insertedPost.author_avatar ? { uri: insertedPost.author_avatar } : null,
+          avatarType: insertedPost.author_avatar ? 'image' : 'icon',
+          time: isRtl ? 'الآن' : 'Just now',
+          content: insertedPost.content,
+          postImage: insertedPost.media_url ? { uri: insertedPost.media_url } : null,
+          likes: 0,
+          comments: 0,
+          liked: false,
+          vehicle: insertedPost.vehicle,
+          isMarketplace: true,
+          price: insertedPost.price,
+          location: insertedPost.location,
+          commentsList: [],
+        };
+        setFeedPosts(prev => [mappedPost, ...prev.filter(p => p.id !== mappedPost.id)]);
+      } else if (insertErr) {
+        console.warn('Insert listing error:', insertErr);
+      }
+    } catch (err) {
+      console.warn('Listing publication exception:', err);
+    }
   };
 
   const handlePickListingImage = async () => {
@@ -1113,7 +1368,8 @@ export default function CommunityScreen({
     }, 100);
   };
 
-  const handleSubmitComment = () => {
+  const handleSubmitComment = async () => {
+    if (!requireAuth()) return;
     if (!commentInputText.trim() || !activeCommentsPost) return;
 
     const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
@@ -1190,6 +1446,26 @@ export default function CommunityScreen({
     setActiveCommentsPost((prev) => (prev ? updateCommentsOnPost(prev) : null));
     setCommentInputText('');
 
+    if (currentUser?.id && activeCommentsPost?.id) {
+      try {
+        const postId = activeCommentsPost.id;
+        supabase.from('community_post_comments').insert({
+          post_id: postId,
+          user_id: currentUser.id,
+          author_name: currentAuthorName,
+          author_handle: currentHandle,
+          author_avatar: currentUser.avatarUrl || null,
+          content: newComment.content,
+        }).then(() => {
+          supabase.from('community_posts').update({
+            comments_count: (activeCommentsPost.comments || 0) + 1,
+          }).eq('id', postId);
+        });
+      } catch (err) {
+        console.warn('Error saving comment to Supabase:', err);
+      }
+    }
+
     setTimeout(() => {
       if (commentsScrollRef.current) {
         commentsScrollRef.current.scrollToEnd({ animated: true });
@@ -1246,16 +1522,34 @@ export default function CommunityScreen({
   };
 
   const handleLike = (id) => {
-    setFeedPosts(feedPosts.map((post) => {
-      if (post.id === id) {
-        return {
-          ...post,
-          liked: !post.liked,
-          likes: post.liked ? post.likes - 1 : post.likes + 1,
-        };
+    requireAuth(async () => {
+      const targetPost = feedPosts.find(p => p.id === id);
+      if (!targetPost) return;
+      const willBeLiked = !targetPost.liked;
+      const nextLikesCount = willBeLiked ? (targetPost.likes || 0) + 1 : Math.max(0, (targetPost.likes || 1) - 1);
+
+      setFeedPosts(prev => prev.map((post) => {
+        if (post.id === id) {
+          return {
+            ...post,
+            liked: willBeLiked,
+            likes: nextLikesCount,
+          };
+        }
+        return post;
+      }));
+
+      try {
+        if (willBeLiked) {
+          await supabase.from('community_post_likes').insert({ post_id: id, user_id: currentUser.id });
+        } else {
+          await supabase.from('community_post_likes').delete().eq('post_id', id).eq('user_id', currentUser.id);
+        }
+        await supabase.from('community_posts').update({ likes_count: nextLikesCount }).eq('id', id);
+      } catch (err) {
+        console.warn('Error syncing like to Supabase:', err);
       }
-      return post;
-    }));
+    });
   };
 
   // Filter posts based on view state
@@ -1382,6 +1676,18 @@ export default function CommunityScreen({
           <Animated.ScrollView
             ref={scrollViewRef}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={async () => {
+                  setIsRefreshing(true);
+                  await fetchCommunityPosts();
+                  setIsRefreshing(false);
+                }}
+                tintColor={COLORS.bgBrand}
+                colors={[COLORS.bgBrand]}
+              />
+            }
             contentContainerStyle={[
               styles.scrollContent,
               {
@@ -1857,7 +2163,7 @@ export default function CommunityScreen({
                   {/* Messages Icon */}
                   <TouchableOpacity 
                     activeOpacity={0.8}
-                    onPress={() => setShowMessagesPage(true)}
+                    onPress={() => requireAuth(() => setShowMessagesPage(true))}
                     style={styles.messagesHeaderIcon}
                   >
                     <Ionicons name="chatbox-ellipses-outline" size={22} color={COLORS.bgBrand} />
@@ -1977,7 +2283,7 @@ export default function CommunityScreen({
                         <TouchableOpacity 
                           activeOpacity={0.8}
                           style={[styles.marketListEntityBtn, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => setShowListingPage(true)}
+                          onPress={() => requireAuth(() => setShowListingPage(true))}
                         >
                           <Ionicons name="add" size={18} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
                           <Text style={[styles.marketListEntityText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
@@ -2012,7 +2318,7 @@ export default function CommunityScreen({
                               />
                               <TouchableOpacity 
                                 activeOpacity={0.9}
-                                onPress={() => setCreatePostModalVisible(true)}
+                                onPress={() => requireAuth(() => setCreatePostModalVisible(true))}
                                 style={StyleSheet.absoluteFill}
                               />
                             </View>
@@ -2024,7 +2330,7 @@ export default function CommunityScreen({
                                 <TouchableOpacity 
                                   style={styles.composerIconButton} 
                                   activeOpacity={0.7}
-                                  onPress={() => setCreatePostModalVisible(true)}
+                                  onPress={() => requireAuth(() => setCreatePostModalVisible(true))}
                                 >
                                   <Ionicons name="videocam-outline" size={20} color={COLORS.bgBrand} />
                                 </TouchableOpacity>
@@ -2032,8 +2338,10 @@ export default function CommunityScreen({
                                   style={styles.composerIconButton} 
                                   activeOpacity={0.7}
                                   onPress={() => {
-                                    setCreatePostModalVisible(true);
-                                    pickPostImage();
+                                    requireAuth(() => {
+                                      setCreatePostModalVisible(true);
+                                      pickPostImage();
+                                    });
                                   }}
                                 >
                                   <Ionicons name="image-outline" size={20} color={COLORS.bgBrand} />
@@ -2041,14 +2349,14 @@ export default function CommunityScreen({
                                 <TouchableOpacity 
                                   style={styles.composerIconButton} 
                                   activeOpacity={0.7}
-                                  onPress={() => setCreatePostModalVisible(true)}
+                                  onPress={() => requireAuth(() => setCreatePostModalVisible(true))}
                                 >
                                   <Ionicons name="link-outline" size={20} color={COLORS.bgBrand} />
                                 </TouchableOpacity>
                                 <TouchableOpacity 
                                   style={styles.composerIconButton} 
                                   activeOpacity={0.7}
-                                  onPress={() => setCreatePostModalVisible(true)}
+                                  onPress={() => requireAuth(() => setCreatePostModalVisible(true))}
                                 >
                                   <Ionicons name="location-outline" size={20} color={COLORS.bgBrand} />
                                 </TouchableOpacity>
@@ -2057,7 +2365,7 @@ export default function CommunityScreen({
                               {/* Post Action */}
                               <TouchableOpacity 
                                 style={styles.postButton} 
-                                onPress={() => setCreatePostModalVisible(true)} 
+                                onPress={() => requireAuth(() => setCreatePostModalVisible(true))} 
                                 activeOpacity={0.8}
                               >
                                 <Text style={[styles.postButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
@@ -2098,7 +2406,7 @@ export default function CommunityScreen({
 
                   <TouchableOpacity 
                     activeOpacity={0.8}
-                    onPress={() => setShowMessagesPage(true)}
+                    onPress={() => requireAuth(() => setShowMessagesPage(true))}
                     style={[styles.stickyProfileAvatar, { backgroundColor: COLORS.bgBrandLight, borderWidth: 1, borderColor: COLORS.borderGreen }]}
                   >
                     <Ionicons name="chatbox-ellipses-outline" size={18} color={COLORS.bgBrand} />
