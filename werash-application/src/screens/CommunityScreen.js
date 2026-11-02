@@ -319,6 +319,76 @@ export default function CommunityScreen({
   const waveLayoutWidthsRef = useRef({});
   const lastSeekTimeRef = useRef(0);
   const [voiceTapTipVisible, setVoiceTapTipVisible] = useState(false);
+  const [readTimestamps, setReadTimestamps] = useState({});
+  const [unreadConversationsMap, setUnreadConversationsMap] = useState({});
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    AsyncStorage.getItem(`@werash_chat_read_${currentUser.id}`)
+      .then((val) => {
+        if (val) {
+          try {
+            setReadTimestamps(JSON.parse(val) || {});
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+  }, [currentUser?.id]);
+
+  const markConversationAsRead = (convId) => {
+    if (!convId) return;
+    const now = new Date().toISOString();
+    setReadTimestamps((prev) => {
+      const updated = { ...prev, [convId]: now };
+      if (currentUser?.id) {
+        AsyncStorage.setItem(`@werash_chat_read_${currentUser.id}`, JSON.stringify(updated)).catch(() => {});
+      }
+      return updated;
+    });
+    setUnreadConversationsMap((prev) => {
+      if (!prev[convId]) return prev;
+      const next = { ...prev };
+      delete next[convId];
+      return next;
+    });
+  };
+
+  const isConversationUnread = (conv) => {
+    if (!conv || !currentUser?.id) return false;
+    const convId = conv.conversationId || conv.id;
+    if (!convId) return false;
+    if (directMessageUser?.conversationId === convId) return false;
+
+    if (unreadConversationsMap[convId]) return true;
+
+    if (conv.lastSenderId && conv.lastSenderId !== currentUser.id) {
+      const readAt = readTimestamps[convId];
+      if (!readAt) return true;
+      if (conv.lastMessageAt && new Date(conv.lastMessageAt).getTime() > new Date(readAt).getTime()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const unreadChatsCount = useMemo(() => {
+    if (!currentUser?.id) return 0;
+    const unreadSet = new Set();
+
+    (inboxConversations || []).forEach((c) => {
+      if (isConversationUnread(c)) {
+        unreadSet.add(c.conversationId || c.id);
+      }
+    });
+
+    Object.keys(unreadConversationsMap).forEach((convId) => {
+      if (unreadConversationsMap[convId] && directMessageUser?.conversationId !== convId) {
+        unreadSet.add(convId);
+      }
+    });
+
+    return unreadSet.size;
+  }, [currentUser?.id, inboxConversations, readTimestamps, unreadConversationsMap, directMessageUser?.conversationId]);
 
   const recordingTimerRef = useRef(null);
   const audioPlaybackTimerRef = useRef(null);
@@ -391,6 +461,8 @@ export default function CommunityScreen({
           avatar: otherAvatar ? { uri: otherAvatar } : null,
           avatarType: otherAvatar ? 'image' : 'icon',
           lastMessage: c.last_message_text || '',
+          lastMessageAt: c.last_message_at,
+          lastSenderId: c.last_sender_id,
           time: formatTimeAgo(c.last_message_at, isRtl),
           unread: 0,
         };
@@ -458,14 +530,53 @@ export default function CommunityScreen({
           schema: 'public',
           table: 'conversations',
         },
-        () => {
+        (payload) => {
+          if (payload?.new) {
+            const c = payload.new;
+            if (c.last_sender_id && c.last_sender_id !== currentUser.id) {
+              if (directMessageUserRef.current?.conversationId !== c.id) {
+                setUnreadConversationsMap((prev) => ({
+                  ...prev,
+                  [c.id]: true,
+                }));
+              }
+            }
+          }
           fetchUserConversations();
+        }
+      )
+      .subscribe();
+
+    const incomingDmChannel = supabase
+      .channel('user_incoming_messages_' + currentUser.id)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          if (payload?.new) {
+            const m = payload.new;
+            if (directMessageUserRef.current?.conversationId === m.conversation_id) {
+              markConversationAsRead(m.conversation_id);
+            } else {
+              setUnreadConversationsMap((prev) => ({
+                ...prev,
+                [m.conversation_id]: true,
+              }));
+            }
+            fetchUserConversations();
+          }
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(convChannel);
+      supabase.removeChannel(incomingDmChannel);
     };
   }, [currentUser?.id, isRtl]);
 
@@ -511,6 +622,7 @@ export default function CommunityScreen({
                 [authorName]: [...list, newMsg],
               };
             });
+            markConversationAsRead(convId);
             fetchUserConversations();
           }
         }
@@ -1078,6 +1190,7 @@ export default function CommunityScreen({
       });
 
       if (convId) {
+        markConversationAsRead(convId);
         await fetchConversationMessages(convId, authorName);
       }
     } catch (err) {
@@ -1086,6 +1199,9 @@ export default function CommunityScreen({
   };
 
   const handleCloseDirectMessage = () => {
+    if (directMessageUser?.conversationId) {
+      markConversationAsRead(directMessageUser.conversationId);
+    }
     setDirectMessageUser(null);
     if (!openedFromMessagesPage) {
       setShowMessagesPage(false);
@@ -1099,6 +1215,8 @@ export default function CommunityScreen({
         const updatedItem = {
           ...prev[existingIdx],
           lastMessage: lastMsgText,
+          lastMessageAt: new Date().toISOString(),
+          lastSenderId: currentUser?.id,
           time: time || (isRtl ? 'الآن' : 'Just now'),
           unread: 0,
         };
@@ -1115,6 +1233,8 @@ export default function CommunityScreen({
           avatar: target?.avatar || null,
           avatarType: target?.avatar ? 'image' : 'icon',
           lastMessage: lastMsgText,
+          lastMessageAt: new Date().toISOString(),
+          lastSenderId: currentUser?.id,
           time: time || (isRtl ? 'الآن' : 'Just now'),
           unread: 0,
         };
@@ -3107,6 +3227,13 @@ export default function CommunityScreen({
                     style={styles.messagesHeaderIcon}
                   >
                     <Ionicons name="chatbox-ellipses-outline" size={22} color={COLORS.bgBrand} />
+                    {unreadChatsCount > 0 && (
+                      <View style={styles.messagesHeaderBadge}>
+                        <Text style={styles.messagesHeaderBadgeText}>
+                          {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -3348,9 +3475,16 @@ export default function CommunityScreen({
                   <TouchableOpacity 
                     activeOpacity={0.8}
                     onPress={() => requireAuth(() => setShowMessagesPage(true))}
-                    style={[styles.stickyProfileAvatar, { backgroundColor: COLORS.bgBrandLight, borderWidth: 1, borderColor: COLORS.borderGreen }]}
+                    style={[styles.stickyProfileAvatar, { backgroundColor: COLORS.bgBrandLight, borderWidth: 1, borderColor: COLORS.borderGreen, position: 'relative' }]}
                   >
                     <Ionicons name="chatbox-ellipses-outline" size={18} color={COLORS.bgBrand} />
+                    {unreadChatsCount > 0 && (
+                      <View style={styles.messagesHeaderBadgeSticky}>
+                        <Text style={styles.messagesHeaderBadgeTextSticky}>
+                          {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -4331,56 +4465,59 @@ export default function CommunityScreen({
                         )}
                       </View>
                     ) : (
-                      filteredConversations.map(msg => (
-                        <TouchableOpacity 
-                          key={msg.id} 
-                          style={[styles.messageRow, isRtl && { flexDirection: 'row-reverse' }]} 
-                          activeOpacity={0.8}
-                          onPress={() => {
-                            handleOpenDirectMessage({
-                              conversationId: msg.conversationId || msg.id,
-                              userId: msg.userId,
-                              author: msg.user,
-                              handle: msg.handle || ('@' + msg.user.toLowerCase().replace(/\s+/g, '')),
-                              avatar: msg.avatar,
-                              avatarType: msg.avatar ? 'image' : 'icon',
-                            }, true);
-                          }}
-                        >
-                          {msg.avatarType === 'image' && msg.avatar ? (
-                            <Image source={msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
-                          ) : (
-                            <View style={styles.messageAvatar}>
-                              <Ionicons name="person" size={20} color="#FFFFFF" />
-                            </View>
-                          )}
-                          <View style={[styles.messageContent, isRtl ? { marginRight: 14 } : { marginLeft: 0 }]}>
-                            <View style={[styles.messageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                              <Text style={[styles.messageUser, isRtl && styles.arabicBoldText]}>{msg.user}</Text>
-                              <Text style={styles.messageTime}>{msg.time}</Text>
-                            </View>
-
-                            {/* Matched message indicator tag */}
-                            {Boolean(msg.matchReason) && (
-                              <View style={[styles.inboxMatchedTag, isRtl && { alignSelf: 'flex-end' }]}>
-                                <Ionicons name="chatbubble-ellipses-outline" size={11} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                                <Text style={[styles.inboxMatchedTagText, isRtl && styles.arabicRegularText]}>
-                                  {msg.matchedSender ? `${msg.matchedSender}: ` : ''}{msg.matchReason}
-                                </Text>
+                      filteredConversations.map(msg => {
+                        const isUnread = isConversationUnread(msg);
+                        return (
+                          <TouchableOpacity 
+                            key={msg.id} 
+                            style={[styles.messageRow, isRtl && { flexDirection: 'row-reverse' }]} 
+                            activeOpacity={0.8}
+                            onPress={() => {
+                              handleOpenDirectMessage({
+                                conversationId: msg.conversationId || msg.id,
+                                userId: msg.userId,
+                                author: msg.user,
+                                handle: msg.handle || ('@' + msg.user.toLowerCase().replace(/\s+/g, '')),
+                                avatar: msg.avatar,
+                                avatarType: msg.avatar ? 'image' : 'icon',
+                              }, true);
+                            }}
+                          >
+                            {msg.avatarType === 'image' && msg.avatar ? (
+                              <Image source={msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
+                            ) : (
+                              <View style={styles.messageAvatar}>
+                                <Ionicons name="person" size={20} color="#FFFFFF" />
                               </View>
                             )}
+                            <View style={[styles.messageContent, isRtl ? { marginRight: 14 } : { marginLeft: 0 }]}>
+                              <View style={[styles.messageHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                                <Text style={[styles.messageUser, isRtl && styles.arabicBoldText]}>{msg.user}</Text>
+                                <Text style={styles.messageTime}>{msg.time}</Text>
+                              </View>
 
-                            <Text style={[styles.messageSnippet, msg.unread > 0 && styles.messageSnippetUnread, isRtl && { textAlign: 'right' }]} numberOfLines={1}>
-                              {msg.displaySnippet || msg.lastMessage}
-                            </Text>
-                          </View>
-                          {msg.unread > 0 && (
-                            <View style={[styles.messageBadge, isRtl && { marginLeft: 0, marginRight: 12 }]}>
-                              <Text style={styles.messageBadgeText}>{msg.unread}</Text>
+                              {/* Matched message indicator tag */}
+                              {Boolean(msg.matchReason) && (
+                                <View style={[styles.inboxMatchedTag, isRtl && { alignSelf: 'flex-end' }]}>
+                                  <Ionicons name="chatbubble-ellipses-outline" size={11} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
+                                  <Text style={[styles.inboxMatchedTagText, isRtl && styles.arabicRegularText]}>
+                                    {msg.matchedSender ? `${msg.matchedSender}: ` : ''}{msg.matchReason}
+                                  </Text>
+                                </View>
+                              )}
+
+                              <Text style={[styles.messageSnippet, isUnread && styles.messageSnippetUnread, isRtl && { textAlign: 'right' }]} numberOfLines={1}>
+                                {msg.displaySnippet || msg.lastMessage}
+                              </Text>
                             </View>
-                          )}
-                        </TouchableOpacity>
-                      ))
+                            {isUnread && (
+                              <View style={[styles.messageBadge, isRtl && { marginLeft: 0, marginRight: 12 }]}>
+                                <Text style={styles.messageBadgeText}>1</Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })
                     )}
                   </ScrollView>
                   </View>
@@ -5156,6 +5293,61 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderColor: colors.borderGreen,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  messagesHeaderBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: isDarkMode ? '#121412' : '#FDFBF7',
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    elevation: 4,
+    zIndex: 10,
+  },
+  messagesHeaderBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+    lineHeight: 13,
+  },
+  messagesHeaderBadgeSticky: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: isDarkMode ? '#121412' : '#FDFBF7',
+    elevation: 4,
+    zIndex: 10,
+  },
+  messagesHeaderBadgeTextSticky: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+    lineHeight: 12,
   },
   selectorTabActive: {
     backgroundColor: colors.white,
@@ -6980,19 +7172,23 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '600',
   },
   messageBadge: {
-    backgroundColor: colors.bgBrand,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    height: 20,
     marginLeft: 12,
-    minWidth: 24,
+    minWidth: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   messageBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+    lineHeight: 13,
   },
   emptyState: {
     alignItems: 'center',
