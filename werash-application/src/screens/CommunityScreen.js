@@ -3606,48 +3606,65 @@ export default function CommunityScreen({
                   keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
                 >
                   {/* DM Header */}
-                  <View style={[styles.dmHeader, isRtl && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity 
-                      style={[styles.dmBackButton, isRtl && { flexDirection: 'row-reverse' }]} 
-                      onPress={handleCloseDirectMessage}
-                      activeOpacity={0.8}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons 
-                        name={isRtl ? "chevron-forward" : "chevron-back"} 
-                        size={22} 
-                        color={COLORS.bgBrand} 
-                      />
-                      {openedFromMessagesPage && (
-                        <Text style={[styles.dmBackBtnText, isRtl ? { marginRight: 3 } : { marginLeft: 3 }]}>
-                          {isRtl ? 'الرسائل' : 'Inbox'}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-
-                    {/* User Identity in Header */}
-                    <View style={[styles.dmUserHeaderInfo, isRtl && { flexDirection: 'row-reverse' }]}>
-                      {directMessageUser?.avatar ? (
-                        <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
-                      ) : (
-                        <View style={styles.dmAvatarSmallIcon}>
-                          <Ionicons name="person" size={15} color="#FFFFFF" />
-                        </View>
-                      )}
-                      <View style={[isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
-                        <Text style={[styles.dmUserName, isRtl && styles.arabicBoldText]}>
-                          {directMessageUser?.author}
-                        </Text>
-                        <View style={[styles.dmOnlineRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                          <View style={styles.dmOnlineDot} />
-                          <Text style={styles.dmOnlineText}>
-                            {isRtl ? 'متصل الآن' : 'Active now'}
+                  <View style={styles.dmHeader}>
+                    {/* Left: Back / Inbox Button */}
+                    <View style={styles.dmHeaderLeft}>
+                      <TouchableOpacity 
+                        style={styles.dmBackButton} 
+                        onPress={handleCloseDirectMessage}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons 
+                          name="chevron-back" 
+                          size={24} 
+                          color={COLORS.bgBrand} 
+                        />
+                        {openedFromMessagesPage && (
+                          <Text style={[styles.dmBackBtnText, isRtl && styles.arabicBoldText]}>
+                            {isRtl ? 'الرسائل' : 'Inbox'}
                           </Text>
-                        </View>
-                      </View>
+                        )}
+                      </TouchableOpacity>
                     </View>
 
+                    {/* Middle: Name & Status */}
+                    <TouchableOpacity 
+                      style={styles.dmHeaderCenter}
+                      onPress={() => handleOpenUserProfile(directMessageUser)}
+                      activeOpacity={0.7}
+                    >
+                      <Text 
+                        style={[styles.dmUserName, isRtl && styles.arabicBoldText]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {directMessageUser?.author}
+                      </Text>
+                      <View style={styles.dmOnlineRow}>
+                        <View style={styles.dmOnlineDot} />
+                        <Text style={[styles.dmOnlineText, isRtl && styles.arabicRegularText]}>
+                          {isRtl ? 'متصل الآن' : 'Active now'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
 
+                    {/* Right: Profile Picture / Avatar */}
+                    <View style={styles.dmHeaderRight}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => handleOpenUserProfile(directMessageUser)}
+                        style={styles.dmHeaderRightAvatar}
+                      >
+                        {directMessageUser?.avatar ? (
+                          <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
+                        ) : (
+                          <View style={styles.dmAvatarSmallIcon}>
+                            <Ionicons name="person" size={16} color="#FFFFFF" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {/* Messages Scroll View */}
@@ -5552,53 +5569,48 @@ const createStyles = (colors) => StyleSheet.create({
   dmHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGreen,
     backgroundColor: colors.bgCreamy,
   },
+  dmHeaderLeft: {
+    minWidth: 72,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
   dmBackButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 6,
-    marginRight: 4,
+    paddingVertical: 4,
+    paddingRight: 6,
   },
   dmBackBtnText: {
     fontSize: 13,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
     color: colors.bgBrand,
+    marginLeft: 2,
   },
-  dmUserHeaderInfo: {
+  dmHeaderCenter: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dmAvatarSmall: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
-  },
-  dmAvatarSmallIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.bgBrand,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   dmUserName: {
-    fontSize: 14.5,
+    fontSize: 15,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '800',
     color: colors.textDark,
+    textAlign: 'center',
   },
   dmOnlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 2,
   },
   dmOnlineDot: {
@@ -5612,6 +5624,30 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 11,
     fontFamily: 'PlusJakartaSans-Regular',
     color: colors.textMuted,
+  },
+  dmHeaderRight: {
+    minWidth: 72,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  dmHeaderRightAvatar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dmAvatarSmall: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+  },
+  dmAvatarSmallIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dmMessagesScroll: {
     flex: 1,
