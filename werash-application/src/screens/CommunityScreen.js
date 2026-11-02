@@ -1529,7 +1529,17 @@ export default function CommunityScreen({
         }
       }
 
-      const mediaUriToSend = uploadedMediaUrl || localUri;
+      if (!uploadedMediaUrl && localUri) {
+        Alert.alert(
+          isRtl ? 'تعذر رفع التسجيل' : 'Upload Failed',
+          isRtl
+            ? 'فشل رفع التسجيل الصوتي إلى السحابة. يرجى المحاولة مرة أخرى.'
+            : 'Failed to upload voice note to the cloud. Please try again.'
+        );
+        return;
+      }
+
+      const mediaUriToSend = uploadedMediaUrl || null;
 
       const { data: insertedMsg, error: insertErr } = await supabase
         .from('direct_messages')
@@ -1760,6 +1770,20 @@ export default function CommunityScreen({
       );
       setPlayingAudioId(null);
       return;
+    }
+
+    if (audioUri.startsWith('file://')) {
+      const isMine = msgId && directMessageUser?.author && dmHistory[directMessageUser.author]?.find(m => m.id === msgId)?.sender === 'user';
+      if (!isMine) {
+        Alert.alert(
+          isRtl ? 'تسجيل صوتي قديم' : 'Older Recording',
+          isRtl
+            ? 'تم حفظ هذا التسجيل القديم على هاتف المرسل قبل تفعيل رفع الصوت السحابي. يرجى تجربة تسجيل صوتي جديد.'
+            : 'This older recording was saved on the sender\'s local device before cloud audio was enabled. Please send a new voice note.'
+        );
+        setPlayingAudioId(null);
+        return;
+      }
     }
 
     const engine = getAudioEngine();
