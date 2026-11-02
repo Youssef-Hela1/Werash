@@ -315,6 +315,9 @@ export default function CommunityScreen({
   const [isRecordingLocked, setIsRecordingLocked] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState(null);
+  const [audioPlaybackProgress, setAudioPlaybackProgress] = useState({});
+  const waveLayoutWidthsRef = useRef({});
+  const lastSeekTimeRef = useRef(0);
   const [voiceTapTipVisible, setVoiceTapTipVisible] = useState(false);
 
   const recordingTimerRef = useRef(null);
@@ -659,9 +662,23 @@ export default function CommunityScreen({
   const handleStopAndSendVoiceRecordingRef = useRef(null);
   const handleCancelVoiceRecordingRef = useRef(null);
 
+  const WAVEFORM_BAR_HEIGHTS = [8, 14, 20, 10, 16, 26, 18, 12, 22, 28, 16, 24, 14, 9, 18, 26, 22, 12, 20, 24, 16, 10, 18, 22, 14, 19, 11, 7];
+
+  const parseDurationToSeconds = (durStr) => {
+    if (!durStr) return 3;
+    if (typeof durStr === 'number') return durStr;
+    const parts = String(durStr).split(':').map(Number);
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return parts[0] * 60 + parts[1];
+    }
+    const num = parseFloat(durStr);
+    return isNaN(num) || num <= 0 ? 3 : num;
+  };
+
   const formatAudioDuration = (secs) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
+    const rounded = Math.floor(Math.max(0, secs || 0));
+    const m = Math.floor(rounded / 60);
+    const s = rounded % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
   const dmTimerRef = useRef(null);
@@ -1731,25 +1748,37 @@ export default function CommunityScreen({
   ).current;
 
   const handleTogglePlayAudio = async (msgId, audioUri) => {
-    // If currently playing this message, pause/stop
+    // If currently playing this message, pause
     if (playingAudioId === msgId) {
-      if (soundRef.current) {
+      if (soundRef.current && soundRef.current.msgId === msgId) {
         try {
           if (soundRef.current.type === 'expo-audio') {
             soundRef.current.instance.pause();
-            soundRef.current.instance.release();
           } else if (soundRef.current.type === 'expo-av') {
-            await soundRef.current.instance.stopAsync();
-            await soundRef.current.instance.unloadAsync();
+            await soundRef.current.instance.pauseAsync();
           }
         } catch (_) {}
-        soundRef.current = null;
       }
       setPlayingAudioId(null);
       return;
     }
 
-    // Stop any other active playback
+    // If this sound is already loaded and paused, resume playback immediately
+    if (soundRef.current && soundRef.current.msgId === msgId) {
+      try {
+        if (soundRef.current.type === 'expo-audio') {
+          soundRef.current.instance.play();
+          setPlayingAudioId(msgId);
+          return;
+        } else if (soundRef.current.type === 'expo-av') {
+          await soundRef.current.instance.playAsync();
+          setPlayingAudioId(msgId);
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Stop and cleanup any other active playback
     if (soundRef.current) {
       try {
         if (soundRef.current.type === 'expo-audio') {
@@ -1798,18 +1827,30 @@ export default function CommunityScreen({
 
     try {
       if (engine.type === 'expo-audio') {
-        const player = engine.createAudioPlayer(audioUri);
+        const player = engine.createAudioPlayer(audioUri, { updateInterval: 100 });
         player.play();
         player.addListener('playbackStatusUpdate', (status) => {
           if (status.didJustFinish) {
             setPlayingAudioId(null);
+            setAudioPlaybackProgress((prev) => ({
+              ...prev,
+              [msgId]: { currentTime: 0, duration: status.duration || prev[msgId]?.duration || 0 },
+            }));
             try {
               player.release();
             } catch (_) {}
             soundRef.current = null;
+          } else if (status.currentTime !== undefined) {
+            setAudioPlaybackProgress((prev) => ({
+              ...prev,
+              [msgId]: {
+                currentTime: status.currentTime,
+                duration: status.duration || prev[msgId]?.duration || 0,
+              },
+            }));
           }
         });
-        soundRef.current = { type: 'expo-audio', instance: player };
+        soundRef.current = { type: 'expo-audio', instance: player, msgId, audioUri };
         setPlayingAudioId(msgId);
       } else if (engine.type === 'expo-av') {
         await engine.Audio.setAudioModeAsync({
@@ -1819,23 +1860,163 @@ export default function CommunityScreen({
 
         const { sound } = await engine.Audio.Sound.createAsync(
           { uri: audioUri },
-          { shouldPlay: true },
+          { shouldPlay: true, progressUpdateIntervalMillis: 100 },
           (status) => {
             if (status.didJustFinish) {
               setPlayingAudioId(null);
+              setAudioPlaybackProgress((prev) => ({
+                ...prev,
+                [msgId]: { currentTime: 0, duration: (status.durationMillis || 0) / 1000 },
+              }));
               try {
                 sound.unloadAsync();
               } catch (_) {}
               soundRef.current = null;
+            } else if (status.positionMillis !== undefined) {
+              setAudioPlaybackProgress((prev) => ({
+                ...prev,
+                [msgId]: {
+                  currentTime: status.positionMillis / 1000,
+                  duration: (status.durationMillis || 0) / 1000,
+                },
+              }));
             }
           }
         );
-        soundRef.current = { type: 'expo-av', instance: sound };
+        soundRef.current = { type: 'expo-av', instance: sound, msgId, audioUri };
         setPlayingAudioId(msgId);
       }
     } catch (err) {
       console.warn('Error playing audio:', err);
       setPlayingAudioId(null);
+    }
+  };
+
+  const handleSeekAudio = async (msgId, audioUri, targetSeconds, totalDuration) => {
+    // 1. If this audio player is currently loaded
+    if (soundRef.current && soundRef.current.msgId === msgId) {
+      try {
+        if (soundRef.current.type === 'expo-audio') {
+          await soundRef.current.instance.seekTo(targetSeconds);
+          if (playingAudioId !== msgId) {
+            soundRef.current.instance.play();
+            setPlayingAudioId(msgId);
+          }
+        } else if (soundRef.current.type === 'expo-av') {
+          await soundRef.current.instance.setPositionAsync(Math.floor(targetSeconds * 1000));
+          if (playingAudioId !== msgId) {
+            await soundRef.current.instance.playAsync();
+            setPlayingAudioId(msgId);
+          }
+        }
+      } catch (err) {
+        console.warn('Seek on active player failed:', err);
+      }
+      return;
+    }
+
+    // 2. If not loaded, start playing from targetSeconds
+    const engine = getAudioEngine();
+    if (!engine || !audioUri) return;
+
+    if (soundRef.current) {
+      try {
+        if (soundRef.current.type === 'expo-audio') {
+          soundRef.current.instance.pause();
+          soundRef.current.instance.release();
+        } else if (soundRef.current.type === 'expo-av') {
+          await soundRef.current.instance.stopAsync();
+          await soundRef.current.instance.unloadAsync();
+        }
+      } catch (_) {}
+      soundRef.current = null;
+    }
+
+    try {
+      if (engine.type === 'expo-audio') {
+        const player = engine.createAudioPlayer(audioUri, { updateInterval: 100 });
+        await player.seekTo(targetSeconds);
+        player.play();
+        player.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) {
+            setPlayingAudioId(null);
+            setAudioPlaybackProgress((prev) => ({
+              ...prev,
+              [msgId]: { currentTime: 0, duration: status.duration || totalDuration },
+            }));
+            try {
+              player.release();
+            } catch (_) {}
+            soundRef.current = null;
+          } else if (status.currentTime !== undefined) {
+            setAudioPlaybackProgress((prev) => ({
+              ...prev,
+              [msgId]: {
+                currentTime: status.currentTime,
+                duration: status.duration || totalDuration,
+              },
+            }));
+          }
+        });
+        soundRef.current = { type: 'expo-audio', instance: player, msgId, audioUri };
+        setPlayingAudioId(msgId);
+      } else if (engine.type === 'expo-av') {
+        await engine.Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+
+        const { sound } = await engine.Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, positionMillis: Math.floor(targetSeconds * 1000), progressUpdateIntervalMillis: 100 },
+          (status) => {
+            if (status.didJustFinish) {
+              setPlayingAudioId(null);
+              setAudioPlaybackProgress((prev) => ({
+                ...prev,
+                [msgId]: { currentTime: 0, duration: (status.durationMillis || 0) / 1000 || totalDuration },
+              }));
+              try {
+                sound.unloadAsync();
+              } catch (_) {}
+              soundRef.current = null;
+            } else if (status.positionMillis !== undefined) {
+              setAudioPlaybackProgress((prev) => ({
+                ...prev,
+                [msgId]: {
+                  currentTime: status.positionMillis / 1000,
+                  duration: (status.durationMillis || 0) / 1000 || totalDuration,
+                },
+              }));
+            }
+          }
+        );
+        soundRef.current = { type: 'expo-av', instance: sound, msgId, audioUri };
+        setPlayingAudioId(msgId);
+      }
+    } catch (err) {
+      console.warn('Seek and play failed:', err);
+    }
+  };
+
+  const handleWaveScrub = (msgId, audioUri, locationX, totalDurationSec, isEnd = false) => {
+    const width = waveLayoutWidthsRef.current[msgId] || 160;
+    const clampedX = Math.max(0, Math.min(width, locationX));
+    const ratio = isRtl ? (width - clampedX) / width : clampedX / width;
+    const targetSec = Math.max(0, Math.min(totalDurationSec, ratio * totalDurationSec));
+
+    setAudioPlaybackProgress((prev) => ({
+      ...prev,
+      [msgId]: {
+        currentTime: targetSec,
+        duration: totalDurationSec,
+      },
+    }));
+
+    const now = Date.now();
+    if (isEnd || now - lastSeekTimeRef.current > 75) {
+      lastSeekTimeRef.current = now;
+      handleSeekAudio(msgId, audioUri, targetSec, totalDurationSec);
     }
   };
 
@@ -3762,52 +3943,88 @@ export default function CommunityScreen({
                             )}
 
                             {/* Voice Note / Audio Message */}
-                            {msg.mediaType === 'audio' && (
-                              <TouchableOpacity
-                                style={[
-                                  styles.dmAudioCard,
-                                  isMe ? styles.dmAudioCardMe : styles.dmAudioCardThem,
-                                  isRtl && { flexDirection: 'row-reverse' }
-                                ]}
-                                onPress={() => handleTogglePlayAudio(msg.id, msg.mediaUri)}
-                                activeOpacity={0.8}
-                              >
-                                <View style={[
-                                  styles.dmAudioPlayBtn,
-                                  isMe ? styles.dmAudioPlayBtnMe : styles.dmAudioPlayBtnThem
-                                ]}>
-                                  <Ionicons
-                                    name={playingAudioId === msg.id ? "pause" : "play"}
-                                    size={15}
-                                    color={isMe ? "#FFFFFF" : "#FFFFFF"}
-                                    style={playingAudioId === msg.id ? {} : { marginLeft: 2 }}
-                                  />
-                                </View>
-                                <View style={styles.dmAudioWaveCol}>
-                                  <View style={[styles.dmAudioWaveformRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                                    {[10, 18, 8, 16, 22, 13, 20, 9, 17, 24, 14, 19, 11, 16].map((barH, barIdx) => {
-                                      const isPlayed = playingAudioId === msg.id;
-                                      return (
-                                        <View
-                                          key={barIdx}
-                                          style={[
-                                            styles.dmAudioWaveBar,
-                                            { height: barH },
-                                            isMe ? styles.dmAudioWaveBarMe : styles.dmAudioWaveBarThem,
-                                            isPlayed && styles.dmAudioWaveBarActive
-                                          ]}
-                                        />
-                                      );
-                                    })}
+                            {msg.mediaType === 'audio' && (() => {
+                              const totalSec = parseDurationToSeconds(msg.audioDuration);
+                              const progress = audioPlaybackProgress[msg.id];
+                              const currentSec = progress?.currentTime !== undefined ? progress.currentTime : 0;
+                              const ratio = totalSec > 0 ? Math.min(1, Math.max(0, currentSec / totalSec)) : 0;
+                              const activeBarIdx = Math.floor(ratio * WAVEFORM_BAR_HEIGHTS.length);
+                              const isPlaying = playingAudioId === msg.id;
+
+                              return (
+                                <View
+                                  style={[
+                                    styles.dmAudioCard,
+                                    isMe ? styles.dmAudioCardMe : styles.dmAudioCardThem,
+                                    isRtl && { flexDirection: 'row-reverse' }
+                                  ]}
+                                >
+                                  {/* Circular Play / Pause Action Button */}
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.dmAudioPlayBtn,
+                                      isMe ? styles.dmAudioPlayBtnMe : styles.dmAudioPlayBtnThem,
+                                      isPlaying && styles.dmAudioPlayBtnActive
+                                    ]}
+                                    onPress={() => handleTogglePlayAudio(msg.id, msg.mediaUri)}
+                                    activeOpacity={0.8}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <Ionicons
+                                      name={isPlaying ? "pause" : "play"}
+                                      size={18}
+                                      color="#FFFFFF"
+                                      style={isPlaying ? {} : { marginLeft: 2 }}
+                                    />
+                                  </TouchableOpacity>
+
+                                  {/* Interactive Waveform & Drag Scrubber */}
+                                  <View style={styles.dmAudioBodyCol}>
+                                    <View
+                                      style={styles.dmAudioWaveTouchArea}
+                                      onLayout={(e) => {
+                                        const w = e.nativeEvent.layout.width;
+                                        if (w > 0) waveLayoutWidthsRef.current[msg.id] = w;
+                                      }}
+                                      onStartShouldSetResponder={() => true}
+                                      onMoveShouldSetResponder={() => true}
+                                      onResponderGrant={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false)}
+                                      onResponderMove={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false)}
+                                      onResponderRelease={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, true)}
+                                    >
+                                      <View style={[styles.dmAudioWaveformRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                        {WAVEFORM_BAR_HEIGHTS.map((barH, barIdx) => {
+                                          const isFilled = barIdx <= activeBarIdx;
+                                          const isHead = barIdx === activeBarIdx && (isPlaying || currentSec > 0);
+                                          return (
+                                            <View
+                                              key={barIdx}
+                                              style={[
+                                                styles.dmAudioWaveBar,
+                                                { height: barH },
+                                                isMe ? styles.dmAudioWaveBarMe : styles.dmAudioWaveBarThem,
+                                                isFilled && (isMe ? styles.dmAudioWaveBarFilledMe : styles.dmAudioWaveBarFilledThem),
+                                                isHead && (isMe ? styles.dmAudioWaveBarHeadMe : styles.dmAudioWaveBarHeadThem)
+                                              ]}
+                                            />
+                                          );
+                                        })}
+                                      </View>
+                                    </View>
+
+                                    {/* Real-time Time Row: Elapsed Second on Left, Total Duration on Right */}
+                                    <View style={[styles.dmAudioTimeRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                                      <Text style={[styles.dmAudioTimeText, isMe ? styles.dmAudioTimeMe : styles.dmAudioTimeThem]}>
+                                        {formatAudioDuration(currentSec)}
+                                      </Text>
+                                      <Text style={[styles.dmAudioTimeDuration, isMe ? styles.dmAudioTimeDurationMe : styles.dmAudioTimeDurationThem]}>
+                                        {formatAudioDuration(totalSec)}
+                                      </Text>
+                                    </View>
                                   </View>
-                                  <View style={[styles.dmAudioMetaRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                                    <Text style={[styles.dmAudioDurationText, isMe ? styles.dmAudioDurationMe : styles.dmAudioDurationThem]}>
-                                      {msg.audioDuration || '0:03'}
-                                    </Text>
-                                  </View>
                                 </View>
-                              </TouchableOpacity>
-                            )}
+                              );
+                            })()}
 
                             {/* Message Text (shown for text/media messages, hidden for voice recordings) */}
                             {msg.mediaType !== 'audio' && Boolean(msg.text) && (
@@ -6111,74 +6328,120 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-  /* Audio Card in Chat */
+  /* Modern Voice Recording Bubble with Interactive Scrubber */
   dmAudioCard: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 14,
-    minWidth: 180,
+    paddingVertical: 10,
+    borderRadius: 18,
+    minWidth: 210,
+    maxWidth: 275,
     marginBottom: 2,
   },
   dmAudioCardMe: {
-    backgroundColor: colors.bgBrandDark || '#1C3A27',
+    backgroundColor: '#163826',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   dmAudioCardThem: {
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: '#F3F6F4',
+    borderWidth: 1,
+    borderColor: '#DCE4DF',
   },
   dmAudioPlayBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   dmAudioPlayBtnMe: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#25D366',
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
   },
   dmAudioPlayBtnThem: {
     backgroundColor: colors.bgBrand,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  dmAudioWaveCol: {
+  dmAudioPlayBtnActive: {
+    transform: [{ scale: 1.05 }],
+  },
+  dmAudioBodyCol: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  dmAudioWaveTouchArea: {
+    paddingVertical: 6,
+    justifyContent: 'center',
   },
   dmAudioWaveformRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 24,
-    gap: 3,
-    marginBottom: 3,
+    height: 28,
+    gap: 2.2,
   },
   dmAudioWaveBar: {
-    width: 3,
-    borderRadius: 1.5,
+    width: 2.7,
+    borderRadius: 1.4,
   },
   dmAudioWaveBarMe: {
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
   dmAudioWaveBarThem: {
-    backgroundColor: colors.borderGreen,
+    backgroundColor: 'rgba(22, 58, 38, 0.18)',
   },
-  dmAudioWaveBarActive: {
-    backgroundColor: '#4CAF50',
+  dmAudioWaveBarFilledMe: {
+    backgroundColor: '#34D399',
   },
-  dmAudioMetaRow: {
+  dmAudioWaveBarFilledThem: {
+    backgroundColor: colors.bgBrand,
+  },
+  dmAudioWaveBarHeadMe: {
+    backgroundColor: '#FFFFFF',
+    transform: [{ scaleY: 1.15 }],
+  },
+  dmAudioWaveBarHeadThem: {
+    backgroundColor: colors.textDark,
+    transform: [{ scaleY: 1.15 }],
+  },
+  dmAudioTimeRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 2,
+    paddingHorizontal: 1,
   },
-  dmAudioDurationText: {
-    fontSize: 12,
+  dmAudioTimeText: {
+    fontSize: 11.5,
     fontFamily: 'PlusJakartaSans-Bold',
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
-  dmAudioDurationMe: {
-    color: 'rgba(255, 255, 255, 0.9)',
+  dmAudioTimeMe: {
+    color: '#34D399',
   },
-  dmAudioDurationThem: {
-    color: colors.textDark,
+  dmAudioTimeThem: {
+    color: colors.bgBrand,
+  },
+  dmAudioTimeDuration: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  dmAudioTimeDurationMe: {
+    color: 'rgba(255, 255, 255, 0.55)',
+  },
+  dmAudioTimeDurationThem: {
+    color: colors.textMuted,
   },
   /* Fullscreen Media Viewer */
   mediaViewerBackdrop: {
