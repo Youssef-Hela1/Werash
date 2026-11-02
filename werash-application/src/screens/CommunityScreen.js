@@ -10,9 +10,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
+
+// Safe dynamic audio loader to prevent app crash if native binary lacks ExponentAV
+let _cachedAudio = undefined;
+const getAudioModule = () => {
+  if (_cachedAudio !== undefined) return _cachedAudio;
+  try {
+    const av = require('expo-av');
+    if (av && av.Audio) {
+      _cachedAudio = av.Audio;
+      return _cachedAudio;
+    }
+  } catch (_) {}
+  _cachedAudio = null;
+  return null;
+};
 
 const initialInboxConversations = [];
 
@@ -1301,15 +1315,20 @@ export default function CommunityScreen({
       recordingObjectRef.current = null;
     }
 
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
-    } catch (_) {}
+    const Audio = getAudioModule();
+    if (Audio) {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+      } catch (_) {}
+    }
   };
 
   const startActualRecording = async () => {
+    const Audio = getAudioModule();
+    if (!Audio) return;
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
@@ -1372,12 +1391,15 @@ export default function CommunityScreen({
       recordingObjectRef.current = null;
     }
 
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
-    } catch (_) {}
+    const Audio = getAudioModule();
+    if (Audio) {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+      } catch (_) {}
+    }
 
     try {
       let uploadedMediaUrl = null;
@@ -1624,6 +1646,16 @@ export default function CommunityScreen({
       Alert.alert(
         isRtl ? 'تعذر تشغيل الصوت' : 'Cannot Play Audio',
         isRtl ? 'ملف التسجيل الصوتي غير متوفر.' : 'Audio file is unavailable.'
+      );
+      setPlayingAudioId(null);
+      return;
+    }
+
+    const Audio = getAudioModule();
+    if (!Audio) {
+      Alert.alert(
+        isRtl ? 'تشغيل الصوت' : 'Play Audio',
+        isRtl ? 'تشغيل الصوت يتطلب بناء التطبيق بدعم الصوت.' : 'Audio playback is not supported on this client build.'
       );
       setPlayingAudioId(null);
       return;
