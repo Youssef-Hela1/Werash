@@ -3087,10 +3087,11 @@ export default function CommunityScreen({
                     <TextInput
                       style={[styles.communitySearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
                       placeholder={isRtl ? "ابحث عن أشخاص أو منشورات..." : "Search people or posts..."}
-                      placeholderTextColor="#A0A0A0"
+                      placeholderTextColor={isDarkMode ? 'rgba(244, 246, 244, 0.45)' : 'rgba(77, 110, 79, 0.5)'}
                       value={communitySearch}
                       onChangeText={setCommunitySearch}
                       returnKeyType="search"
+                      selectionColor={COLORS.bgBrand}
                     />
                     {Boolean(communitySearch) && (
                       <TouchableOpacity onPress={() => setCommunitySearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -3209,7 +3210,8 @@ export default function CommunityScreen({
                           <TextInput
                             style={[styles.marketSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
                             placeholder={isRtl ? "البحث في السوق..." : "Search items, location, sellers..."}
-                            placeholderTextColor="#ADADAD"
+                            placeholderTextColor={isDarkMode ? 'rgba(244, 246, 244, 0.45)' : 'rgba(77, 110, 79, 0.5)'}
+                            selectionColor={COLORS.bgBrand}
                             value={marketSearch}
                             onChangeText={setMarketSearch}
                           />
@@ -4179,7 +4181,8 @@ export default function CommunityScreen({
                                 ? (isRtl ? "أضف تعليقاً على الوسائط..." : "Add a caption...")
                                 : (isRtl ? "اكتب رسالة..." : "Type a message...")
                             }
-                            placeholderTextColor="#A0A0A0"
+                            placeholderTextColor={isDarkMode ? 'rgba(244, 246, 244, 0.45)' : 'rgba(77, 110, 79, 0.5)'}
+                            selectionColor={COLORS.bgBrand}
                             value={dmInputText}
                             onChangeText={setDmInputText}
                             multiline
@@ -4268,7 +4271,8 @@ export default function CommunityScreen({
                       <TextInput
                         style={[styles.inboxSearchInput, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold' }]}
                         placeholder={isRtl ? "بحث في المحادثات..." : "Search conversations..."}
-                        placeholderTextColor="#A0A0A0"
+                        placeholderTextColor={isDarkMode ? 'rgba(244, 246, 244, 0.45)' : 'rgba(77, 110, 79, 0.5)'}
+                        selectionColor={COLORS.bgBrand}
                         value={inboxSearch}
                         onChangeText={setInboxSearch}
                       />
@@ -4852,7 +4856,7 @@ export default function CommunityScreen({
   );
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bgCreamy,
@@ -4951,15 +4955,15 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 8 : 5,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : colors.borderGreen,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: isDarkMode ? 0.25 : 0.06,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -5005,15 +5009,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   personCard: {
     width: 135,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 14,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : colors.borderGreen,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDarkMode ? 0.2 : 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -5675,13 +5679,13 @@ const createStyles = (colors) => StyleSheet.create({
   reportReasonItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.12)',
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(55, 99, 59, 0.12)',
   },
   reportReasonItemSelected: {
     borderColor: colors.bgBrand,
@@ -5717,10 +5721,10 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.bgBrand,
   },
   reportDetailInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : colors.borderGreen,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 12.5,
@@ -5739,9 +5743,9 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderWidth: 1.2,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : colors.borderGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -5943,10 +5947,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   dmBubbleThem: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#222C24' : colors.white,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : colors.borderGreen,
   },
   dmBubbleText: {
     fontSize: 13.5,
@@ -6150,12 +6154,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   dmInput: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'ios' ? 8 : 6,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : colors.borderGreen,
     fontSize: 13.5,
     maxHeight: 90,
     color: colors.textDark,
@@ -6214,7 +6218,7 @@ const createStyles = (colors) => StyleSheet.create({
     zIndex: 9999,
   },
   dmLockBubble: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#222C24' : colors.white,
     paddingVertical: 9,
     paddingHorizontal: 8,
     borderRadius: 22,
@@ -6345,9 +6349,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   dmAudioCardThem: {
-    backgroundColor: '#F3F6F4',
+    backgroundColor: isDarkMode ? '#222C24' : '#F3F6F4',
     borderWidth: 1,
-    borderColor: '#DCE4DF',
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#DCE4DF',
   },
   dmAudioPlayBtn: {
     width: 38,
@@ -6398,20 +6402,20 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
   dmAudioWaveBarThem: {
-    backgroundColor: 'rgba(22, 58, 38, 0.18)',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(22, 58, 38, 0.18)',
   },
   dmAudioWaveBarFilledMe: {
     backgroundColor: '#34D399',
   },
   dmAudioWaveBarFilledThem: {
-    backgroundColor: colors.bgBrand,
+    backgroundColor: isDarkMode ? '#34D399' : colors.bgBrand,
   },
   dmAudioWaveBarHeadMe: {
     backgroundColor: '#FFFFFF',
     transform: [{ scaleY: 1.15 }],
   },
   dmAudioWaveBarHeadThem: {
-    backgroundColor: colors.textDark,
+    backgroundColor: isDarkMode ? '#FFFFFF' : colors.textDark,
     transform: [{ scaleY: 1.15 }],
   },
   dmAudioTimeRow: {
@@ -6431,7 +6435,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: '#34D399',
   },
   dmAudioTimeThem: {
-    color: colors.bgBrand,
+    color: isDarkMode ? '#34D399' : colors.bgBrand,
   },
   dmAudioTimeDuration: {
     fontSize: 11,
@@ -6603,7 +6607,7 @@ const createStyles = (colors) => StyleSheet.create({
   inboxSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 8 : 4,
@@ -6611,7 +6615,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : colors.borderGreen,
   },
   inboxSearchInput: {
     flex: 1,
@@ -6639,12 +6643,12 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E2520' : colors.white,
     borderRadius: 22,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 7 : 3,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : colors.borderGreen,
     marginLeft: 8,
   },
   commentTextInput: {
@@ -7681,7 +7685,7 @@ const createStyles = (colors) => StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 14,
     padding: 1,
   },
