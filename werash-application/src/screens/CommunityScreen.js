@@ -130,6 +130,7 @@ export default function CommunityScreen({
 
       const mapped = (postsData || []).map(p => ({
         id: p.id,
+        userId: p.user_id,
         author: p.author_name,
         handle: p.author_handle,
         avatar: p.author_avatar ? { uri: p.author_avatar } : null,
@@ -175,6 +176,7 @@ export default function CommunityScreen({
       (data || []).forEach((row) => {
         const item = {
           id: row.id,
+          userId: row.user_id,
           author: row.author_name,
           handle: row.author_handle,
           avatar: row.author_avatar ? { uri: row.author_avatar } : null,
@@ -245,6 +247,7 @@ export default function CommunityScreen({
               if (prev.some(item => item.id === p.id)) return prev;
               const newMapped = {
                 id: p.id,
+                userId: p.user_id,
                 author: p.author_name,
                 handle: p.author_handle,
                 avatar: p.author_avatar ? { uri: p.author_avatar } : null,
@@ -295,29 +298,165 @@ export default function CommunityScreen({
   const micScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Fresh refs to prevent stale closures in PanResponder
-  // Hydrate all stored DM messages so keyword search covers all chat histories
+  const fetchUserConversations = async () => {
+    if (!currentUser?.id) {
+      setInboxConversations([]);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`participant_1.eq.${currentUser.id},participant_2.eq.${currentUser.id}`)
+        .order('last_message_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error fetching conversations:', error.message);
+        return;
+      }
+
+      const mapped = (data || []).map(c => {
+        const isP1 = c.participant_1 === currentUser.id;
+        const otherUserId = isP1 ? c.participant_2 : c.participant_1;
+        const otherName = isP1 ? c.participant_2_name : c.participant_1_name;
+        const otherHandle = isP1 ? c.participant_2_handle : c.participant_1_handle;
+        const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
+
+        return {
+          id: c.id,
+          conversationId: c.id,
+          userId: otherUserId,
+          user: otherName || 'User',
+          handle: otherHandle || `@${(otherName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
+          avatar: otherAvatar ? { uri: otherAvatar } : null,
+          avatarType: otherAvatar ? 'image' : 'icon',
+          lastMessage: c.last_message_text || '',
+          time: formatTimeAgo(c.last_message_at, isRtl),
+          unread: 0,
+        };
+      });
+
+      setInboxConversations(mapped);
+    } catch (err) {
+      console.warn('fetchUserConversations error:', err);
+    }
+  };
+
+  const fetchConversationMessages = async (convId, authorName) => {
+    if (!convId) return;
+    try {
+      const { data, error } = await supabase
+        .from('direct_messages')
+        .select('*')
+        .eq('conversation_id', convId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Error fetching direct messages:', error.message);
+        return;
+      }
+
+      const formatted = (data || []).map((m) => {
+        const isMe = m.sender_id === currentUser?.id;
+        return {
+          id: m.id,
+          sender: isMe ? 'user' : 'them',
+          text: m.text || '',
+          textAr: m.text || '',
+          mediaType: m.media_type,
+          mediaUri: m.media_url,
+          audioDuration: m.media_type === 'audio' ? m.text : null,
+          time: formatTimeAgo(m.created_at, isRtl),
+          created_at: m.created_at,
+        };
+      });
+
+      setDmHistory((prev) => ({
+        ...prev,
+        [authorName]: formatted,
+      }));
+    } catch (err) {
+      console.warn('fetchConversationMessages error:', err);
+    }
+  };
+
   useEffect(() => {
-    const loadStoredDms = async () => {
-      try {
-        const keys = await AsyncStorage.getAllKeys();
-        const dmKeys = keys.filter(k => k.startsWith('@werash_dm_'));
-        if (dmKeys.length > 0) {
-          const pairs = await AsyncStorage.multiGet(dmKeys);
-          const historyMap = {};
-          pairs.forEach(([key, val]) => {
-            if (val) {
-              const author = key.replace('@werash_dm_', '');
-              try {
-                historyMap[author] = JSON.parse(val);
-              } catch (_) {}
-            }
-          });
-          setDmHistory(prev => ({ ...historyMap, ...prev }));
+    if (!currentUser?.id) {
+      setInboxConversations([]);
+      return;
+    }
+    fetchUserConversations();
+
+    const convChannel = supabase
+      .channel('conversations_realtime_' + currentUser.id)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+        },
+        () => {
+          fetchUserConversations();
         }
-      } catch (_) {}
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(convChannel);
     };
-    loadStoredDms();
-  }, [showMessagesPage]);
+  }, [currentUser?.id, isRtl]);
+
+  // Active chat realtime listener
+  useEffect(() => {
+    if (!directMessageUser?.conversationId) return;
+
+    const convId = directMessageUser.conversationId;
+    const authorName = directMessageUser.author;
+
+    const dmChannel = supabase
+      .channel(`direct_messages_${convId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `conversation_id=eq.${convId}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            const m = payload.new;
+            const isMe = m.sender_id === currentUser?.id;
+            const newMsg = {
+              id: m.id,
+              sender: isMe ? 'user' : 'them',
+              text: m.text || '',
+              textAr: m.text || '',
+              mediaType: m.media_type,
+              mediaUri: m.media_url,
+              audioDuration: m.media_type === 'audio' ? m.text : null,
+              time: formatTimeAgo(m.created_at, isRtl),
+              created_at: m.created_at,
+            };
+            setDmHistory((prev) => {
+              const list = prev[authorName] || [];
+              if (list.some((item) => item.id === newMsg.id)) return prev;
+              return {
+                ...prev,
+                [authorName]: [...list, newMsg],
+              };
+            });
+            fetchUserConversations();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dmChannel);
+    };
+  }, [directMessageUser?.conversationId, directMessageUser?.author, currentUser?.id, isRtl]);
 
   // People matching search query across authors and users
   const matchedPeople = useMemo(() => {
@@ -328,6 +467,7 @@ export default function CommunityScreen({
     (feedPosts || []).forEach(p => {
       if (p && p.author && !peopleMap.has(p.author)) {
         peopleMap.set(p.author, {
+          userId: p.userId,
           author: p.author,
           handle: p.handle || `@${p.author.toLowerCase().replace(/[\s\W]+/g, '')}`,
           avatar: p.avatar,
@@ -340,6 +480,8 @@ export default function CommunityScreen({
     (inboxConversations || []).forEach(c => {
       if (c && c.user && !peopleMap.has(c.user)) {
         peopleMap.set(c.user, {
+          userId: c.userId,
+          conversationId: c.conversationId,
           author: c.user,
           handle: c.handle || `@${c.user.toLowerCase().replace(/[\s\W]+/g, '')}`,
           avatar: c.avatar,
@@ -721,14 +863,16 @@ export default function CommunityScreen({
     const avatar = authorData.avatar || authorPosts.find((p) => p.avatar)?.avatar || null;
     const avatarType = authorData.avatarType || (avatar ? 'image' : 'icon');
     const handle = authorData.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`;
+    const userId = authorData.userId || authorData.user_id || authorPosts.find(p => p.userId)?.userId || null;
 
     setSelectedUserProfile({
+      userId,
       author: authorName,
       handle,
       avatar,
       avatarType,
       vehicle: primaryVehicle,
-      isSelf: authorName === currentAuthor,
+      isSelf: (currentUser?.id && userId === currentUser.id) || authorName === currentAuthor,
     });
     setSelectedFeed('profile');
     setShowProfile(true);
@@ -743,26 +887,123 @@ export default function CommunityScreen({
     }
   };
 
-// (getDefaultDmMessages defined at module level)
-
   const handleOpenDirectMessage = async (user, fromInbox = false) => {
     if (!user) return;
     if (!requireAuth()) return;
+
+    let theirId = user.userId || user.user_id;
+    const authorName = user.author || user.fullName || user.user || user.name;
+
+    if (!theirId && authorName) {
+      const matchedPost = feedPosts.find(p => p.author === authorName && p.userId);
+      if (matchedPost) {
+        theirId = matchedPost.userId;
+      } else {
+        try {
+          const { data: dbPost } = await supabase
+            .from('community_posts')
+            .select('user_id')
+            .eq('author_name', authorName)
+            .limit(1);
+          if (dbPost && dbPost[0]?.user_id) {
+            theirId = dbPost[0].user_id;
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (!theirId) {
+      Alert.alert(
+        isRtl ? 'تعذر بدء المحادثة' : 'Cannot Start Chat',
+        isRtl ? 'لم يتم العثور على حساب هذا المستخدم في النظام للمراسلة.' : 'Could not find this user account in the system for direct messaging.'
+      );
+      return;
+    }
+
+    if (theirId === currentUser.id) {
+      Alert.alert(
+        isRtl ? 'تنبيه' : 'Notice',
+        isRtl ? 'لا يمكنك مراسلة نفسك.' : 'You cannot message yourself.'
+      );
+      return;
+    }
+
     setOpenedFromMessagesPage(Boolean(fromInbox));
-    setDirectMessageUser(user);
     setShowMessagesPage(true);
+
     try {
-      const stored = await AsyncStorage.getItem(`@werash_dm_${user.author}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setDmHistory(prev => ({ ...prev, [user.author]: parsed }));
-          return;
+      let convId = user.conversationId;
+
+      if (!convId) {
+        const myId = currentUser.id;
+        const [p1, p2] = [myId, theirId].sort();
+        const isP1 = myId === p1;
+
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('participant_1', p1)
+          .eq('participant_2', p2)
+          .maybeSingle();
+
+        if (existingConv) {
+          convId = existingConv.id;
+        } else {
+          const myName = currentUser.fullName || currentUser.name || 'User';
+          const myHandle = `@${myName.toLowerCase().replace(/[\s\W]+/g, '')}`;
+          const myAvatar = currentUser.avatarUrl || currentUser.avatar || null;
+
+          const theirName = authorName || 'User';
+          const theirHandle = user.handle || `@${theirName.toLowerCase().replace(/[\s\W]+/g, '')}`;
+          const theirAvatar = typeof user.avatar === 'string' ? user.avatar : (user.avatar?.uri || null);
+
+          const newRow = {
+            participant_1: p1,
+            participant_2: p2,
+            participant_1_name: isP1 ? myName : theirName,
+            participant_1_handle: isP1 ? myHandle : theirHandle,
+            participant_1_avatar: isP1 ? myAvatar : theirAvatar,
+            participant_2_name: isP1 ? theirName : myName,
+            participant_2_handle: isP1 ? theirHandle : myHandle,
+            participant_2_avatar: isP1 ? theirAvatar : myAvatar,
+            last_message_text: '',
+            last_message_at: new Date().toISOString(),
+          };
+
+          const { data: createdConv, error: createConvErr } = await supabase
+            .from('conversations')
+            .insert([newRow])
+            .select()
+            .single();
+
+          if (createConvErr) {
+            const { data: retryConv } = await supabase
+              .from('conversations')
+              .select('*')
+              .eq('participant_1', p1)
+              .eq('participant_2', p2)
+              .maybeSingle();
+            convId = retryConv?.id;
+          } else {
+            convId = createdConv.id;
+          }
         }
       }
-    } catch (_) {}
-    if (!dmHistory[user.author]) {
-      setDmHistory(prev => ({ ...prev, [user.author]: getDefaultDmMessages(user.author) }));
+
+      setDirectMessageUser({
+        conversationId: convId,
+        userId: theirId,
+        author: authorName,
+        handle: user.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
+        avatar: user.avatar || null,
+        avatarType: user.avatarType || (user.avatar ? 'image' : 'icon'),
+      });
+
+      if (convId) {
+        await fetchConversationMessages(convId, authorName);
+      }
+    } catch (err) {
+      console.warn('handleOpenDirectMessage error:', err);
     }
   };
 
@@ -780,20 +1021,23 @@ export default function CommunityScreen({
         const updatedItem = {
           ...prev[existingIdx],
           lastMessage: lastMsgText,
-          time: time || 'Just now',
+          time: time || (isRtl ? 'الآن' : 'Just now'),
           unread: 0,
         };
         const rest = prev.filter((_, idx) => idx !== existingIdx);
         return [updatedItem, ...rest];
       } else {
+        const target = directMessageUserRef.current || directMessageUser;
         const newConv = {
-          id: 'conv_' + Date.now(),
+          id: target?.conversationId || ('conv_' + Date.now()),
+          conversationId: target?.conversationId,
+          userId: target?.userId,
           user: authorName,
-          handle: directMessageUser?.handle || ('@' + authorName.toLowerCase().replace(/\s+/g, '')),
-          avatar: directMessageUser?.avatar || null,
-          avatarType: directMessageUser?.avatar ? 'image' : 'icon',
+          handle: target?.handle || ('@' + authorName.toLowerCase().replace(/\s+/g, '')),
+          avatar: target?.avatar || null,
+          avatarType: target?.avatar ? 'image' : 'icon',
           lastMessage: lastMsgText,
-          time: time || 'Just now',
+          time: time || (isRtl ? 'الآن' : 'Just now'),
           unread: 0,
         };
         return [newConv, ...prev];
@@ -909,62 +1153,107 @@ export default function CommunityScreen({
 
   const handleSendDirectMessage = async () => {
     if ((!dmInputText.trim() && !attachedMedia) || !directMessageUser) return;
-    const authorName = directMessageUser.author;
-    const sentMedia = attachedMedia;
-    
-    const newMsg = {
-      id: 'dm-' + Date.now(),
-      sender: 'user',
-      text: dmInputText.trim(),
-      textAr: dmInputText.trim(),
-      mediaType: sentMedia ? sentMedia.type : null,
-      mediaUri: sentMedia ? sentMedia.uri : null,
-      mediaDuration: sentMedia ? sentMedia.duration : null,
-      time: 'Just now'
-    };
+    if (!requireAuth()) return;
 
-    const currentList = dmHistory[authorName] || getDefaultDmMessages(authorName);
-    const updatedList = [...currentList, newMsg];
-    
-    setDmHistory(prev => ({ ...prev, [authorName]: updatedList }));
+    const targetUser = directMessageUserRef.current || directMessageUser;
+    if (!targetUser || !currentUser?.id) return;
+
+    const authorName = targetUser.author;
+    const sentMedia = attachedMedia;
+    const textContent = dmInputText.trim();
+
     setDmInputText('');
     setAttachedMedia(null);
 
-    const summaryText = newMsg.text || (sentMedia?.type === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image'));
-    updateInboxConversation(authorName, summaryText, 'Just now');
-
     try {
-      await AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(updatedList));
-    } catch (_) {}
+      let uploadedMediaUrl = null;
+      let mediaType = null;
 
-    // Simulated contextual reply from author
-    setTimeout(async () => {
-      let replyText = 'Got your message! Great connecting with you on Werash.';
-      let replyTextAr = 'وصلتني رسالتك! يسعدني التواصل معك على وِرَش.';
+      if (sentMedia?.uri) {
+        mediaType = sentMedia.type; // 'image' | 'video'
+        try {
+          const response = await fetch(sentMedia.uri);
+          const blob = await response.blob();
+          const ext = sentMedia.uri.split('.').pop()?.toLowerCase() || (mediaType === 'video' ? 'mp4' : 'jpg');
+          const fileName = `messages/${targetUser.conversationId}/${currentUser.id}_${Date.now()}.${ext}`;
 
-      if (sentMedia?.type === 'video') {
-        replyText = 'Awesome video recording! That engine note sounds unbelievable! 🏎️💨';
-        replyTextAr = 'تسجيل فيديو رائع! صوت المحرك رهيب وخيالي ما شاء الله! 🏎️💨';
-      } else if (sentMedia?.type === 'image') {
-        replyText = 'That looks super clean! Where did you get that build done? 🔥';
-        replyTextAr = 'شكلها نظيف وممتاز جداً! أين قمت بهذا التعديل؟ 🔥';
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('community-media')
+            .upload(fileName, blob, {
+              contentType: mediaType === 'video' ? 'video/mp4' : (ext === 'png' ? 'image/png' : 'image/jpeg'),
+              upsert: true,
+            });
+
+          if (!uploadErr && uploadData) {
+            const { data: publicData } = supabase.storage
+              .from('community-media')
+              .getPublicUrl(fileName);
+            uploadedMediaUrl = publicData?.publicUrl || null;
+          } else if (uploadErr) {
+            console.warn('Message media upload error:', uploadErr);
+          }
+        } catch (mediaErr) {
+          console.warn('Error uploading media for message:', mediaErr);
+        }
       }
 
-      const replyMsg = {
-        id: 'reply-' + Date.now(),
-        sender: 'them',
-        text: replyText,
-        textAr: replyTextAr,
-        time: 'Just now'
+      const { data: insertedMsg, error: insertErr } = await supabase
+        .from('direct_messages')
+        .insert([
+          {
+            conversation_id: targetUser.conversationId,
+            sender_id: currentUser.id,
+            receiver_id: targetUser.userId,
+            text: textContent || null,
+            media_url: uploadedMediaUrl,
+            media_type: mediaType,
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertErr) {
+        console.warn('Error inserting direct message:', insertErr);
+        Alert.alert(isRtl ? 'خطأ' : 'Error', isRtl ? 'فشل إرسال الرسالة.' : 'Failed to send message.');
+        return;
+      }
+
+      const summaryText = textContent || (mediaType === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image'));
+
+      const newMsg = {
+        id: insertedMsg.id,
+        sender: 'user',
+        text: textContent,
+        textAr: textContent,
+        mediaType,
+        mediaUri: uploadedMediaUrl || sentMedia?.uri,
+        mediaDuration: sentMedia?.duration || null,
+        time: isRtl ? 'الآن' : 'Just now',
+        created_at: insertedMsg.created_at,
       };
-      setDmHistory(prev => {
-        const cur = prev[authorName] || updatedList;
-        const next = [...cur, replyMsg];
-        AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(next)).catch(() => {});
-        return { ...prev, [authorName]: next };
+
+      setDmHistory((prev) => {
+        const list = prev[authorName] || [];
+        if (list.some((m) => m.id === newMsg.id)) return prev;
+        return {
+          ...prev,
+          [authorName]: [...list, newMsg],
+        };
       });
-      updateInboxConversation(authorName, isRtl ? replyTextAr : replyText, 'Just now');
-    }, 1500);
+
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_text: summaryText,
+          last_message_at: new Date().toISOString(),
+          last_sender_id: currentUser.id,
+        })
+        .eq('id', targetUser.conversationId);
+
+      updateInboxConversation(authorName, summaryText, isRtl ? 'الآن' : 'Just now');
+    } catch (err) {
+      console.warn('handleSendDirectMessage error:', err);
+    }
   };
   const handleCancelVoiceRecording = () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
@@ -1006,49 +1295,64 @@ export default function CommunityScreen({
     }).start();
 
     const targetUser = directMessageUserRef.current || directMessageUser;
-    if (!targetUser) return;
+    if (!targetUser || !currentUser?.id) return;
     const authorName = targetUser.author;
     const durationLabel = formatAudioDuration(finalSecs);
-
-    const newMsg = {
-      id: 'dm-' + Date.now(),
-      sender: 'user',
-      mediaType: 'audio',
-      audioDuration: durationLabel,
-      text: '',
-      textAr: '',
-      time: 'Just now'
-    };
-
-    const curHist = dmHistoryRef.current || dmHistory;
-    const currentList = curHist[authorName] || getDefaultDmMessages(authorName);
-    const updatedList = [...currentList, newMsg];
-
-    setDmHistory(prev => ({ ...prev, [authorName]: updatedList }));
-    const rtlActive = isRtlRef.current;
-    const summaryText = rtlActive ? (`🎤 تسجيل صوتي (${durationLabel})`) : (`🎤 Voice message (${durationLabel})`);
-    updateInboxConversation(authorName, summaryText, 'Just now');
+    const summaryText = isRtl ? `🎤 تسجيل صوتي (${durationLabel})` : `🎤 Voice message (${durationLabel})`;
 
     try {
-      await AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(updatedList));
-    } catch (_) {}
+      const { data: insertedMsg, error: insertErr } = await supabase
+        .from('direct_messages')
+        .insert([
+          {
+            conversation_id: targetUser.conversationId,
+            sender_id: currentUser.id,
+            receiver_id: targetUser.userId,
+            text: summaryText,
+            media_type: 'audio',
+          },
+        ])
+        .select()
+        .single();
 
-    setTimeout(async () => {
-      const replyMsg = {
-        id: 'reply-' + Date.now(),
-        sender: 'them',
-        text: 'Heard your voice note! Loud and clear 👍',
-        textAr: 'استمعت إلى رسالتك الصوتية! واضحة وممتازة 👍',
-        time: 'Just now'
+      if (insertErr) {
+        console.warn('Error inserting voice message:', insertErr);
+        return;
+      }
+
+      const newMsg = {
+        id: insertedMsg.id,
+        sender: 'user',
+        mediaType: 'audio',
+        audioDuration: durationLabel,
+        text: summaryText,
+        textAr: summaryText,
+        time: isRtl ? 'الآن' : 'Just now',
+        created_at: insertedMsg.created_at,
       };
-      setDmHistory(prev => {
-        const cur = prev[authorName] || updatedList;
-        const next = [...cur, replyMsg];
-        AsyncStorage.setItem('@werash_dm_' + authorName, JSON.stringify(next)).catch(() => {});
-        return { ...prev, [authorName]: next };
+
+      setDmHistory((prev) => {
+        const cur = prev[authorName] || [];
+        if (cur.some((m) => m.id === newMsg.id)) return prev;
+        return {
+          ...prev,
+          [authorName]: [...cur, newMsg],
+        };
       });
-      updateInboxConversation(authorName, rtlActive ? replyMsg.textAr : replyMsg.text, 'Just now');
-    }, 1500);
+
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_text: summaryText,
+          last_message_at: new Date().toISOString(),
+          last_sender_id: currentUser.id,
+        })
+        .eq('id', targetUser.conversationId);
+
+      updateInboxConversation(authorName, summaryText, isRtl ? 'الآن' : 'Just now');
+    } catch (err) {
+      console.warn('Voice send error:', err);
+    }
   };
 
   handleStopAndSendVoiceRecordingRef.current = handleStopAndSendVoiceRecording;
@@ -1713,6 +2017,7 @@ export default function CommunityScreen({
   // Calculate active user stats for profile card
   const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
   const activeProfileUser = selectedUserProfile || {
+    userId: currentUser?.id || null,
     author: currentAuthorName,
     handle: `@${currentAuthorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
     avatar: null,
@@ -3458,6 +3763,8 @@ export default function CommunityScreen({
                           activeOpacity={0.8}
                           onPress={() => {
                             handleOpenDirectMessage({
+                              conversationId: msg.conversationId || msg.id,
+                              userId: msg.userId,
                               author: msg.user,
                               handle: msg.handle || ('@' + msg.user.toLowerCase().replace(/\s+/g, '')),
                               avatar: msg.avatar,
