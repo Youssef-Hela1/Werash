@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 
@@ -293,9 +294,23 @@ export default function CommunityScreen({
   const isRecordingVoiceRef = useRef(false);
   const isRecordingLockedRef = useRef(false);
   const recordingDurationRef = useRef(0);
+  const recordingObjectRef = useRef(null);
+  const soundRef = useRef(null);
   const voiceDragY = useRef(new Animated.Value(0)).current;
   const voiceDragX = useRef(new Animated.Value(0)).current;
   const micScaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Cleanup audio objects on unmount
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
+      if (recordingObjectRef.current) {
+        recordingObjectRef.current.stopAndUnloadAsync().catch(() => {});
+      }
+    };
+  }, []);
 
   // Fresh refs to prevent stale closures in PanResponder
   const fetchUserConversations = async () => {
@@ -358,6 +373,8 @@ export default function CommunityScreen({
 
       const formatted = (data || []).map((m) => {
         const isMe = m.sender_id === currentUser?.id;
+        const durationMatch = m.text ? m.text.match(/\((.*?)\)/) : null;
+        const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
         return {
           id: m.id,
           sender: isMe ? 'user' : 'them',
@@ -365,7 +382,7 @@ export default function CommunityScreen({
           textAr: m.text || '',
           mediaType: m.media_type,
           mediaUri: m.media_url,
-          audioDuration: m.media_type === 'audio' ? m.text : null,
+          audioDuration,
           time: formatTimeAgo(m.created_at, isRtl),
           created_at: m.created_at,
         };
@@ -428,6 +445,8 @@ export default function CommunityScreen({
           if (payload.new) {
             const m = payload.new;
             const isMe = m.sender_id === currentUser?.id;
+            const durationMatch = m.text ? m.text.match(/\((.*?)\)/) : null;
+            const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
             const newMsg = {
               id: m.id,
               sender: isMe ? 'user' : 'them',
@@ -435,7 +454,7 @@ export default function CommunityScreen({
               textAr: m.text || '',
               mediaType: m.media_type,
               mediaUri: m.media_url,
-              audioDuration: m.media_type === 'audio' ? m.text : null,
+              audioDuration,
               time: formatTimeAgo(m.created_at, isRtl),
               created_at: m.created_at,
             };
@@ -1255,7 +1274,7 @@ export default function CommunityScreen({
       console.warn('handleSendDirectMessage error:', err);
     }
   };
-  const handleCancelVoiceRecording = () => {
+  const handleCancelVoiceRecording = async () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     isRecordingVoiceRef.current = false;
     isRecordingLockedRef.current = false;
@@ -1274,6 +1293,47 @@ export default function CommunityScreen({
       friction: 5,
       useNativeDriver: true,
     }).start();
+
+    if (recordingObjectRef.current) {
+      try {
+        await recordingObjectRef.current.stopAndUnloadAsync();
+      } catch (_) {}
+      recordingObjectRef.current = null;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+    } catch (_) {}
+  };
+
+  const startActualRecording = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'إذن الميكروفون مطلوب' : 'Microphone Permission Required',
+          isRtl ? 'يرجى منح إذن الوصول إلى الميكروفون لتسجيل الصوت.' : 'Please allow microphone access to record voice notes.'
+        );
+        handleCancelVoiceRecording();
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingObjectRef.current = recording;
+    } catch (err) {
+      console.warn('Failed to start recording:', err);
+      handleCancelVoiceRecording();
+    }
   };
 
   const handleStopAndSendVoiceRecording = async () => {
@@ -1300,7 +1360,56 @@ export default function CommunityScreen({
     const durationLabel = formatAudioDuration(finalSecs);
     const summaryText = isRtl ? `🎤 تسجيل صوتي (${durationLabel})` : `🎤 Voice message (${durationLabel})`;
 
+    let localUri = null;
+    const recObj = recordingObjectRef.current;
+    if (recObj) {
+      try {
+        await recObj.stopAndUnloadAsync();
+        localUri = recObj.getURI();
+      } catch (stopErr) {
+        console.warn('Error stopping recording:', stopErr);
+      }
+      recordingObjectRef.current = null;
+    }
+
     try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+    } catch (_) {}
+
+    try {
+      let uploadedMediaUrl = null;
+      if (localUri) {
+        try {
+          const response = await fetch(localUri);
+          const blob = await response.blob();
+          const ext = localUri.split('.').pop()?.toLowerCase() || 'm4a';
+          const fileName = `messages/${targetUser.conversationId}/${currentUser.id}_voice_${Date.now()}.${ext}`;
+
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('community-media')
+            .upload(fileName, blob, {
+              contentType: ext === 'mp3' ? 'audio/mpeg' : (ext === 'wav' ? 'audio/wav' : 'audio/m4a'),
+              upsert: true,
+            });
+
+          if (!uploadErr && uploadData) {
+            const { data: publicData } = supabase.storage
+              .from('community-media')
+              .getPublicUrl(fileName);
+            uploadedMediaUrl = publicData?.publicUrl || null;
+          } else if (uploadErr) {
+            console.warn('Voice storage upload error:', uploadErr);
+          }
+        } catch (uploadErr) {
+          console.warn('Voice upload failed:', uploadErr);
+        }
+      }
+
+      const mediaUriToSend = uploadedMediaUrl || localUri;
+
       const { data: insertedMsg, error: insertErr } = await supabase
         .from('direct_messages')
         .insert([
@@ -1309,6 +1418,7 @@ export default function CommunityScreen({
             sender_id: currentUser.id,
             receiver_id: targetUser.userId,
             text: summaryText,
+            media_url: mediaUriToSend,
             media_type: 'audio',
           },
         ])
@@ -1324,6 +1434,7 @@ export default function CommunityScreen({
         id: insertedMsg.id,
         sender: 'user',
         mediaType: 'audio',
+        mediaUri: mediaUriToSend,
         audioDuration: durationLabel,
         text: summaryText,
         textAr: summaryText,
@@ -1393,6 +1504,8 @@ export default function CommunityScreen({
           recordingDurationRef.current += 1;
           setRecordingDuration(recordingDurationRef.current);
         }, 1000);
+
+        startActualRecording();
       },
       onPanResponderMove: (_, gestureState) => {
         if (!isRecordingVoiceRef.current || isRecordingLockedRef.current) return;
@@ -1486,16 +1599,60 @@ export default function CommunityScreen({
     })
   ).current;
 
-  const handleTogglePlayAudio = (msgId) => {
+  const handleTogglePlayAudio = async (msgId, audioUri) => {
     if (playingAudioId === msgId) {
-      if (audioPlaybackTimerRef.current) clearTimeout(audioPlaybackTimerRef.current);
+      if (soundRef.current) {
+        try {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+        } catch (_) {}
+        soundRef.current = null;
+      }
       setPlayingAudioId(null);
-    } else {
-      if (audioPlaybackTimerRef.current) clearTimeout(audioPlaybackTimerRef.current);
+      return;
+    }
+
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch (_) {}
+      soundRef.current = null;
+    }
+
+    if (!audioUri) {
+      Alert.alert(
+        isRtl ? 'تعذر تشغيل الصوت' : 'Cannot Play Audio',
+        isRtl ? 'ملف التسجيل الصوتي غير متوفر.' : 'Audio file is unavailable.'
+      );
+      setPlayingAudioId(null);
+      return;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUri },
+        { shouldPlay: true },
+        (status) => {
+          if (status.didJustFinish) {
+            setPlayingAudioId(null);
+            try {
+              sound.unloadAsync();
+            } catch (_) {}
+            soundRef.current = null;
+          }
+        }
+      );
+      soundRef.current = sound;
       setPlayingAudioId(msgId);
-      audioPlaybackTimerRef.current = setTimeout(() => {
-        setPlayingAudioId(null);
-      }, 3500);
+    } catch (err) {
+      console.warn('Error playing audio:', err);
+      setPlayingAudioId(null);
     }
   };
 
@@ -3412,7 +3569,7 @@ export default function CommunityScreen({
                                   isMe ? styles.dmAudioCardMe : styles.dmAudioCardThem,
                                   isRtl && { flexDirection: 'row-reverse' }
                                 ]}
-                                onPress={() => handleTogglePlayAudio(msg.id)}
+                                onPress={() => handleTogglePlayAudio(msg.id, msg.mediaUri)}
                                 activeOpacity={0.8}
                               >
                                 <View style={[

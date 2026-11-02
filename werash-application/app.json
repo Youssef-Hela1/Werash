@@ -10,7 +10,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.youssef.werash",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Allow Werash to access your microphone to record voice messages in chat."
       }
     },
     "android": {
