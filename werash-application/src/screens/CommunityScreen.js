@@ -13,18 +13,33 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 
-// Safe dynamic audio loader to prevent app crash if native binary lacks ExponentAV
-let _cachedAudio = undefined;
-const getAudioModule = () => {
-  if (_cachedAudio !== undefined) return _cachedAudio;
+// Safe dynamic audio engine supporting modern expo-audio (SDK 58+) and expo-av
+let _cachedAudioEngine = undefined;
+const getAudioEngine = () => {
+  if (_cachedAudioEngine !== undefined) return _cachedAudioEngine;
+  try {
+    const ea = require('expo-audio');
+    if (ea && ea.AudioModule) {
+      _cachedAudioEngine = {
+        type: 'expo-audio',
+        AudioModule: ea.AudioModule,
+        RecordingPresets: ea.RecordingPresets,
+        createAudioPlayer: ea.createAudioPlayer,
+      };
+      return _cachedAudioEngine;
+    }
+  } catch (_) {}
   try {
     const av = require('expo-av');
     if (av && av.Audio) {
-      _cachedAudio = av.Audio;
-      return _cachedAudio;
+      _cachedAudioEngine = {
+        type: 'expo-av',
+        Audio: av.Audio,
+      };
+      return _cachedAudioEngine;
     }
   } catch (_) {}
-  _cachedAudio = null;
+  _cachedAudioEngine = null;
   return null;
 };
 
@@ -318,10 +333,23 @@ export default function CommunityScreen({
   useEffect(() => {
     return () => {
       if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
+        try {
+          if (soundRef.current.type === 'expo-audio') {
+            soundRef.current.instance.pause();
+            soundRef.current.instance.release();
+          } else if (soundRef.current.type === 'expo-av') {
+            soundRef.current.instance.unloadAsync();
+          }
+        } catch (_) {}
       }
       if (recordingObjectRef.current) {
-        recordingObjectRef.current.stopAndUnloadAsync().catch(() => {});
+        try {
+          if (recordingObjectRef.current.type === 'expo-audio') {
+            recordingObjectRef.current.instance.stop();
+          } else if (recordingObjectRef.current.type === 'expo-av') {
+            recordingObjectRef.current.instance.stopAndUnloadAsync();
+          }
+        } catch (_) {}
       }
     };
   }, []);
@@ -1308,47 +1336,106 @@ export default function CommunityScreen({
       useNativeDriver: true,
     }).start();
 
-    if (recordingObjectRef.current) {
+    const recWrapper = recordingObjectRef.current;
+    if (recWrapper) {
       try {
-        await recordingObjectRef.current.stopAndUnloadAsync();
+        if (recWrapper.type === 'expo-audio') {
+          await recWrapper.instance.stop();
+        } else if (recWrapper.type === 'expo-av') {
+          await recWrapper.instance.stopAndUnloadAsync();
+        }
       } catch (_) {}
       recordingObjectRef.current = null;
     }
 
-    const Audio = getAudioModule();
-    if (Audio) {
+    const engine = getAudioEngine();
+    if (engine) {
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-        });
+        if (engine.type === 'expo-audio') {
+          await engine.AudioModule.setAudioModeAsync({
+            playsInSilentMode: true,
+            allowsRecording: false,
+          });
+        } else if (engine.type === 'expo-av') {
+          await engine.Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+          });
+        }
       } catch (_) {}
     }
   };
 
   const startActualRecording = async () => {
-    const Audio = getAudioModule();
-    if (!Audio) return;
+    const engine = getAudioEngine();
+    if (!engine) {
+      console.warn('Audio engine is not available in current runtime');
+      return;
+    }
+
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          isRtl ? 'إذن الميكروفون مطلوب' : 'Microphone Permission Required',
-          isRtl ? 'يرجى منح إذن الوصول إلى الميكروفون لتسجيل الصوت.' : 'Please allow microphone access to record voice notes.'
+      if (engine.type === 'expo-audio') {
+        const { AudioModule } = engine;
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            isRtl ? 'إذن الميكروفون مطلوب' : 'Microphone Permission Required',
+            isRtl ? 'يرجى منح إذن الوصول إلى الميكروفون لتسجيل الصوت.' : 'Please allow microphone access to record voice notes.'
+          );
+          handleCancelVoiceRecording();
+          return;
+        }
+
+        await AudioModule.setAudioModeAsync({
+          playsInSilentMode: true,
+          allowsRecording: true,
+        });
+
+        // Ultra-lightweight voice preset: 24kHz Mono 32kbps AAC (~40KB per 10s)
+        const voiceOptions = {
+          extension: '.m4a',
+          sampleRate: 24000,
+          numberOfChannels: 1,
+          bitRate: 32000,
+          android: {
+            outputFormat: 'mpeg4',
+            audioEncoder: 'aac',
+          },
+          ios: {
+            outputFormat: 'aac ',
+            audioQuality: 32,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+          },
+        };
+
+        const recorder = new AudioModule.AudioRecorder(voiceOptions);
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+        recordingObjectRef.current = { type: 'expo-audio', instance: recorder };
+      } else if (engine.type === 'expo-av') {
+        const { Audio } = engine;
+        const perm = await Audio.requestPermissionsAsync();
+        if (perm.status !== 'granted') {
+          Alert.alert(
+            isRtl ? 'إذن الميكروفون مطلوب' : 'Microphone Permission Required',
+            isRtl ? 'يرجى منح إذن الوصول إلى الميكروفون لتسجيل الصوت.' : 'Please allow microphone access to record voice notes.'
+          );
+          handleCancelVoiceRecording();
+          return;
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.LOW_QUALITY
         );
-        handleCancelVoiceRecording();
-        return;
+        recordingObjectRef.current = { type: 'expo-av', instance: recording };
       }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingObjectRef.current = recording;
     } catch (err) {
       console.warn('Failed to start recording:', err);
       handleCancelVoiceRecording();
@@ -1380,24 +1467,36 @@ export default function CommunityScreen({
     const summaryText = isRtl ? `🎤 تسجيل صوتي (${durationLabel})` : `🎤 Voice message (${durationLabel})`;
 
     let localUri = null;
-    const recObj = recordingObjectRef.current;
-    if (recObj) {
+    const recWrapper = recordingObjectRef.current;
+    if (recWrapper) {
       try {
-        await recObj.stopAndUnloadAsync();
-        localUri = recObj.getURI();
+        if (recWrapper.type === 'expo-audio') {
+          await recWrapper.instance.stop();
+          localUri = recWrapper.instance.uri;
+        } else if (recWrapper.type === 'expo-av') {
+          await recWrapper.instance.stopAndUnloadAsync();
+          localUri = recWrapper.instance.getURI();
+        }
       } catch (stopErr) {
         console.warn('Error stopping recording:', stopErr);
       }
       recordingObjectRef.current = null;
     }
 
-    const Audio = getAudioModule();
-    if (Audio) {
+    const engine = getAudioEngine();
+    if (engine) {
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-        });
+        if (engine.type === 'expo-audio') {
+          await engine.AudioModule.setAudioModeAsync({
+            playsInSilentMode: true,
+            allowsRecording: false,
+          });
+        } else if (engine.type === 'expo-av') {
+          await engine.Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+          });
+        }
       } catch (_) {}
     }
 
@@ -1622,11 +1721,17 @@ export default function CommunityScreen({
   ).current;
 
   const handleTogglePlayAudio = async (msgId, audioUri) => {
+    // If currently playing this message, pause/stop
     if (playingAudioId === msgId) {
       if (soundRef.current) {
         try {
-          await soundRef.current.stopAsync();
-          await soundRef.current.unloadAsync();
+          if (soundRef.current.type === 'expo-audio') {
+            soundRef.current.instance.pause();
+            soundRef.current.instance.release();
+          } else if (soundRef.current.type === 'expo-av') {
+            await soundRef.current.instance.stopAsync();
+            await soundRef.current.instance.unloadAsync();
+          }
         } catch (_) {}
         soundRef.current = null;
       }
@@ -1634,10 +1739,16 @@ export default function CommunityScreen({
       return;
     }
 
+    // Stop any other active playback
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        if (soundRef.current.type === 'expo-audio') {
+          soundRef.current.instance.pause();
+          soundRef.current.instance.release();
+        } else if (soundRef.current.type === 'expo-av') {
+          await soundRef.current.instance.stopAsync();
+          await soundRef.current.instance.unloadAsync();
+        }
       } catch (_) {}
       soundRef.current = null;
     }
@@ -1651,37 +1762,53 @@ export default function CommunityScreen({
       return;
     }
 
-    const Audio = getAudioModule();
-    if (!Audio) {
+    const engine = getAudioEngine();
+    if (!engine) {
       Alert.alert(
         isRtl ? 'تشغيل الصوت' : 'Play Audio',
-        isRtl ? 'تشغيل الصوت يتطلب بناء التطبيق بدعم الصوت.' : 'Audio playback is not supported on this client build.'
+        isRtl ? 'يتطلب تشغيل الصوت دعماً في بيئة التطبيق.' : 'Audio playback is not supported on this device client.'
       );
       setPlayingAudioId(null);
       return;
     }
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true },
-        (status) => {
+      if (engine.type === 'expo-audio') {
+        const player = engine.createAudioPlayer(audioUri);
+        player.play();
+        player.addListener('playbackStatusUpdate', (status) => {
           if (status.didJustFinish) {
             setPlayingAudioId(null);
             try {
-              sound.unloadAsync();
+              player.release();
             } catch (_) {}
             soundRef.current = null;
           }
-        }
-      );
-      soundRef.current = sound;
-      setPlayingAudioId(msgId);
+        });
+        soundRef.current = { type: 'expo-audio', instance: player };
+        setPlayingAudioId(msgId);
+      } else if (engine.type === 'expo-av') {
+        await engine.Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+
+        const { sound } = await engine.Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true },
+          (status) => {
+            if (status.didJustFinish) {
+              setPlayingAudioId(null);
+              try {
+                sound.unloadAsync();
+              } catch (_) {}
+              soundRef.current = null;
+            }
+          }
+        );
+        soundRef.current = { type: 'expo-av', instance: sound };
+        setPlayingAudioId(msgId);
+      }
     } catch (err) {
       console.warn('Error playing audio:', err);
       setPlayingAudioId(null);
