@@ -3,7 +3,7 @@ import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
   KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView, PanResponder,
-  Keyboard, TouchableWithoutFeedback, RefreshControl
+  Keyboard, TouchableWithoutFeedback, RefreshControl, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -96,6 +96,7 @@ export default function CommunityScreen({
   };
   const [feedPosts, setFeedPosts] = useState(initialPosts);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [selectedFeed, setSelectedFeed] = useState('feed'); // 'feed', 'profile', 'souq'
   const [showProfile, setShowProfile] = useState(false);
@@ -149,6 +150,83 @@ export default function CommunityScreen({
       setFeedPosts(mapped);
     } catch (err) {
       console.warn('fetchCommunityPosts error:', err);
+    }
+  };
+
+  const fetchPostComments = async (postId) => {
+    if (!postId) return;
+    setIsLoadingComments(true);
+    try {
+      const { data, error } = await supabase
+        .from('community_post_comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Error fetching comments:', error.message);
+        setIsLoadingComments(false);
+        return;
+      }
+
+      const commentMap = new Map();
+      const topLevelList = [];
+
+      (data || []).forEach((row) => {
+        const item = {
+          id: row.id,
+          author: row.author_name,
+          handle: row.author_handle,
+          avatar: row.author_avatar ? { uri: row.author_avatar } : null,
+          avatarType: row.author_avatar ? 'image' : 'icon',
+          time: formatTimeAgo(row.created_at, isRtl),
+          content: row.content,
+          likes: 0,
+          liked: false,
+          replies: [],
+          parentId: row.parent_id || null,
+        };
+        commentMap.set(row.id, item);
+        if (!row.parent_id) {
+          topLevelList.push(item);
+        }
+      });
+
+      (data || []).forEach((row) => {
+        if (row.parent_id && commentMap.has(row.parent_id)) {
+          const parent = commentMap.get(row.parent_id);
+          const reply = commentMap.get(row.id);
+          if (parent && reply && !parent.replies.some((r) => r.id === reply.id)) {
+            parent.replies.push(reply);
+          }
+        }
+      });
+
+      setActiveCommentsPost((prev) => {
+        if (!prev || prev.id !== postId) return prev;
+        return {
+          ...prev,
+          commentsList: topLevelList,
+          comments: (data || []).length,
+        };
+      });
+
+      setFeedPosts((prev) =>
+        prev.map((p) => {
+          if (p.id === postId) {
+            return {
+              ...p,
+              commentsList: topLevelList,
+              comments: (data || []).length,
+            };
+          }
+          return p;
+        })
+      );
+    } catch (err) {
+      console.warn('fetchPostComments exception:', err);
+    } finally {
+      setIsLoadingComments(false);
     }
   };
 
@@ -404,11 +482,34 @@ export default function CommunityScreen({
   const commentsSlideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (activeCommentsPost) {
+    if (activeCommentsPost?.id) {
       isCommentsExpandedRef.current = false;
       commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
+      fetchPostComments(activeCommentsPost.id);
+
+      const commentsChannel = supabase
+        .channel(`comments_${activeCommentsPost.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'community_post_comments',
+            filter: `post_id=eq.${activeCommentsPost.id}`,
+          },
+          (payload) => {
+            if (payload.new) {
+              fetchPostComments(activeCommentsPost.id);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(commentsChannel);
+      };
     }
-  }, [activeCommentsPost]);
+  }, [activeCommentsPost?.id]);
 
   const commentsPanResponder = useRef(
     PanResponder.create({
@@ -1339,7 +1440,6 @@ export default function CommunityScreen({
   };
 
   const handleOpenComments = (post) => {
-    // Find the latest version of post from feedPosts to ensure commentsList is fresh
     const freshPost = feedPosts.find(p => p.id === post.id) || post;
     commentsSlideAnim.setValue(500);
     isCommentsExpandedRef.current = false;
@@ -1353,6 +1453,7 @@ export default function CommunityScreen({
       friction: 8,
       tension: 50,
     }).start();
+    fetchPostComments(freshPost.id);
   };
 
   const handleStartReply = (comment, specificAuthor) => {
@@ -1374,67 +1475,47 @@ export default function CommunityScreen({
 
     const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
     const currentHandle = currentUser ? `@${currentUser.fullName.toLowerCase().replace(/\s+/g, '')}` : '@guest';
+    const commentContent = commentInputText.trim();
+    const postId = activeCommentsPost.id;
+    const parentCommentId = replyingTo ? replyingTo.commentId : null;
 
-    if (replyingTo) {
-      // It's a reply to an existing comment
-      const newReply = {
-        id: `r_${Date.now()}`,
-        author: currentAuthorName,
-        handle: currentHandle,
-        avatar: currentUser?.avatar || null,
-        avatarType: currentUser?.avatar ? 'image' : 'icon',
-        time: isRtl ? 'الآن' : 'Just now',
-        content: commentInputText.trim(),
-        likes: 0,
-        liked: false,
-      };
+    setCommentInputText('');
+    setReplyingTo(null);
 
-      const updateRepliesOnPost = (p) => {
-        if (p.id !== activeCommentsPost.id) return p;
-        const updatedComments = (p.commentsList || []).map((c) => {
-          if (c.id === replyingTo.commentId) {
-            const currentReplies = c.replies || [];
+    const tempId = `temp_${Date.now()}`;
+    const newCommentItem = {
+      id: tempId,
+      author: currentAuthorName,
+      handle: currentHandle,
+      avatar: currentUser?.avatarUrl ? { uri: currentUser.avatarUrl } : null,
+      avatarType: currentUser?.avatarUrl ? 'image' : 'icon',
+      time: isRtl ? 'الآن' : 'Just now',
+      content: commentContent,
+      likes: 0,
+      liked: false,
+      replies: [],
+      parentId: parentCommentId,
+    };
+
+    const updatePostState = (p) => {
+      if (p.id !== postId) return p;
+      let updatedComments = [...(p.commentsList || [])];
+
+      if (parentCommentId) {
+        updatedComments = updatedComments.map((c) => {
+          if (c.id === parentCommentId) {
             return {
               ...c,
-              replies: [...currentReplies, newReply],
+              replies: [...(c.replies || []), newCommentItem],
             };
           }
           return c;
         });
+      } else {
+        updatedComments.push(newCommentItem);
+      }
 
-        const totalCount = updatedComments.reduce((acc, c) => acc + 1 + (c.replies ? c.replies.length : 0), 0);
-        return {
-          ...p,
-          commentsList: updatedComments,
-          comments: totalCount,
-        };
-      };
-
-      setFeedPosts((prev) => prev.map(updateRepliesOnPost));
-      setActiveCommentsPost((prev) => (prev ? updateRepliesOnPost(prev) : null));
-      setReplyingTo(null);
-      setCommentInputText('');
-      return;
-    }
-
-    // Top-level comment
-    const newComment = {
-      id: `c_${Date.now()}`,
-      author: currentAuthorName,
-      handle: currentHandle,
-      avatar: currentUser?.avatar || null,
-      avatarType: currentUser?.avatar ? 'image' : 'icon',
-      time: isRtl ? 'الآن' : 'Just now',
-      content: commentInputText.trim(),
-      likes: 0,
-      liked: false,
-      replies: [],
-    };
-
-    const updateCommentsOnPost = (p) => {
-      if (p.id !== activeCommentsPost.id) return p;
-      const updatedComments = [...(p.commentsList || []), newComment];
-      const totalCount = updatedComments.reduce((acc, c) => acc + 1 + (c.replies ? c.replies.length : 0), 0);
+      const totalCount = (p.comments || 0) + 1;
       return {
         ...p,
         commentsList: updatedComments,
@@ -1442,35 +1523,67 @@ export default function CommunityScreen({
       };
     };
 
-    setFeedPosts((prev) => prev.map(updateCommentsOnPost));
-    setActiveCommentsPost((prev) => (prev ? updateCommentsOnPost(prev) : null));
-    setCommentInputText('');
-
-    if (currentUser?.id && activeCommentsPost?.id) {
-      try {
-        const postId = activeCommentsPost.id;
-        supabase.from('community_post_comments').insert({
-          post_id: postId,
-          user_id: currentUser.id,
-          author_name: currentAuthorName,
-          author_handle: currentHandle,
-          author_avatar: currentUser.avatarUrl || null,
-          content: newComment.content,
-        }).then(() => {
-          supabase.from('community_posts').update({
-            comments_count: (activeCommentsPost.comments || 0) + 1,
-          }).eq('id', postId);
-        });
-      } catch (err) {
-        console.warn('Error saving comment to Supabase:', err);
-      }
-    }
+    setFeedPosts((prev) => prev.map(updatePostState));
+    setActiveCommentsPost((prev) => (prev ? updatePostState(prev) : null));
 
     setTimeout(() => {
       if (commentsScrollRef.current) {
         commentsScrollRef.current.scrollToEnd({ animated: true });
       }
     }, 120);
+
+    if (currentUser?.id) {
+      try {
+        const payload = {
+          post_id: postId,
+          user_id: currentUser.id,
+          author_name: currentAuthorName,
+          author_handle: currentHandle,
+          author_avatar: currentUser.avatarUrl || null,
+          content: commentContent,
+        };
+        if (parentCommentId) {
+          payload.parent_id = parentCommentId;
+        }
+
+        const { data: insertedComment, error: insertErr } = await supabase
+          .from('community_post_comments')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (!insertErr && insertedComment) {
+          const replaceTempId = (p) => {
+            if (p.id !== postId) return p;
+            const updatedComments = (p.commentsList || []).map((c) => {
+              if (c.id === tempId) {
+                return { ...c, id: insertedComment.id };
+              }
+              if (c.replies && c.replies.length > 0) {
+                const updatedReplies = c.replies.map((r) =>
+                  r.id === tempId ? { ...r, id: insertedComment.id } : r
+                );
+                return { ...c, replies: updatedReplies };
+              }
+              return c;
+            });
+            return { ...p, commentsList: updatedComments };
+          };
+
+          setFeedPosts((prev) => prev.map(replaceTempId));
+          setActiveCommentsPost((prev) => (prev ? replaceTempId(prev) : null));
+
+          await supabase
+            .from('community_posts')
+            .update({ comments_count: (activeCommentsPost.comments || 0) + 1 })
+            .eq('id', postId);
+        } else if (insertErr) {
+          console.warn('Error saving comment to Supabase:', insertErr.message);
+        }
+      } catch (err) {
+        console.warn('handleSubmitComment exception:', err);
+      }
+    }
   };
 
   const handleToggleReplyLike = (postId, commentId, replyId) => {
@@ -3462,7 +3575,14 @@ export default function CommunityScreen({
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
                 >
-                  {(activeCommentsPost?.commentsList || []).length === 0 ? (
+                  {isLoadingComments && (activeCommentsPost?.commentsList || []).length === 0 ? (
+                    <View style={{ paddingVertical: 40, alignItems: 'center', justifyContent: 'center' }}>
+                      <ActivityIndicator size="small" color={COLORS.bgBrand} />
+                      <Text style={[{ marginTop: 12, fontSize: 13, color: COLORS.textMuted }, isRtl && styles.arabicRegularText]}>
+                        {isRtl ? 'جاري تحميل التعليقات...' : 'Loading comments...'}
+                      </Text>
+                    </View>
+                  ) : (activeCommentsPost?.commentsList || []).length === 0 ? (
                     <View style={styles.emptyCommentsBox}>
                       <Ionicons name="chatbubbles-outline" size={40} color="rgba(55, 99, 59, 0.25)" />
                       <Text style={[styles.emptyCommentsTitle, isRtl && styles.arabicBoldText]}>
