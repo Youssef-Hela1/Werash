@@ -415,7 +415,7 @@ export default function CommunityScreen({
 
       const formatted = (data || []).map((m) => {
         const isMe = m.sender_id === currentUser?.id;
-        const durationMatch = m.text ? m.text.match(/\((.*?)\)/) : null;
+        const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
         const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
         return {
           id: m.id,
@@ -487,7 +487,7 @@ export default function CommunityScreen({
           if (payload.new) {
             const m = payload.new;
             const isMe = m.sender_id === currentUser?.id;
-            const durationMatch = m.text ? m.text.match(/\((.*?)\)/) : null;
+            const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
             const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
             const newMsg = {
               id: m.id,
@@ -3804,16 +3804,13 @@ export default function CommunityScreen({
                                     <Text style={[styles.dmAudioDurationText, isMe ? styles.dmAudioDurationMe : styles.dmAudioDurationThem]}>
                                       {msg.audioDuration || '0:03'}
                                     </Text>
-                                    <Text style={[styles.dmAudioBadgeText, isMe ? styles.dmAudioDurationMe : styles.dmAudioDurationThem]}>
-                                      {isRtl ? 'تسجيل صوتي' : 'Voice note'}
-                                    </Text>
                                   </View>
                                 </View>
                               </TouchableOpacity>
                             )}
 
-                            {/* Message Text */}
-                            {Boolean(msg.text) && (
+                            {/* Message Text (shown for text/media messages, hidden for voice recordings) */}
+                            {msg.mediaType !== 'audio' && Boolean(msg.text) && (
                               <Text style={[
                                 styles.dmBubbleText,
                                 isMe ? styles.dmBubbleTextMe : styles.dmBubbleTextThem,
@@ -6119,10 +6116,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: 14,
-    minWidth: 190,
-    marginBottom: 4,
+    minWidth: 180,
+    marginBottom: 2,
   },
   dmAudioCardMe: {
     backgroundColor: colors.bgBrandDark || '#1C3A27',
@@ -6150,9 +6147,9 @@ const createStyles = (colors) => StyleSheet.create({
   dmAudioWaveformRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 26,
+    height: 24,
     gap: 3,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   dmAudioWaveBar: {
     width: 3,
@@ -6169,22 +6166,19 @@ const createStyles = (colors) => StyleSheet.create({
   },
   dmAudioMetaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   dmAudioDurationText: {
-    fontSize: 11,
-    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   dmAudioDurationMe: {
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   dmAudioDurationThem: {
-    color: colors.textMuted,
-  },
-  dmAudioBadgeText: {
-    fontSize: 10.5,
-    fontFamily: 'PlusJakartaSans-Medium',
+    color: colors.textDark,
   },
   /* Fullscreen Media Viewer */
   mediaViewerBackdrop: {
