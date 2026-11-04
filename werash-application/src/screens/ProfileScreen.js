@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet, View, Text, Modal, TextInput, TouchableOpacity,
-  Image, ScrollView, KeyboardAvoidingView, Platform, Alert
+  Image, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
+import { supabase } from '../services/supabase';
 
 export default function ProfileScreen({
   visible,
@@ -24,6 +25,7 @@ export default function ProfileScreen({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [avatar, setAvatar] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Sync inputs with user data
   useEffect(() => {
@@ -31,7 +33,8 @@ export default function ProfileScreen({
       setFullName(currentUser.fullName || '');
       setEmail(currentUser.email || '');
       setPhone(currentUser.phone || '');
-      setAvatar(currentUser.avatar || null);
+      const currentAv = currentUser.avatarUrl || currentUser.avatar || null;
+      setAvatar(typeof currentAv === 'string' ? currentAv : (currentAv?.uri || null));
     }
   }, [currentUser, visible]);
 
@@ -53,7 +56,7 @@ export default function ProfileScreen({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.85,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -61,7 +64,7 @@ export default function ProfileScreen({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!fullName.trim()) {
       Alert.alert(
         isRtl ? 'حقل مطلوب' : 'Required Field',
@@ -79,13 +82,98 @@ export default function ProfileScreen({
       return;
     }
 
-    onSaveProfile({
-      ...currentUser,
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      avatar
-    });
+    setIsSaving(true);
+    let finalAvatarUrl = typeof avatar === 'string' ? avatar : (avatar?.uri || null);
+
+    // If a new local image was selected and user is authenticated with Supabase
+    if (
+      avatar &&
+      currentUser?.id &&
+      typeof avatar === 'string' &&
+      (avatar.startsWith('file:') || avatar.startsWith('content:') || avatar.startsWith('blob:'))
+    ) {
+      try {
+        const response = await fetch(avatar);
+        const blob = await response.blob();
+        const ext = avatar.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (!uploadErr && uploadData) {
+          const { data: publicData } = supabase.storage
+            .from('community-media')
+            .getPublicUrl(fileName);
+          if (publicData?.publicUrl) {
+            finalAvatarUrl = publicData.publicUrl;
+          }
+        }
+      } catch (err) {
+        console.warn('Error uploading avatar from ProfileScreen:', err);
+      }
+    }
+
+    // Sync to Supabase profiles table, Auth metadata, and conversation participants
+    if (currentUser?.id) {
+      try {
+        const updates = {
+          full_name: fullName.trim(),
+          phone: phone.trim(),
+        };
+        if (finalAvatarUrl && finalAvatarUrl.startsWith('http')) {
+          updates.avatar_url = finalAvatarUrl;
+        }
+
+        await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', currentUser.id);
+
+        const authData = {
+          full_name: fullName.trim(),
+        };
+        if (finalAvatarUrl && finalAvatarUrl.startsWith('http')) {
+          authData.avatar_url = finalAvatarUrl;
+        }
+
+        await supabase.auth.updateUser({
+          data: authData,
+        });
+
+        if (finalAvatarUrl && finalAvatarUrl.startsWith('http')) {
+          await supabase
+            .from('conversations')
+            .update({ participant_1_avatar: finalAvatarUrl })
+            .eq('participant_1', currentUser.id);
+
+          await supabase
+            .from('conversations')
+            .update({ participant_2_avatar: finalAvatarUrl })
+            .eq('participant_2', currentUser.id);
+        }
+      } catch (err) {
+        console.warn('Error syncing profile update to Supabase:', err);
+      }
+    }
+
+    setIsSaving(false);
+
+    if (typeof onSaveProfile === 'function') {
+      onSaveProfile({
+        ...currentUser,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        avatar: finalAvatarUrl,
+        avatarUrl: finalAvatarUrl,
+      });
+    }
 
     onClose();
   };
@@ -110,10 +198,14 @@ export default function ProfileScreen({
           <Text style={[styles.headerTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 18.0 }]}>
             {isRtl ? 'تعديل الملف الشخصي' : 'Edit Profile'}
           </Text>
-          <TouchableOpacity style={styles.saveHeaderBtn} onPress={handleSave} activeOpacity={0.7}>
-            <Text style={[styles.saveHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
-              {isRtl ? 'حفظ' : 'Save'}
-            </Text>
+          <TouchableOpacity style={styles.saveHeaderBtn} onPress={handleSave} activeOpacity={0.7} disabled={isSaving}>
+            {isSaving ? (
+              <ActivityIndicator size="small" color={colors.bgBrand} />
+            ) : (
+              <Text style={[styles.saveHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
+                {isRtl ? 'حفظ' : 'Save'}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -150,7 +242,7 @@ export default function ProfileScreen({
                 onPress={pickImage}
               >
                 {avatar ? (
-                  <Image source={{ uri: avatar }} style={styles.avatarImage} />
+                  <Image source={typeof avatar === 'string' ? { uri: avatar } : avatar} style={styles.avatarImage} />
                 ) : (
                   <View style={styles.avatarPlaceholder}>
                     <Ionicons name="person" size={54} color={colors.bgCreamy} />
@@ -224,15 +316,19 @@ export default function ProfileScreen({
 
             {/* Bottom Actions Buttons */}
             <View style={[styles.bottomActions, isRtl && { flexDirection: 'row-reverse' }]}>
-              <TouchableOpacity style={styles.cancelButton} activeOpacity={0.7} onPress={onClose}>
+              <TouchableOpacity style={styles.cancelButton} activeOpacity={0.7} onPress={onClose} disabled={isSaving}>
                 <Text style={[styles.cancelButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
                   {isRtl ? 'إلغاء' : 'Cancel'}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} activeOpacity={0.8} onPress={handleSave}>
-                <Text style={[styles.saveButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
-                  {isRtl ? 'حفظ التغييرات' : 'Save Changes'}
-                </Text>
+              <TouchableOpacity style={styles.saveButton} activeOpacity={0.8} onPress={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={[styles.saveButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
+                    {isRtl ? 'حفظ التغييرات' : 'Save Changes'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>

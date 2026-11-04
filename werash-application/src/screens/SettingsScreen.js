@@ -88,8 +88,15 @@ export default function SettingsScreen({
                 if (onSelectProfile) onSelectProfile();
               }}
             >
-              {currentUser && currentUser.avatar ? (
-                <Image source={{ uri: currentUser.avatar }} style={styles.profileAvatarImage} />
+              {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
+                <Image
+                  source={
+                    typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
+                      ? { uri: currentUser.avatarUrl || currentUser.avatar }
+                      : (currentUser.avatarUrl || currentUser.avatar)
+                  }
+                  style={styles.profileAvatarImage}
+                />
               ) : (
                 <View style={styles.profileAvatar}>
                   <Ionicons name="person" size={24} color={colors.bgCreamy} />
