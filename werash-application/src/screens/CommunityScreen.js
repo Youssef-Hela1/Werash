@@ -989,6 +989,23 @@ export default function CommunityScreen({
   const [selectedReportReason, setSelectedReportReason] = useState(null);
   const [reportDetailText, setReportDetailText] = useState('');
   const [reportedPostIds, setReportedPostIds] = useState([]);
+  const [notInterestedPostIds, setNotInterestedPostIds] = useState([]);
+  const [activeMenuPost, setActiveMenuPost] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 120, isAbove: true });
+
+  useEffect(() => {
+    const storageKey = currentUser?.id ? `@werash_not_interested_${currentUser.id}` : '@werash_not_interested_guest';
+    AsyncStorage.getItem(storageKey).then((raw) => {
+      if (raw) {
+        try {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            setNotInterestedPostIds(list);
+          }
+        } catch (_) {}
+      }
+    }).catch(() => {});
+  }, [currentUser?.id]);
 
   const isCommentsExpandedRef = useRef(false);
   const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
@@ -2775,6 +2792,89 @@ export default function CommunityScreen({
   };
 
 
+  const handleOpenPostMenu = (post, e) => {
+    const isMine = Boolean(
+      (currentUser?.id && (post.userId === currentUser.id || post.user_id === currentUser.id)) ||
+      (currentUser?.fullName && post.author === currentUser.fullName)
+    );
+    const bubbleHeight = isMine ? 135 : 92;
+
+    const pageY = e?.nativeEvent?.pageY || 250;
+    let isAbove = true;
+    let top = pageY - bubbleHeight - 10;
+    if (top < 70) {
+      top = pageY + 16;
+      isAbove = false;
+    }
+
+    setMenuPosition({
+      top,
+      isAbove,
+    });
+    setActiveMenuPost(post);
+  };
+
+  const handleDeletePost = (post) => {
+    setActiveMenuPost(null);
+    if (!post) return;
+    Alert.alert(
+      isRtl ? 'حذف المنشور' : 'Delete Post',
+      isRtl ? 'هل أنت متأكد من رغبتك في حذف هذا المنشور نهائياً؟' : 'Are you sure you want to permanently delete this post?',
+      [
+        { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRtl ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Optimistically remove from state
+            setFeedPosts((prev) => prev.filter((p) => p.id !== post.id));
+
+            try {
+              const { error } = await supabase
+                .from('community_posts')
+                .delete()
+                .eq('id', post.id);
+
+              if (error) {
+                console.warn('Error deleting post from Supabase:', error);
+              }
+            } catch (err) {
+              console.warn('Error deleting post from Supabase:', err);
+            }
+
+            Alert.alert(
+              isRtl ? 'تم الحذف' : 'Deleted',
+              isRtl ? 'تم حذف المنشور بنجاح.' : 'Your post has been deleted.'
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleNotInterested = (post) => {
+    setActiveMenuPost(null);
+    if (!post) return;
+    const postId = post.id;
+    setNotInterestedPostIds((prev) => [...prev, postId]);
+
+    try {
+      const storageKey = currentUser?.id ? `@werash_not_interested_${currentUser.id}` : '@werash_not_interested_guest';
+      AsyncStorage.getItem(storageKey).then((raw) => {
+        const list = raw ? JSON.parse(raw) : [];
+        if (!list.includes(postId)) {
+          list.push(postId);
+          AsyncStorage.setItem(storageKey, JSON.stringify(list));
+        }
+      }).catch(() => {});
+    } catch (_) {}
+
+    Alert.alert(
+      isRtl ? 'تم الإخفاء' : 'Post Hidden',
+      isRtl ? 'تم إخفاء هذا المنشور من خلاصتك.' : 'This post has been hidden from your feed.'
+    );
+  };
+
   const handleOpenReportModal = (post) => {
     setReportModalPost(post);
     setSelectedReportReason(null);
@@ -3261,7 +3361,7 @@ export default function CommunityScreen({
 
   // Filter posts based on view state
   const filteredPosts = feedPosts.filter((post) => {
-    if (reportedPostIds.includes(post.id)) {
+    if (reportedPostIds.includes(post.id) || notInterestedPostIds.includes(post.id)) {
       return false;
     }
     if (showProfile) {
@@ -3806,7 +3906,7 @@ export default function CommunityScreen({
                         </View>
                         <TouchableOpacity 
                           activeOpacity={0.6}
-                          onPress={() => handleOpenReportModal(post)}
+                          onPress={(e) => handleOpenPostMenu(post, e)}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                           style={isRtl ? { marginRight: 8 } : { marginLeft: 8 }}
                         >
@@ -3816,7 +3916,7 @@ export default function CommunityScreen({
                     ) : (
                       <TouchableOpacity 
                         activeOpacity={0.6}
-                        onPress={() => handleOpenReportModal(post)}
+                        onPress={(e) => handleOpenPostMenu(post, e)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.textMuted} />
@@ -5704,6 +5804,98 @@ export default function CommunityScreen({
             </KeyboardAvoidingView>
           </Modal>
 
+          {/* Post Options Menu Bubble Modal */}
+          <Modal
+            visible={Boolean(activeMenuPost)}
+            transparent={true}
+            animationType="fade"
+            statusBarTranslucent={true}
+            onRequestClose={() => setActiveMenuPost(null)}
+          >
+            <TouchableWithoutFeedback onPress={() => setActiveMenuPost(null)}>
+              <View style={styles.postMenuOverlay}>
+                <TouchableWithoutFeedback>
+                  <View
+                    style={[
+                      styles.postMenuBubble,
+                      {
+                        top: menuPosition.top,
+                        ...(isRtl ? { left: 18 } : { right: 18 }),
+                      },
+                    ]}
+                  >
+                    {/* Arrow Pointer */}
+                    <View
+                      style={
+                        menuPosition.isAbove
+                          ? [styles.postMenuArrowDown, isRtl ? { left: 16 } : { right: 16 }]
+                          : [styles.postMenuArrowUp, isRtl ? { left: 16 } : { right: 16 }]
+                      }
+                    />
+
+                    {/* Option 1: Delete (ONLY if my post) */}
+                    {Boolean(
+                      activeMenuPost && (
+                        (currentUser?.id && (activeMenuPost.userId === currentUser.id || activeMenuPost.user_id === currentUser.id)) ||
+                        (currentUser?.fullName && activeMenuPost.author === currentUser.fullName)
+                      )
+                    ) && (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+                          onPress={() => handleDeletePost(activeMenuPost)}
+                          activeOpacity={0.65}
+                        >
+                          <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                            <Ionicons name="trash-outline" size={17} color="#E53935" />
+                          </View>
+                          <Text style={[styles.postMenuItemText, styles.postMenuDeleteText, isRtl && styles.arabicBoldText]}>
+                            {isRtl ? 'حذف المنشور' : 'Delete'}
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={styles.postMenuDivider} />
+                      </>
+                    )}
+
+                    {/* Option 2: Not Interested */}
+                    <TouchableOpacity
+                      style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+                      onPress={() => handleNotInterested(activeMenuPost)}
+                      activeOpacity={0.65}
+                    >
+                      <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                        <Ionicons name="eye-off-outline" size={17} color={colors.textDark} />
+                      </View>
+                      <Text style={[styles.postMenuItemText, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? 'غير مهتم' : 'Not interested'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.postMenuDivider} />
+
+                    {/* Option 3: Report */}
+                    <TouchableOpacity
+                      style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+                      onPress={() => {
+                        const post = activeMenuPost;
+                        setActiveMenuPost(null);
+                        handleOpenReportModal(post);
+                      }}
+                      activeOpacity={0.65}
+                    >
+                      <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                        <Ionicons name="flag-outline" size={17} color="#D97706" />
+                      </View>
+                      <Text style={[styles.postMenuItemText, styles.postMenuReportText, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? 'إبلاغ عن المنشور' : 'Report'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
           {/* Report Post Modal */}
           <Modal
             visible={Boolean(reportModalPost)}
@@ -6772,6 +6964,77 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   cancelReplyBtn: {
     padding: 2,
+  },
+  /* Post Options Menu Bubble Styles */
+  postMenuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+    zIndex: 9999,
+  },
+  postMenuBubble: {
+    position: 'absolute',
+    width: 175,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 12,
+    paddingVertical: 4,
+    zIndex: 10000,
+  },
+  postMenuArrowDown: {
+    position: 'absolute',
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.white,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: colors.borderGreen,
+    transform: [{ rotate: '45deg' }],
+  },
+  postMenuArrowUp: {
+    position: 'absolute',
+    top: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.white,
+    borderLeftWidth: 1.5,
+    borderTopWidth: 1.5,
+    borderColor: colors.borderGreen,
+    transform: [{ rotate: '45deg' }],
+  },
+  postMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  postMenuIconWrap: {
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postMenuItemText: {
+    fontSize: 13,
+    color: colors.textDark,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontWeight: '600',
+  },
+  postMenuDeleteText: {
+    color: '#E53935',
+  },
+  postMenuReportText: {
+    color: '#D97706',
+  },
+  postMenuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.borderGreen + '55',
+    marginHorizontal: 8,
   },
   /* Report Modal Styles */
   reportModalBackdrop: {
