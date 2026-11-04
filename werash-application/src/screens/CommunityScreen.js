@@ -4677,8 +4677,8 @@ export default function CommunityScreen({
                     <View
                       style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}
                       onTouchStart={() => {
-                        if (selectedMessage) {
-                          setSelectedMessage(null);
+                        if (isSelectionMode) {
+                          setSelectedMessages({});
                         }
                       }}
                     >
