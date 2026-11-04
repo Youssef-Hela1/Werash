@@ -533,6 +533,10 @@ export default function CommunityScreen({
         const otherHandle = isP1 ? c.participant_2_handle : c.participant_1_handle;
         const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
 
+        const prof = (otherUserId && userProfilesMap[otherUserId]) || Object.values(userProfilesMap).find(p => (otherName && p.full_name === otherName) || (otherUserId && p.id === otherUserId));
+        const resolvedAvatarUrl = prof?.avatar_url || (otherAvatar ? (typeof otherAvatar === 'string' ? otherAvatar : otherAvatar.uri) : null);
+        const resolvedAvatar = resolvedAvatarUrl ? { uri: resolvedAvatarUrl } : null;
+
         const localHistory = dmHistory[otherName];
         let displayLastMsg = c.last_message_text || '';
         let displayLastAt = c.last_message_at;
@@ -560,8 +564,8 @@ export default function CommunityScreen({
           userId: otherUserId,
           user: otherName || 'User',
           handle: otherHandle || `@${(otherName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
-          avatar: otherAvatar ? { uri: otherAvatar } : null,
-          avatarType: otherAvatar ? 'image' : 'icon',
+          avatar: resolvedAvatar,
+          avatarType: resolvedAvatar ? 'image' : 'icon',
           lastMessage: displayLastMsg,
           lastMessageAt: displayLastAt,
           lastSenderId: displayLastSenderId,
@@ -571,6 +575,25 @@ export default function CommunityScreen({
       });
 
       setInboxConversations(mapped);
+
+      // Fetch any missing profile records from cloud for participants
+      const missingUserIds = mapped.map(m => m.userId).filter(id => id && !userProfilesMap[id]);
+      if (missingUserIds.length > 0) {
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, banner_url')
+          .in('id', missingUserIds)
+          .then(({ data: newProfs }) => {
+            if (newProfs && Array.isArray(newProfs)) {
+              setUserProfilesMap(prev => {
+                const updated = { ...prev };
+                newProfs.forEach(p => { if (p.id) updated[p.id] = p; });
+                return updated;
+              });
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.warn('fetchUserConversations error:', err);
     }
@@ -824,14 +847,27 @@ export default function CommunityScreen({
   // Comprehensive conversation search across usernames, handles, and all chat message contents
   const filteredConversations = useMemo(() => {
     const q = (inboxSearch || '').toLowerCase().trim();
+
+    const resolveConvWithAvatar = (conv) => {
+      if (!conv) return conv;
+      const prof = (conv.userId && userProfilesMap[conv.userId]) || Object.values(userProfilesMap).find(p => (conv.user && p.full_name === conv.user) || (conv.userId && p.id === conv.userId));
+      const matchedPost = feedPosts.find(p => p.author === conv.user || (conv.userId && p.userId === conv.userId));
+      const resolvedAvatarUrl = prof?.avatar_url || (conv.avatar?.uri || (typeof conv.avatar === 'string' ? conv.avatar : null)) || (matchedPost?.avatar?.uri || (typeof matchedPost?.avatar === 'string' ? matchedPost?.avatar : null));
+      return {
+        ...conv,
+        avatar: resolvedAvatarUrl ? { uri: resolvedAvatarUrl } : null,
+        avatarType: resolvedAvatarUrl ? 'image' : 'icon',
+      };
+    };
+
     if (!q) {
-      return inboxConversations || [];
+      return (inboxConversations || []).map(resolveConvWithAvatar);
     }
 
     // Combine inboxConversations with all users in dmHistory
     const allConversationsMap = new Map();
     (inboxConversations || []).forEach(c => {
-      if (c && c.user) allConversationsMap.set(c.user, { ...c });
+      if (c && c.user) allConversationsMap.set(c.user, resolveConvWithAvatar(c));
     });
 
     if (dmHistory && typeof dmHistory === 'object') {
@@ -839,12 +875,15 @@ export default function CommunityScreen({
         if (author && !allConversationsMap.has(author)) {
           const msgs = Array.isArray(dmHistory[author]) ? dmHistory[author] : [];
           const lastMsg = msgs[msgs.length - 1];
+          const prof = Object.values(userProfilesMap).find(p => p.full_name === author);
+          const matchedPost = feedPosts.find(p => p.author === author);
+          const resolvedAvatarUrl = prof?.avatar_url || (matchedPost?.avatar?.uri || (typeof matchedPost?.avatar === 'string' ? matchedPost?.avatar : null));
           allConversationsMap.set(author, {
             id: 'conv_' + author,
             user: author,
             handle: '@' + author.toLowerCase().replace(/\s+/g, ''),
-            avatar: null,
-            avatarType: 'icon',
+            avatar: resolvedAvatarUrl ? { uri: resolvedAvatarUrl } : null,
+            avatarType: resolvedAvatarUrl ? 'image' : 'icon',
             lastMessage: lastMsg ? (lastMsg.text || (lastMsg.mediaType ? `[${lastMsg.mediaType}]` : '')) : '',
             time: lastMsg?.time || 'Recent',
             unread: 0,
@@ -905,7 +944,7 @@ export default function CommunityScreen({
     });
 
     return results;
-  }, [inboxSearch, inboxConversations, dmHistory, isRtl]);
+  }, [inboxSearch, inboxConversations, dmHistory, userProfilesMap, feedPosts, isRtl]);
 
   const directMessageUserRef = useRef(directMessageUser);
   directMessageUserRef.current = directMessageUser;
@@ -1351,14 +1390,40 @@ export default function CommunityScreen({
         }
       }
 
+      const prof = (theirId && userProfilesMap[theirId]) || Object.values(userProfilesMap).find(p => (authorName && p.full_name === authorName) || (theirId && p.id === theirId));
+      const resolvedAvatarUrl = prof?.avatar_url || (user.avatar?.uri || (typeof user.avatar === 'string' ? user.avatar : null));
+      const resolvedAvatar = resolvedAvatarUrl ? (typeof resolvedAvatarUrl === 'string' ? { uri: resolvedAvatarUrl } : resolvedAvatarUrl) : (user.avatar || null);
+
       setDirectMessageUser({
         conversationId: convId,
         userId: theirId,
         author: authorName,
         handle: user.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
-        avatar: user.avatar || null,
-        avatarType: user.avatarType || (user.avatar ? 'image' : 'icon'),
+        avatar: resolvedAvatar,
+        avatarType: resolvedAvatar ? 'image' : 'icon',
       });
+
+      if (theirId) {
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, banner_url')
+          .eq('id', theirId)
+          .maybeSingle()
+          .then(({ data: freshProf }) => {
+            if (freshProf && freshProf.avatar_url) {
+              setUserProfilesMap(prev => ({ ...prev, [theirId]: freshProf }));
+              setDirectMessageUser(prev => {
+                if (!prev || prev.userId !== theirId) return prev;
+                return {
+                  ...prev,
+                  avatar: { uri: freshProf.avatar_url },
+                  avatarType: 'image',
+                };
+              });
+            }
+          })
+          .catch(() => {});
+      }
 
       if (convId) {
         markConversationAsRead(convId);
@@ -3052,6 +3117,23 @@ export default function CommunityScreen({
             })
           );
 
+          // 6. Sync avatar to conversations table for live cross-user thread visibility
+          try {
+            await supabase
+              .from('conversations')
+              .update({ participant_1_avatar: publicUrl })
+              .eq('participant_1', currentUser.id);
+
+            await supabase
+              .from('conversations')
+              .update({ participant_2_avatar: publicUrl })
+              .eq('participant_2', currentUser.id);
+
+            fetchUserConversations().catch(() => {});
+          } catch (e) {
+            console.warn('Error syncing conversation avatars:', e);
+          }
+
           Alert.alert(
             isRtl ? 'تم بنجاح' : 'Success',
             isRtl ? 'تم تحديث صورتك الشخصية بنجاح.' : 'Your profile picture has been updated.'
@@ -4637,7 +4719,7 @@ export default function CommunityScreen({
                             style={styles.dmHeaderRightAvatar}
                           >
                             {directMessageUser?.avatar ? (
-                              <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
+                              <Image source={typeof directMessageUser.avatar === 'string' ? { uri: directMessageUser.avatar } : directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
                             ) : (
                               <View style={styles.dmAvatarSmallIcon}>
                                 <Ionicons name="person" size={16} color="#FFFFFF" />
@@ -4670,7 +4752,7 @@ export default function CommunityScreen({
                     {/* Profile Intro Banner inside Chat */}
                     <View style={styles.dmIntroCard}>
                       {directMessageUser?.avatar ? (
-                        <Image source={directMessageUser.avatar} style={styles.dmIntroAvatar} resizeMode="cover" />
+                        <Image source={typeof directMessageUser.avatar === 'string' ? { uri: directMessageUser.avatar } : directMessageUser.avatar} style={styles.dmIntroAvatar} resizeMode="cover" />
                       ) : (
                         <View style={styles.dmIntroAvatarIcon}>
                           <Ionicons name="person" size={26} color="#FFFFFF" />
@@ -4691,6 +4773,8 @@ export default function CommunityScreen({
                     {((directMessageUser && dmHistory[directMessageUser.author]) || []).map((msg) => {
                       const isMe = msg.sender === 'user';
                       const isSelected = Boolean(selectedMessages[msg.id]);
+                      const otherUserAvatar = directMessageUser?.avatar;
+                      const myAvatar = myResolvedAvatar;
                       return (
                         <TouchableOpacity
                           key={msg.id}
@@ -4709,6 +4793,30 @@ export default function CommunityScreen({
                             isRtl && { flexDirection: isMe ? 'row-reverse' : 'row' }
                           ]}
                         >
+                          {/* Other User Avatar beside their bubble */}
+                          {!isMe && (
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              onPress={() => handleOpenUserProfile(directMessageUser)}
+                              style={[
+                                styles.dmThreadAvatarWrapper,
+                                isRtl ? { marginLeft: 7 } : { marginRight: 7 }
+                              ]}
+                            >
+                              {otherUserAvatar ? (
+                                <Image
+                                  source={typeof otherUserAvatar === 'string' ? { uri: otherUserAvatar } : otherUserAvatar}
+                                  style={styles.dmThreadAvatarImg}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View style={styles.dmThreadAvatarIcon}>
+                                  <Ionicons name="person" size={14} color="#FFFFFF" />
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          )}
+
                           <TouchableOpacity
                             activeOpacity={isSelectionMode ? 0.75 : 0.92}
                             delayLongPress={350}
@@ -4923,6 +5031,28 @@ export default function CommunityScreen({
                               {msg.time}
                             </Text>
                           </TouchableOpacity>
+
+                          {/* Current User Avatar beside my bubble */}
+                          {isMe && (
+                            <View
+                              style={[
+                                styles.dmThreadAvatarWrapper,
+                                isRtl ? { marginRight: 7 } : { marginLeft: 7 }
+                              ]}
+                            >
+                              {myAvatar ? (
+                                <Image
+                                  source={typeof myAvatar === 'string' ? { uri: myAvatar } : myAvatar}
+                                  style={styles.dmThreadAvatarImg}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View style={[styles.dmThreadAvatarIcon, { backgroundColor: COLORS.bgBrand }]}>
+                                  <Ionicons name="person" size={14} color="#FFFFFF" />
+                                </View>
+                              )}
+                            </View>
+                          )}
                         </TouchableOpacity>
                       );
                     })}
@@ -5233,7 +5363,7 @@ export default function CommunityScreen({
                             }}
                           >
                             {msg.avatarType === 'image' && msg.avatar ? (
-                              <Image source={msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
+                              <Image source={typeof msg.avatar === 'string' ? { uri: msg.avatar } : msg.avatar} style={[styles.messageAvatar, { backgroundColor: 'transparent' }]} />
                             ) : (
                               <View style={styles.messageAvatar}>
                                 <Ionicons name="person" size={20} color="#FFFFFF" />
@@ -6952,8 +7082,32 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   dmMessageRowThem: {
     justifyContent: 'flex-start',
   },
+  dmThreadAvatarWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignSelf: 'flex-end',
+    marginBottom: 2,
+    overflow: 'hidden',
+    backgroundColor: isDarkMode ? '#2C3A2E' : '#E0E7E1',
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  },
+  dmThreadAvatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  dmThreadAvatarIcon: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dmBubble: {
-    maxWidth: '82%',
+    maxWidth: '78%',
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 9,
