@@ -329,28 +329,41 @@ export default function CommunityScreen({
   const deletedForMeIdsRef = useRef(new Set());
   deletedForMeIdsRef.current = deletedForMeIds;
 
+  const loadPersistedDeletedIds = async () => {
+    try {
+      const keys = ['@werash_deleted_messages_all'];
+      if (currentUser?.id) {
+        keys.push(`@werash_deleted_messages_${currentUser.id}`);
+      }
+      const values = await AsyncStorage.multiGet(keys);
+      const combined = new Set(deletedForMeIdsRef.current);
+      values.forEach(([_, val]) => {
+        if (val) {
+          try {
+            const arr = JSON.parse(val);
+            if (Array.isArray(arr)) {
+              arr.forEach((id) => combined.add(id));
+            }
+          } catch (_) {}
+        }
+      });
+      deletedForMeIdsRef.current = combined;
+      setDeletedForMeIds(combined);
+      return combined;
+    } catch (_) {
+      return deletedForMeIdsRef.current;
+    }
+  };
+
   useEffect(() => {
+    loadPersistedDeletedIds();
+
     if (!currentUser?.id) return;
     AsyncStorage.getItem(`@werash_chat_read_${currentUser.id}`)
       .then((val) => {
         if (val) {
           try {
             setReadTimestamps(JSON.parse(val) || {});
-          } catch (_) {}
-        }
-      })
-      .catch(() => {});
-
-    AsyncStorage.getItem(`@werash_deleted_messages_${currentUser.id}`)
-      .then((val) => {
-        if (val) {
-          try {
-            const arr = JSON.parse(val);
-            if (Array.isArray(arr)) {
-              const set = new Set(arr);
-              setDeletedForMeIds(set);
-              deletedForMeIdsRef.current = set;
-            }
           } catch (_) {}
         }
       })
@@ -481,8 +494,9 @@ export default function CommunityScreen({
         let displayTime = formatTimeAgo(c.last_message_at, isRtl);
 
         if (localHistory && Array.isArray(localHistory)) {
-          if (localHistory.length > 0) {
-            const lastItem = localHistory[localHistory.length - 1];
+          const visibleHistory = localHistory.filter((item) => !deletedForMeIdsRef.current.has(item.id));
+          if (visibleHistory.length > 0) {
+            const lastItem = visibleHistory[visibleHistory.length - 1];
             displayLastMsg = lastItem.text || (lastItem.mediaType === 'audio' ? (isRtl ? '🎙️ رسالة صوتية' : '🎙️ Voice message') : (lastItem.mediaType === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image')));
             displayLastAt = lastItem.created_at || displayLastAt;
             displayLastSenderId = lastItem.sender === 'user' ? currentUser?.id : otherUserId;
@@ -518,6 +532,9 @@ export default function CommunityScreen({
   const fetchConversationMessages = async (convId, authorName) => {
     if (!convId) return;
     try {
+      // Ensure latest deleted message IDs are loaded from storage before filtering
+      const deletedIds = await loadPersistedDeletedIds();
+
       const { data, error } = await supabase
         .from('direct_messages')
         .select('*')
@@ -528,8 +545,6 @@ export default function CommunityScreen({
         console.warn('Error fetching direct messages:', error.message);
         return;
       }
-
-      const deletedIds = deletedForMeIdsRef.current || new Set();
 
       const formatted = (data || [])
         .filter((m) => !deletedIds.has(m.id))
@@ -617,32 +632,6 @@ export default function CommunityScreen({
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'direct_messages',
-        },
-        (payload) => {
-          if (payload?.old?.id) {
-            const deletedId = payload.old.id;
-            setDmHistory((prev) => {
-              let changed = false;
-              const next = { ...prev };
-              Object.keys(next).forEach((author) => {
-                const list = next[author] || [];
-                if (list.some((item) => item.id === deletedId)) {
-                  next[author] = list.filter((item) => item.id !== deletedId);
-                  changed = true;
-                }
-              });
-              return changed ? next : prev;
-            });
-            fetchUserConversations();
-          }
-        }
-      )
       .subscribe();
 
     return () => {
@@ -717,32 +706,6 @@ export default function CommunityScreen({
                 ...prev,
                 [authorName]: list.filter((item) => item.id !== deletedId),
               };
-            });
-            fetchUserConversations();
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'direct_messages',
-        },
-        (payload) => {
-          if (payload?.old?.id) {
-            const deletedId = payload.old.id;
-            setDmHistory((prev) => {
-              let changed = false;
-              const next = { ...prev };
-              Object.keys(next).forEach((author) => {
-                const list = next[author] || [];
-                if (list.some((item) => item.id === deletedId)) {
-                  next[author] = list.filter((item) => item.id !== deletedId);
-                  changed = true;
-                }
-              });
-              return changed ? next : prev;
             });
             fetchUserConversations();
           }
@@ -1686,6 +1649,24 @@ export default function CommunityScreen({
       .filter((m) => m.sender !== 'user')
       .map((m) => m.id);
 
+    const allDeletedIds = messagesToDelete.map((m) => m.id);
+
+    // Persist deleted message IDs locally (so on reload neither my deleted messages nor others' deleted messages reappear in my chat)
+    try {
+      const updatedSet = new Set(deletedForMeIdsRef.current);
+      allDeletedIds.forEach((id) => updatedSet.add(id));
+      setDeletedForMeIds(updatedSet);
+      deletedForMeIdsRef.current = updatedSet;
+
+      const serialized = JSON.stringify(Array.from(updatedSet));
+      await AsyncStorage.setItem('@werash_deleted_messages_all', serialized);
+      if (currentUser?.id) {
+        await AsyncStorage.setItem(`@werash_deleted_messages_${currentUser.id}`, serialized);
+      }
+    } catch (err) {
+      console.warn('handleDeleteSelectedMessages local persistence error:', err);
+    }
+
     // 1. Messages sent by ME -> Delete from Supabase for everyone
     if (myMessageIds.length > 0) {
       try {
@@ -1697,41 +1678,27 @@ export default function CommunityScreen({
         if (delError) {
           console.warn('Error deleting my messages from Supabase:', delError.message);
         }
-
-        if (targetUser?.conversationId) {
-          await supabase
-            .from('conversations')
-            .update({
-              last_message_text: newLastText,
-              last_message_at: newLastAt,
-              last_sender_id: newLastSenderId,
-            })
-            .eq('id', targetUser.conversationId);
-        }
-
-        fetchUserConversations();
       } catch (err) {
-        console.warn('handleDeleteSelectedMessages (everyone) error:', err);
+        console.warn('handleDeleteSelectedMessages (cloud delete) error:', err);
       }
     }
 
-    // 2. Messages sent by the OTHER USER -> Delete on my end only (persist locally)
-    if (otherMessageIds.length > 0) {
+    // 2. Always update conversation's last message in Supabase and sync inbox
+    if (targetUser?.conversationId) {
       try {
-        const updatedSet = new Set(deletedForMeIdsRef.current);
-        otherMessageIds.forEach((id) => updatedSet.add(id));
-        setDeletedForMeIds(updatedSet);
-        deletedForMeIdsRef.current = updatedSet;
-
-        if (currentUser?.id) {
-          await AsyncStorage.setItem(
-            `@werash_deleted_messages_${currentUser.id}`,
-            JSON.stringify(Array.from(updatedSet))
-          );
-        }
-      } catch (err) {
-        console.warn('handleDeleteSelectedMessages (for me only) error:', err);
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: newLastText,
+            last_message_at: newLastAt,
+            last_sender_id: newLastSenderId,
+          })
+          .eq('id', targetUser.conversationId);
+      } catch (convErr) {
+        console.warn('Error updating conversation after message deletion:', convErr);
       }
+
+      fetchUserConversations();
     }
   };
   const handleCancelVoiceRecording = async () => {
