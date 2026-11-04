@@ -90,6 +90,7 @@ export default function CommunityScreen({
   userVehicles = [],
   activeVehicleId,
   onOpenSignIn,
+  onUpdateCurrentUser,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -141,9 +142,37 @@ export default function CommunityScreen({
   const [directMessageUser, setDirectMessageUser] = useState(null);
   const [openedFromMessagesPage, setOpenedFromMessagesPage] = useState(false);
   const [dmHistory, setDmHistory] = useState({});
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [myBannerUrl, setMyBannerUrl] = useState(currentUser?.bannerUrl || null);
+  const [userProfilesMap, setUserProfilesMap] = useState({});
+
+  useEffect(() => {
+    if (currentUser?.bannerUrl) {
+      setMyBannerUrl(currentUser.bannerUrl);
+    } else if (currentUser?.id) {
+      AsyncStorage.getItem(`@werash_user_banner_${currentUser.id}`).then((val) => {
+        if (val) setMyBannerUrl(val);
+      }).catch(() => {});
+    }
+  }, [currentUser?.id, currentUser?.bannerUrl]);
 
   const fetchCommunityPosts = async () => {
     try {
+      // 1. Fetch profiles to resolve latest cloud avatars and banners
+      let profMap = {};
+      try {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, banner_url');
+        if (profs && Array.isArray(profs)) {
+          profs.forEach((pr) => {
+            if (pr.id) profMap[pr.id] = pr;
+          });
+          setUserProfilesMap(profMap);
+        }
+      } catch (_) {}
+
       const { data: postsData, error: postsError } = await supabase
         .from('community_posts')
         .select('*')
@@ -165,25 +194,29 @@ export default function CommunityScreen({
         } catch (_) {}
       }
 
-      const mapped = (postsData || []).map(p => ({
-        id: p.id,
-        userId: p.user_id,
-        author: p.author_name,
-        handle: p.author_handle,
-        avatar: p.author_avatar ? { uri: p.author_avatar } : null,
-        avatarType: p.author_avatar ? 'image' : 'icon',
-        time: formatTimeAgo(p.created_at, isRtl),
-        content: p.content,
-        postImage: p.media_url ? { uri: p.media_url } : null,
-        likes: p.likes_count || 0,
-        comments: p.comments_count || 0,
-        liked: likedPostIds.has(p.id),
-        vehicle: p.vehicle || 'General',
-        isMarketplace: Boolean(p.is_marketplace),
-        price: p.price || null,
-        location: p.location || null,
-        commentsList: [],
-      }));
+      const mapped = (postsData || []).map(p => {
+        const authorProf = p.user_id ? profMap[p.user_id] : null;
+        const finalAvatarUrl = authorProf?.avatar_url || p.author_avatar;
+        return {
+          id: p.id,
+          userId: p.user_id,
+          author: p.author_name,
+          handle: p.author_handle,
+          avatar: finalAvatarUrl ? { uri: finalAvatarUrl } : null,
+          avatarType: finalAvatarUrl ? 'image' : 'icon',
+          time: formatTimeAgo(p.created_at, isRtl),
+          content: p.content,
+          postImage: p.media_url ? { uri: p.media_url } : null,
+          likes: p.likes_count || 0,
+          comments: p.comments_count || 0,
+          liked: likedPostIds.has(p.id),
+          vehicle: p.vehicle || 'General',
+          isMarketplace: Boolean(p.is_marketplace),
+          price: p.price || null,
+          location: p.location || null,
+          commentsList: [],
+        };
+      });
 
       setFeedPosts(mapped);
     } catch (err) {
@@ -211,13 +244,15 @@ export default function CommunityScreen({
       const topLevelList = [];
 
       (data || []).forEach((row) => {
+        const commenterProf = row.user_id ? userProfilesMap[row.user_id] : null;
+        const finalAvatarUrl = commenterProf?.avatar_url || row.author_avatar;
         const item = {
           id: row.id,
           userId: row.user_id,
           author: row.author_name,
           handle: row.author_handle,
-          avatar: row.author_avatar ? { uri: row.author_avatar } : null,
-          avatarType: row.author_avatar ? 'image' : 'icon',
+          avatar: finalAvatarUrl ? { uri: finalAvatarUrl } : null,
+          avatarType: finalAvatarUrl ? 'image' : 'icon',
           time: formatTimeAgo(row.created_at, isRtl),
           content: row.content,
           likes: 0,
@@ -1149,7 +1184,7 @@ export default function CommunityScreen({
     }
   };
 
-  const handleOpenUserProfile = (authorData) => {
+  const handleOpenUserProfile = async (authorData) => {
     if (!authorData) return;
     const authorName = authorData.author || authorData.fullName || authorData.name;
     if (!authorName) return;
@@ -1157,19 +1192,24 @@ export default function CommunityScreen({
     const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
     const authorPosts = feedPosts.filter((p) => p.author === authorName);
     const primaryVehicle = authorData.vehicle || authorPosts.find((p) => p.vehicle && p.vehicle !== 'General')?.vehicle || (authorName === currentAuthor ? (currentCarName || '') : '');
-    const avatar = authorData.avatar || authorPosts.find((p) => p.avatar)?.avatar || null;
-    const avatarType = authorData.avatarType || (avatar ? 'image' : 'icon');
-    const handle = authorData.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`;
     const userId = authorData.userId || authorData.user_id || authorPosts.find(p => p.userId)?.userId || null;
+    const isSelf = (currentUser?.id && userId === currentUser.id) || authorName === currentAuthor;
+
+    const cachedProf = userId ? userProfilesMap[userId] : null;
+    let resolvedAvatar = cachedProf?.avatar_url
+      ? { uri: cachedProf.avatar_url }
+      : (authorData.avatar || authorPosts.find((p) => p.avatar)?.avatar || null);
+    let resolvedBanner = cachedProf?.banner_url ? { uri: cachedProf.banner_url } : null;
 
     setSelectedUserProfile({
       userId,
       author: authorName,
-      handle,
-      avatar,
-      avatarType,
+      handle: authorData.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
+      avatar: resolvedAvatar,
+      banner: resolvedBanner,
+      avatarType: resolvedAvatar ? 'image' : 'icon',
       vehicle: primaryVehicle,
-      isSelf: (currentUser?.id && userId === currentUser.id) || authorName === currentAuthor,
+      isSelf,
     });
     setSelectedFeed('profile');
     setShowProfile(true);
@@ -1181,6 +1221,30 @@ export default function CommunityScreen({
       } else if (scrollViewRef.current.getNode && typeof scrollViewRef.current.getNode().scrollTo === 'function') {
         scrollViewRef.current.getNode().scrollTo({ y: 0, animated: false });
       }
+    }
+
+    // Fetch latest fresh profile row from Supabase
+    if (userId) {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (prof) {
+          setUserProfilesMap((prev) => ({ ...prev, [userId]: prof }));
+          setSelectedUserProfile((prev) => {
+            if (!prev || prev.userId !== userId) return prev;
+            return {
+              ...prev,
+              avatar: prof.avatar_url ? { uri: prof.avatar_url } : prev.avatar,
+              banner: prof.banner_url ? { uri: prof.banner_url } : prev.banner,
+              avatarType: prof.avatar_url ? 'image' : prev.avatarType,
+            };
+          });
+        }
+      } catch (_) {}
     }
   };
 
@@ -2894,7 +2958,225 @@ export default function CommunityScreen({
     });
   };
 
-  // Filter posts based on view state
+  const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
+
+  const handlePickAndUploadAvatar = async () => {
+    if (!requireAuth()) return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+          isRtl ? 'نحتاج إلى إذن للوصول إلى الصور لتحديث صورتك الشخصية.' : 'We need permission to access your gallery to update your profile photo.'
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const localUri = result.assets[0].uri;
+        setIsUploadingAvatar(true);
+
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadErr) {
+          throw uploadErr;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from('community-media')
+          .getPublicUrl(fileName);
+        const publicUrl = publicData?.publicUrl;
+
+        if (publicUrl) {
+          // 1. Update Supabase profiles table
+          try {
+            await supabase
+              .from('profiles')
+              .update({ avatar_url: publicUrl })
+              .eq('id', currentUser.id);
+          } catch (e) {
+            console.warn('Error updating profile avatar_url:', e);
+          }
+
+          // 2. Update Supabase Auth user metadata
+          try {
+            await supabase.auth.updateUser({
+              data: { avatar_url: publicUrl }
+            });
+          } catch (e) {
+            console.warn('Error updating auth metadata avatar_url:', e);
+          }
+
+          // 3. Update global currentUser state if callback provided
+          if (typeof onUpdateCurrentUser === 'function') {
+            onUpdateCurrentUser({
+              ...currentUser,
+              avatar: publicUrl,
+              avatarUrl: publicUrl,
+            });
+          }
+
+          // 4. Update userProfilesMap
+          setUserProfilesMap((prev) => ({
+            ...prev,
+            [currentUser.id]: {
+              ...(prev[currentUser.id] || {}),
+              avatar_url: publicUrl,
+            },
+          }));
+
+          // 5. Update local feed posts
+          setFeedPosts((prev) =>
+            prev.map((p) => {
+              if (p.userId === currentUser.id || p.author === currentUser.fullName) {
+                return { ...p, avatar: { uri: publicUrl } };
+              }
+              return p;
+            })
+          );
+
+          Alert.alert(
+            isRtl ? 'تم بنجاح' : 'Success',
+            isRtl ? 'تم تحديث صورتك الشخصية بنجاح.' : 'Your profile picture has been updated.'
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('handlePickAndUploadAvatar error:', err);
+      Alert.alert(
+        isRtl ? 'خطأ' : 'Error',
+        isRtl ? 'تعذر رفع الصورة الشخصية. يرجى المحاولة مرة أخرى.' : 'Failed to upload profile picture. Please try again.'
+      );
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handlePickAndUploadBanner = async () => {
+    if (!requireAuth()) return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+          isRtl ? 'نحتاج إلى إذن للوصول إلى الصور لتحديث صورة الغلاف.' : 'We need permission to access your gallery to update your banner.'
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const localUri = result.assets[0].uri;
+        setIsUploadingBanner(true);
+
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${currentUser.id}/banner_${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadErr) {
+          throw uploadErr;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from('community-media')
+          .getPublicUrl(fileName);
+        const publicUrl = publicData?.publicUrl;
+
+        if (publicUrl) {
+          // 1. Update Supabase profiles table (banner_url)
+          try {
+            await supabase
+              .from('profiles')
+              .update({ banner_url: publicUrl })
+              .eq('id', currentUser.id);
+          } catch (e) {
+            console.warn('Error updating profile banner_url:', e);
+          }
+
+          // 2. Update Supabase Auth user metadata
+          try {
+            await supabase.auth.updateUser({
+              data: { banner_url: publicUrl }
+            });
+          } catch (e) {
+            console.warn('Error updating auth metadata banner_url:', e);
+          }
+
+          // 3. Save to AsyncStorage
+          try {
+            await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+          } catch (e) {
+            console.warn('Error saving banner to storage:', e);
+          }
+
+          // 4. Update local banner state
+          setMyBannerUrl(publicUrl);
+
+          // 5. Update global currentUser state
+          if (typeof onUpdateCurrentUser === 'function') {
+            onUpdateCurrentUser({
+              ...currentUser,
+              bannerUrl: publicUrl,
+            });
+          }
+
+          // 6. Update userProfilesMap
+          setUserProfilesMap((prev) => ({
+            ...prev,
+            [currentUser.id]: {
+              ...(prev[currentUser.id] || {}),
+              banner_url: publicUrl,
+            },
+          }));
+
+          Alert.alert(
+            isRtl ? 'تم بنجاح' : 'Success',
+            isRtl ? 'تم تحديث صورة الغلاف بنجاح.' : 'Your profile banner has been updated.'
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('handlePickAndUploadBanner error:', err);
+      Alert.alert(
+        isRtl ? 'خطأ' : 'Error',
+        isRtl ? 'تعذر رفع صورة الغلاف. يرجى المحاولة مرة أخرى.' : 'Failed to upload profile banner. Please try again.'
+      );
+    } finally {
+      setIsUploadingBanner(false);
+    }
+  };
+
   // Filter posts based on view state
   const filteredPosts = feedPosts.filter((post) => {
     if (reportedPostIds.includes(post.id)) {
@@ -2940,17 +3222,24 @@ export default function CommunityScreen({
   });
 
   // Calculate active user stats for profile card
-  const currentAuthorName = currentUser ? currentUser.fullName : 'Guest User';
-  const activeProfileUser = selectedUserProfile || {
+  const myResolvedAvatar = currentUser?.avatarUrl || currentUser?.avatar || (currentUser?.id && userProfilesMap[currentUser.id]?.avatar_url) || null;
+  const myResolvedBanner = myBannerUrl || currentUser?.bannerUrl || (currentUser?.id && userProfilesMap[currentUser.id]?.banner_url) || null;
+
+  const activeProfileUser = selectedUserProfile ? {
+    ...selectedUserProfile,
+    avatar: selectedUserProfile.avatarUrl || selectedUserProfile.avatar || (selectedUserProfile.userId && userProfilesMap[selectedUserProfile.userId]?.avatar_url ? { uri: userProfilesMap[selectedUserProfile.userId].avatar_url } : selectedUserProfile.avatar),
+    banner: selectedUserProfile.bannerUrl || selectedUserProfile.banner || (selectedUserProfile.userId && userProfilesMap[selectedUserProfile.userId]?.banner_url ? { uri: userProfilesMap[selectedUserProfile.userId].banner_url } : null),
+  } : {
     userId: currentUser?.id || null,
     author: currentAuthorName,
     handle: `@${currentAuthorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
-    avatar: null,
-    avatarType: 'icon',
+    avatar: myResolvedAvatar ? (typeof myResolvedAvatar === 'string' ? { uri: myResolvedAvatar } : myResolvedAvatar) : null,
+    banner: myResolvedBanner ? (typeof myResolvedBanner === 'string' ? { uri: myResolvedBanner } : myResolvedBanner) : null,
+    avatarType: myResolvedAvatar ? 'image' : 'icon',
     vehicle: currentCarName || '',
     isSelf: true,
   };
-  const isViewingSelf = activeProfileUser.isSelf || activeProfileUser.author === currentAuthorName;
+  const isViewingSelf = activeProfileUser.isSelf || activeProfileUser.author === currentAuthorName || (Boolean(currentUser?.id) && activeProfileUser.userId === currentUser.id);
   const targetUserPosts = feedPosts.filter(p => p.author === activeProfileUser.author);
   const profilePostsCount = targetUserPosts.length;
   const profileTotalLikes = targetUserPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
@@ -3064,11 +3353,43 @@ export default function CommunityScreen({
                 {/* Banner Wallpaper behind avatar */}
                 <View style={styles.profileBannerContainer}>
                   <Image
-                    source={require('../../assets/Banner wallpaper.png')}
+                    source={
+                      activeProfileUser.banner
+                        ? (typeof activeProfileUser.banner === 'string' ? { uri: activeProfileUser.banner } : activeProfileUser.banner)
+                        : require('../../assets/Banner wallpaper.png')
+                    }
                     style={styles.profileBannerImage}
                     resizeMode="cover"
                   />
                   <View style={styles.profileBannerOverlay} />
+
+                  {isViewingSelf && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={[
+                        styles.profileEditBannerBtn,
+                        isRtl ? { left: 16 } : { right: 16 },
+                      ]}
+                      onPress={handlePickAndUploadBanner}
+                      disabled={isUploadingBanner}
+                    >
+                      {isUploadingBanner ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="camera"
+                            size={14}
+                            color="#FFFFFF"
+                            style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }}
+                          />
+                          <Text style={[styles.profileEditBannerBtnText, isRtl && styles.arabicBoldText]}>
+                            {isRtl ? 'تغيير الغلاف' : 'Edit Banner'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Centered Profile Header Section (Overlapping the banner) */}
@@ -3077,7 +3398,7 @@ export default function CommunityScreen({
                   <View style={styles.profileAvatarWrapper}>
                     {activeProfileUser.avatar ? (
                       <Image
-                        source={activeProfileUser.avatar}
+                        source={typeof activeProfileUser.avatar === 'string' ? { uri: activeProfileUser.avatar } : activeProfileUser.avatar}
                         style={styles.profileAvatarCenteredImage}
                         resizeMode="cover"
                       />
@@ -3085,6 +3406,24 @@ export default function CommunityScreen({
                       <View style={styles.profileAvatarCenteredIcon}>
                         <Ionicons name="person" size={40} color="#FFFFFF" />
                       </View>
+                    )}
+
+                    {isViewingSelf && (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={[
+                          styles.profileEditAvatarBadge,
+                          isRtl ? { left: 2 } : { right: 2 },
+                        ]}
+                        onPress={handlePickAndUploadAvatar}
+                        disabled={isUploadingAvatar}
+                      >
+                        {isUploadingAvatar ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Ionicons name="camera" size={15} color="#FFFFFF" />
+                        )}
+                      </TouchableOpacity>
                     )}
                   </View>
 
@@ -7407,6 +7746,24 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(20, 35, 22, 0.22)',
   },
+  profileEditBannerBtn: {
+    position: 'absolute',
+    top: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(23, 40, 26, 0.72)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    zIndex: 10,
+  },
+  profileEditBannerBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   profileHeaderCenter: {
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -7442,6 +7799,24 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     backgroundColor: colors.bgBrand,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileEditAvatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.bgBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.bgCreamy,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    zIndex: 10,
   },
   profileSummaryHeader: {
     flexDirection: 'row',

@@ -339,6 +339,9 @@ function AppContent() {
               plateNumberArabic: profile?.plate_number_arabic || null,
               cc: profile?.cc || null,
               odometer: profile?.odometer || 0,
+              avatar: profile?.avatar_url || session.user.user_metadata?.avatar_url || null,
+              avatarUrl: profile?.avatar_url || session.user.user_metadata?.avatar_url || null,
+              bannerUrl: profile?.banner_url || session.user.user_metadata?.banner_url || null,
             };
             setCurrentUser(loadedUser);
           }
@@ -671,6 +674,7 @@ function AppContent() {
             userVehicles={userVehicles}
             activeVehicleId={resolvedActiveVehicleId}
             onOpenSignIn={() => setSignInVisible(true)}
+            onUpdateCurrentUser={handleSetCurrentUser}
           />
         );
       case 'more':

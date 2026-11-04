@@ -305,6 +305,9 @@ export default function SignInScreen({ visible, onClose, onSignInSuccess }) {
           plateNumberArabic: profile?.plate_number_arabic || null,
           cc: profile?.cc || null,
           odometer: profile?.odometer || 0,
+          avatar: profile?.avatar_url || data.user.user_metadata?.avatar_url || null,
+          avatarUrl: profile?.avatar_url || data.user.user_metadata?.avatar_url || null,
+          bannerUrl: profile?.banner_url || data.user.user_metadata?.banner_url || null,
         };
 
         Alert.alert('Success', `Welcome back, ${authenticatedUser.fullName}!`);
