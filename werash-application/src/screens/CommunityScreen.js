@@ -321,7 +321,7 @@ export default function CommunityScreen({
   const [voiceTapTipVisible, setVoiceTapTipVisible] = useState(false);
   const [readTimestamps, setReadTimestamps] = useState({});
   const [unreadConversationsMap, setUnreadConversationsMap] = useState({});
-  const [messageToDelete, setMessageToDelete] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -1222,6 +1222,7 @@ export default function CommunityScreen({
   };
 
   const handleCloseDirectMessage = () => {
+    setSelectedMessage(null);
     if (directMessageUser?.conversationId) {
       markConversationAsRead(directMessageUser.conversationId);
     }
@@ -1479,7 +1480,7 @@ export default function CommunityScreen({
 
   const handleLongPressMessage = (msg) => {
     if (!msg || !msg.id) return;
-    setMessageToDelete(msg);
+    setSelectedMessage(msg);
   };
 
   const handleDeleteMessage = async (msg) => {
@@ -4036,8 +4037,8 @@ export default function CommunityScreen({
             animationType="slide"
             statusBarTranslucent={true}
             onRequestClose={() => {
-              if (messageToDelete) {
-                setMessageToDelete(null);
+              if (selectedMessage) {
+                setSelectedMessage(null);
                 return;
               }
               if (directMessageUser) {
@@ -4059,64 +4060,102 @@ export default function CommunityScreen({
                 >
                   {/* DM Header */}
                   <View style={styles.dmHeader}>
-                    {/* Left: Back / Inbox Button */}
-                    <View style={styles.dmHeaderLeft}>
-                      <TouchableOpacity 
-                        style={styles.dmBackButton} 
-                        onPress={handleCloseDirectMessage}
-                        activeOpacity={0.8}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons 
-                          name="chevron-back" 
-                          size={24} 
-                          color={COLORS.bgBrand} 
-                        />
-                        {openedFromMessagesPage && (
-                          <Text style={[styles.dmBackBtnText, isRtl && styles.arabicBoldText]}>
-                            {isRtl ? 'الرسائل' : 'Inbox'}
+                    {selectedMessage ? (
+                      <View style={[styles.dmHeaderSelectionRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                        {/* Left: Close selection / cancel button */}
+                        <TouchableOpacity
+                          style={[styles.dmHeaderCloseSelectBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                          onPress={() => setSelectedMessage(null)}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="close" size={22} color={COLORS.textDark} />
+                          <Text style={[styles.dmHeaderSelectCountText, isRtl && styles.arabicBoldText]}>
+                            {isRtl ? '١ محددة' : '1 selected'}
                           </Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
+                        </TouchableOpacity>
 
-                    {/* Middle: Name & Status */}
-                    <TouchableOpacity 
-                      style={styles.dmHeaderCenter}
-                      onPress={() => handleOpenUserProfile(directMessageUser)}
-                      activeOpacity={0.7}
-                    >
-                      <Text 
-                        style={[styles.dmUserName, isRtl && styles.arabicBoldText]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {directMessageUser?.author}
-                      </Text>
-                      <View style={styles.dmOnlineRow}>
-                        <View style={styles.dmOnlineDot} />
-                        <Text style={[styles.dmOnlineText, isRtl && styles.arabicRegularText]}>
-                          {isRtl ? 'متصل الآن' : 'Active now'}
-                        </Text>
+                        {/* Right: Red Delete Button in the Top Right of the Screen */}
+                        <TouchableOpacity
+                          style={[styles.dmHeaderDeleteBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                          onPress={() => {
+                            if (selectedMessage) {
+                              const toDelete = selectedMessage;
+                              setSelectedMessage(null);
+                              handleDeleteMessage(toDelete);
+                            }
+                          }}
+                          activeOpacity={0.8}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="trash" size={17} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                          <Text style={[styles.dmHeaderDeleteBtnText, isRtl && styles.arabicBoldText]}>
+                            {isRtl ? 'حذف' : 'Delete'}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
-                    </TouchableOpacity>
+                    ) : (
+                      <>
+                        {/* Left: Back / Inbox Button */}
+                        <View style={styles.dmHeaderLeft}>
+                          <TouchableOpacity 
+                            style={styles.dmBackButton} 
+                            onPress={handleCloseDirectMessage}
+                            activeOpacity={0.8}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Ionicons 
+                              name="chevron-back" 
+                              size={24} 
+                              color={COLORS.bgBrand} 
+                            />
+                            {openedFromMessagesPage && (
+                              <Text style={[styles.dmBackBtnText, isRtl && styles.arabicBoldText]}>
+                                {isRtl ? 'الرسائل' : 'Inbox'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
 
-                    {/* Right: Profile Picture / Avatar */}
-                    <View style={styles.dmHeaderRight}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => handleOpenUserProfile(directMessageUser)}
-                        style={styles.dmHeaderRightAvatar}
-                      >
-                        {directMessageUser?.avatar ? (
-                          <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
-                        ) : (
-                          <View style={styles.dmAvatarSmallIcon}>
-                            <Ionicons name="person" size={16} color="#FFFFFF" />
+                        {/* Middle: Name & Status */}
+                        <TouchableOpacity 
+                          style={styles.dmHeaderCenter}
+                          onPress={() => handleOpenUserProfile(directMessageUser)}
+                          activeOpacity={0.7}
+                        >
+                          <Text 
+                            style={[styles.dmUserName, isRtl && styles.arabicBoldText]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {directMessageUser?.author}
+                          </Text>
+                          <View style={styles.dmOnlineRow}>
+                            <View style={styles.dmOnlineDot} />
+                            <Text style={[styles.dmOnlineText, isRtl && styles.arabicRegularText]}>
+                              {isRtl ? 'متصل الآن' : 'Active now'}
+                            </Text>
                           </View>
-                        )}
-                      </TouchableOpacity>
-                    </View>
+                        </TouchableOpacity>
+
+                        {/* Right: Profile Picture / Avatar */}
+                        <View style={styles.dmHeaderRight}>
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => handleOpenUserProfile(directMessageUser)}
+                            style={styles.dmHeaderRightAvatar}
+                          >
+                            {directMessageUser?.avatar ? (
+                              <Image source={directMessageUser.avatar} style={styles.dmAvatarSmall} resizeMode="cover" />
+                            ) : (
+                              <View style={styles.dmAvatarSmallIcon}>
+                                <Ionicons name="person" size={16} color="#FFFFFF" />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
                   </View>
 
                   {/* Messages Scroll View */}
@@ -4127,11 +4166,24 @@ export default function CommunityScreen({
                     showsVerticalScrollIndicator={false}
                     keyboardDismissMode="on-drag"
                     keyboardShouldPersistTaps="handled"
-                    onTouchStart={handleDismissKeyboard}
+                    onTouchStart={() => {
+                      handleDismissKeyboard();
+                      if (selectedMessage) {
+                        setSelectedMessage(null);
+                      }
+                    }}
                     onContentSizeChange={() => dmScrollRef.current?.scrollToEnd({ animated: true })}
                   >
                     {/* Profile Intro Banner inside Chat */}
-                    <View style={styles.dmIntroCard}>
+                    <TouchableOpacity
+                      activeOpacity={1}
+                      onPress={() => {
+                        if (selectedMessage) {
+                          setSelectedMessage(null);
+                        }
+                      }}
+                      style={styles.dmIntroCard}
+                    >
                       {directMessageUser?.avatar ? (
                         <Image source={directMessageUser.avatar} style={styles.dmIntroAvatar} resizeMode="cover" />
                       ) : (
@@ -4148,34 +4200,54 @@ export default function CommunityScreen({
                           ? `هذه بداية محادثتك المباشرة مع ${directMessageUser?.author}. تبادلا الخبرات واستفسرا عن التعديلات وقطع الغيار.`
                           : `This is the start of your direct conversation with ${directMessageUser?.author}. Connect, ask about car builds, or trade parts.`}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Chat Messages */}
                     {((directMessageUser && dmHistory[directMessageUser.author]) || []).map((msg) => {
                       const isMe = msg.sender === 'user';
+                      const isSelected = selectedMessage?.id === msg.id;
                       return (
-                        <View
+                        <TouchableOpacity
                           key={msg.id}
+                          activeOpacity={1}
+                          onPress={() => {
+                            if (selectedMessage) {
+                              setSelectedMessage(null);
+                            }
+                          }}
                           style={[
                             styles.dmMessageRow,
+                            isSelected && styles.dmMessageRowSelected,
                             isMe ? styles.dmMessageRowMe : styles.dmMessageRowThem,
                             isRtl && { flexDirection: isMe ? 'row-reverse' : 'row' }
                           ]}
                         >
                           <TouchableOpacity
-                            activeOpacity={0.92}
+                            activeOpacity={selectedMessage ? 1 : 0.92}
                             delayLongPress={350}
+                            onPress={() => {
+                              if (selectedMessage) {
+                                setSelectedMessage(null);
+                              }
+                            }}
                             onLongPress={() => handleLongPressMessage(msg)}
                             style={[
                               styles.dmBubble,
                               isMe ? styles.dmBubbleMe : styles.dmBubbleThem,
+                              isSelected && styles.dmBubbleSelected,
                             ]}
                           >
                             {/* Attached Image inside bubble */}
                             {msg.mediaType === 'image' && msg.mediaUri && (
                               <TouchableOpacity
                                 activeOpacity={0.9}
-                                onPress={() => setViewingMedia({ type: 'image', uri: msg.mediaUri })}
+                                onPress={() => {
+                                  if (selectedMessage) {
+                                    setSelectedMessage(null);
+                                    return;
+                                  }
+                                  setViewingMedia({ type: 'image', uri: msg.mediaUri });
+                                }}
                                 onLongPress={() => handleLongPressMessage(msg)}
                                 delayLongPress={350}
                                 style={styles.dmBubbleMediaWrapper}
@@ -4191,7 +4263,13 @@ export default function CommunityScreen({
                             {msg.mediaType === 'video' && msg.mediaUri && (
                               <TouchableOpacity
                                 activeOpacity={0.9}
-                                onPress={() => setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration })}
+                                onPress={() => {
+                                  if (selectedMessage) {
+                                    setSelectedMessage(null);
+                                    return;
+                                  }
+                                  setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration });
+                                }}
                                 onLongPress={() => handleLongPressMessage(msg)}
                                 delayLongPress={350}
                                 style={styles.dmBubbleVideoCard}
@@ -4233,6 +4311,11 @@ export default function CommunityScreen({
                                 <TouchableOpacity
                                   activeOpacity={0.95}
                                   delayLongPress={350}
+                                  onPress={() => {
+                                    if (selectedMessage) {
+                                      setSelectedMessage(null);
+                                    }
+                                  }}
                                   onLongPress={() => handleLongPressMessage(msg)}
                                   style={[
                                     styles.dmAudioCard,
@@ -4247,7 +4330,13 @@ export default function CommunityScreen({
                                       isMe ? styles.dmAudioPlayBtnMe : styles.dmAudioPlayBtnThem,
                                       isPlaying && styles.dmAudioPlayBtnActive
                                     ]}
-                                    onPress={() => handleTogglePlayAudio(msg.id, msg.mediaUri)}
+                                    onPress={() => {
+                                      if (selectedMessage) {
+                                        setSelectedMessage(null);
+                                        return;
+                                      }
+                                      handleTogglePlayAudio(msg.id, msg.mediaUri);
+                                    }}
                                     onLongPress={() => handleLongPressMessage(msg)}
                                     delayLongPress={350}
                                     activeOpacity={0.8}
@@ -4271,7 +4360,13 @@ export default function CommunityScreen({
                                       }}
                                       onStartShouldSetResponder={() => true}
                                       onMoveShouldSetResponder={() => true}
-                                      onResponderGrant={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false)}
+                                      onResponderGrant={(e) => {
+                                        if (selectedMessage) {
+                                          setSelectedMessage(null);
+                                          return;
+                                        }
+                                        handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false);
+                                      }}
                                       onResponderMove={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false)}
                                       onResponderRelease={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, true)}
                                     >
@@ -4328,7 +4423,7 @@ export default function CommunityScreen({
                               {msg.time}
                             </Text>
                           </TouchableOpacity>
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                   </ScrollView>
@@ -4418,7 +4513,14 @@ export default function CommunityScreen({
                     </View>
                   ) : (
                     /* Unified Composer: Keeps the Mic Button Mounted without interrupting touch */
-                    <View style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View
+                      style={[styles.dmComposerContainer, isRtl && { flexDirection: 'row-reverse' }]}
+                      onTouchStart={() => {
+                        if (selectedMessage) {
+                          setSelectedMessage(null);
+                        }
+                      }}
+                    >
                       {/* Holding overlay: shown only during active hold */}
                       {isRecordingVoice && !isRecordingLocked ? (
                         <View style={[styles.dmHoldingOverlay, isRtl && { flexDirection: 'row-reverse' }]} pointerEvents="none">
@@ -4669,110 +4771,6 @@ export default function CommunityScreen({
                   </ScrollView>
                   </View>
                 </TouchableWithoutFeedback>
-              )}
-
-              {/* Custom In-App Delete Message Confirmation Overlay */}
-              {messageToDelete && (
-                <View style={styles.deleteConfirmOverlay}>
-                  <BlurView
-                    intensity={Platform.OS === 'ios' ? 45 : 75}
-                    tint={isDarkMode ? 'dark' : 'default'}
-                    style={StyleSheet.absoluteFill}
-                  >
-                    <TouchableOpacity
-                      style={StyleSheet.absoluteFill}
-                      activeOpacity={1}
-                      onPress={() => setMessageToDelete(null)}
-                    />
-                  </BlurView>
-
-                  <View style={styles.deleteConfirmCard}>
-                    {/* Top Close Icon Button */}
-                    <TouchableOpacity
-                      style={[styles.deleteConfirmCloseBtn, isRtl && { right: undefined, left: 14 }]}
-                      onPress={() => setMessageToDelete(null)}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="close" size={16} color={COLORS.textDark} />
-                    </TouchableOpacity>
-
-                    {/* Red Trash Icon Badge */}
-                    <View style={styles.deleteConfirmIconBadge}>
-                      <Ionicons name="trash-outline" size={26} color="#FF3B30" />
-                    </View>
-
-                    {/* Title */}
-                    <Text style={[styles.deleteConfirmTitle, isRtl && styles.arabicBoldText]}>
-                      {isRtl ? 'حذف الرسالة' : 'Delete Message'}
-                    </Text>
-
-                    {/* Description */}
-                    <Text style={[styles.deleteConfirmDesc, isRtl && styles.arabicRegularText]}>
-                      {isRtl
-                        ? 'هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.'
-                        : 'Are you sure you want to permanently delete this message? This action cannot be undone.'}
-                    </Text>
-
-                    {/* Message Preview Snippet Box */}
-                    <View style={styles.deleteConfirmPreviewBox}>
-                      {messageToDelete.mediaType === 'audio' ? (
-                        <View style={[styles.deleteConfirmPreviewRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                          <Ionicons name="mic" size={15} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
-                          <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]}>
-                            {isRtl ? `تسجيل صوتي (${messageToDelete.audioDuration || '0:03'})` : `Voice message (${messageToDelete.audioDuration || '0:03'})`}
-                          </Text>
-                        </View>
-                      ) : messageToDelete.mediaType === 'image' ? (
-                        <View style={[styles.deleteConfirmPreviewRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                          <Ionicons name="image" size={15} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
-                          <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]}>
-                            {isRtl ? 'صورة مرفقة' : 'Attached image'}
-                          </Text>
-                        </View>
-                      ) : messageToDelete.mediaType === 'video' ? (
-                        <View style={[styles.deleteConfirmPreviewRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                          <Ionicons name="videocam" size={15} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
-                          <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]}>
-                            {isRtl ? 'تسجيل فيديو مرفق' : 'Attached video'}
-                          </Text>
-                        </View>
-                      ) : (
-                        <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]} numberOfLines={2}>
-                          "{messageToDelete.text || ''}"
-                        </Text>
-                      )}
-                    </View>
-
-                    {/* Action Buttons Row */}
-                    <View style={[styles.deleteConfirmActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <TouchableOpacity
-                        style={styles.deleteConfirmCancelBtn}
-                        onPress={() => setMessageToDelete(null)}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={[styles.deleteConfirmCancelText, isRtl && styles.arabicBoldText]}>
-                          {isRtl ? 'إلغاء' : 'Cancel'}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.deleteConfirmDeleteBtn}
-                        onPress={() => {
-                          const target = messageToDelete;
-                          setMessageToDelete(null);
-                          handleDeleteMessage(target);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="trash" size={16} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
-                        <Text style={[styles.deleteConfirmDeleteText, isRtl && styles.arabicBoldText]}>
-                          {isRtl ? 'حذف' : 'Delete'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
               )}
             </SafeAreaView>
           </Modal>
@@ -5600,135 +5598,61 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     includeFontPadding: false,
     lineHeight: 12,
   },
-  deleteConfirmOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 17, 0.45)',
-    justifyContent: 'center',
+  dmHeaderSelectionRow: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 24,
-  },
-  deleteConfirmCard: {
+    justifyContent: 'space-between',
     width: '100%',
-    maxWidth: 325,
-    backgroundColor: colors.bgCreamy,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: colors.borderGreen,
-    padding: 22,
-    alignItems: 'center',
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 12,
-    position: 'relative',
   },
-  deleteConfirmCloseBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    zIndex: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.bgBrandLight,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
+  dmHeaderCloseSelectBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
-  deleteConfirmIconBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: isDarkMode ? 'rgba(255, 59, 48, 0.16)' : '#FEECEC',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? 'rgba(255, 59, 48, 0.35)' : '#FCD4D4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    marginTop: 4,
-  },
-  deleteConfirmTitle: {
-    fontSize: 18,
+  dmHeaderSelectCountText: {
+    fontSize: 15,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '800',
     color: colors.textDark,
-    textAlign: 'center',
-    marginBottom: 6,
+    marginLeft: 8,
   },
-  deleteConfirmDesc: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans-Regular',
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 14,
-    paddingHorizontal: 6,
-  },
-  deleteConfirmPreviewBox: {
-    width: '100%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: isDarkMode ? '#1E2520' : colors.bgBrandLight,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
-    marginBottom: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteConfirmPreviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  deleteConfirmPreviewText: {
-    fontSize: 12.5,
-    fontFamily: 'PlusJakartaSans-Regular',
-    color: colors.textDark,
-    textAlign: 'center',
-  },
-  deleteConfirmActionsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 10,
-  },
-  deleteConfirmCancelBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: isDarkMode ? '#222C24' : colors.white,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteConfirmCancelText: {
-    color: colors.textDark,
-    fontSize: 13.5,
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontWeight: '700',
-  },
-  deleteConfirmDeleteBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 14,
+  dmHeaderDeleteBtn: {
     backgroundColor: '#FF3B30',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 15,
+    height: 36,
+    borderRadius: 18,
     shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
     elevation: 3,
   },
-  deleteConfirmDeleteText: {
+  dmHeaderDeleteBtnText: {
     color: '#FFFFFF',
-    fontSize: 13.5,
+    fontSize: 13,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '800',
+  },
+  dmMessageRowSelected: {
+    backgroundColor: isDarkMode ? 'rgba(56, 161, 105, 0.16)' : 'rgba(30, 45, 31, 0.08)',
+    borderRadius: 16,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  dmBubbleSelected: {
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
   },
   selectorTabActive: {
     backgroundColor: colors.white,
