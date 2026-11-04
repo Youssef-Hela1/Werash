@@ -321,7 +321,10 @@ export default function CommunityScreen({
   const [voiceTapTipVisible, setVoiceTapTipVisible] = useState(false);
   const [readTimestamps, setReadTimestamps] = useState({});
   const [unreadConversationsMap, setUnreadConversationsMap] = useState({});
-  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [selectedMessages, setSelectedMessages] = useState({});
+  const shouldScrollToBottomRef = useRef(false);
+  const selectedCount = useMemo(() => Object.keys(selectedMessages).length, [selectedMessages]);
+  const isSelectionMode = selectedCount > 0;
   const [deletedForMeIds, setDeletedForMeIds] = useState(new Set());
   const deletedForMeIdsRef = useRef(new Set());
   deletedForMeIdsRef.current = deletedForMeIds;
@@ -691,6 +694,7 @@ export default function CommunityScreen({
                 [authorName]: [...list, newMsg],
               };
             });
+            shouldScrollToBottomRef.current = true;
             markConversationAsRead(convId);
             fetchUserConversations();
           }
@@ -1308,7 +1312,11 @@ export default function CommunityScreen({
 
       if (convId) {
         markConversationAsRead(convId);
+        shouldScrollToBottomRef.current = true;
         await fetchConversationMessages(convId, authorName);
+        setTimeout(() => {
+          dmScrollRef.current?.scrollToEnd({ animated: false });
+        }, 120);
       }
     } catch (err) {
       console.warn('handleOpenDirectMessage error:', err);
@@ -1316,7 +1324,7 @@ export default function CommunityScreen({
   };
 
   const handleCloseDirectMessage = () => {
-    setSelectedMessage(null);
+    setSelectedMessages({});
     if (directMessageUser?.conversationId) {
       markConversationAsRead(directMessageUser.conversationId);
     }
@@ -1557,6 +1565,11 @@ export default function CommunityScreen({
         };
       });
 
+      shouldScrollToBottomRef.current = true;
+      setTimeout(() => {
+        dmScrollRef.current?.scrollToEnd({ animated: true });
+      }, 80);
+
       await supabase
         .from('conversations')
         .update({
@@ -1572,19 +1585,37 @@ export default function CommunityScreen({
     }
   };
 
-  const handleLongPressMessage = (msg) => {
+  const handleToggleSelectMessage = (msg) => {
     if (!msg || !msg.id) return;
-    setSelectedMessage(msg);
+    setSelectedMessages((prev) => {
+      const next = { ...prev };
+      if (next[msg.id]) {
+        delete next[msg.id];
+      } else {
+        next[msg.id] = msg;
+      }
+      return next;
+    });
   };
 
-  const handleDeleteMessage = async (msg) => {
+  const handleLongPressMessage = (msg) => {
     if (!msg || !msg.id) return;
+    handleToggleSelectMessage(msg);
+  };
+
+  const handleDeleteSelectedMessages = async () => {
+    const messagesToDelete = Object.values(selectedMessages);
+    if (messagesToDelete.length === 0) return;
+
     const targetUser = directMessageUserRef.current || directMessageUser;
     const authorName = targetUser?.author;
     if (!authorName) return;
 
-    // Stop audio playback if this message is playing
-    if (playingAudioId === msg.id) {
+    // Clear selection mode immediately
+    setSelectedMessages({});
+
+    // Stop audio playback if any playing message is among the deleted messages
+    if (playingAudioId && messagesToDelete.some((m) => m.id === playingAudioId)) {
       try {
         if (soundRef.current) {
           if (soundRef.current.type === 'expo-audio') {
@@ -1597,7 +1628,9 @@ export default function CommunityScreen({
       setPlayingAudioId(null);
     }
 
-    // Optimistically remove from active chat
+    const deleteIdsSet = new Set(messagesToDelete.map((m) => m.id));
+
+    // Optimistically remove all selected messages from active dmHistory
     let newLastText = '';
     let newLastTime = '';
     let newLastAt = new Date().toISOString();
@@ -1605,7 +1638,7 @@ export default function CommunityScreen({
 
     setDmHistory((prev) => {
       const currentList = prev[authorName] || [];
-      const updatedList = currentList.filter((m) => m.id !== msg.id);
+      const updatedList = currentList.filter((m) => !deleteIdsSet.has(m.id));
 
       const lastMsg = updatedList.length > 0 ? updatedList[updatedList.length - 1] : null;
       if (lastMsg) {
@@ -1645,22 +1678,26 @@ export default function CommunityScreen({
       })
     );
 
-    const isSentByMe = msg.sender === 'user';
+    const myMessageIds = messagesToDelete
+      .filter((m) => m.sender === 'user')
+      .map((m) => m.id);
 
-    if (isSentByMe) {
-      // === DELETED FOR EVERYONE (Message I sent) ===
-      // Delete from Supabase direct_messages so it is removed for the other user too
+    const otherMessageIds = messagesToDelete
+      .filter((m) => m.sender !== 'user')
+      .map((m) => m.id);
+
+    // 1. Messages sent by ME -> Delete from Supabase for everyone
+    if (myMessageIds.length > 0) {
       try {
         const { error: delError } = await supabase
           .from('direct_messages')
           .delete()
-          .eq('id', msg.id);
+          .in('id', myMessageIds);
 
         if (delError) {
-          console.warn('Error deleting direct message from Supabase:', delError.message);
+          console.warn('Error deleting my messages from Supabase:', delError.message);
         }
 
-        // Update conversations record with new last message in Supabase
         if (targetUser?.conversationId) {
           await supabase
             .from('conversations')
@@ -1674,15 +1711,15 @@ export default function CommunityScreen({
 
         fetchUserConversations();
       } catch (err) {
-        console.warn('handleDeleteMessage (everyone) error:', err);
+        console.warn('handleDeleteSelectedMessages (everyone) error:', err);
       }
-    } else {
-      // === DELETED FOR ME ONLY (Message sent by the other user) ===
-      // Do NOT delete from Supabase so the other user still keeps it!
-      // Persist deleted message ID locally in AsyncStorage for currentUser
+    }
+
+    // 2. Messages sent by the OTHER USER -> Delete on my end only (persist locally)
+    if (otherMessageIds.length > 0) {
       try {
         const updatedSet = new Set(deletedForMeIdsRef.current);
-        updatedSet.add(msg.id);
+        otherMessageIds.forEach((id) => updatedSet.add(id));
         setDeletedForMeIds(updatedSet);
         deletedForMeIdsRef.current = updatedSet;
 
@@ -1693,7 +1730,7 @@ export default function CommunityScreen({
           );
         }
       } catch (err) {
-        console.warn('handleDeleteMessage (for me only) error:', err);
+        console.warn('handleDeleteSelectedMessages (for me only) error:', err);
       }
     }
   };
@@ -1962,6 +1999,11 @@ export default function CommunityScreen({
           [authorName]: [...cur, newMsg],
         };
       });
+
+      shouldScrollToBottomRef.current = true;
+      setTimeout(() => {
+        dmScrollRef.current?.scrollToEnd({ animated: true });
+      }, 80);
 
       await supabase
         .from('conversations')
@@ -4155,8 +4197,8 @@ export default function CommunityScreen({
             animationType="slide"
             statusBarTranslucent={true}
             onRequestClose={() => {
-              if (selectedMessage) {
-                setSelectedMessage(null);
+              if (isSelectionMode) {
+                setSelectedMessages({});
                 return;
               }
               if (directMessageUser) {
@@ -4178,37 +4220,31 @@ export default function CommunityScreen({
                 >
                   {/* DM Header */}
                   <View style={styles.dmHeader}>
-                    {selectedMessage ? (
-                      <View style={[styles.dmHeaderSelectionRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                        {/* Left: Close selection / cancel button */}
+                    {isSelectionMode ? (
+                      <View style={styles.dmHeaderSelectionRow}>
+                        {/* Left: Close selection / cancel button (Always top left) */}
                         <TouchableOpacity
-                          style={[styles.dmHeaderCloseSelectBtn, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => setSelectedMessage(null)}
+                          style={styles.dmHeaderCloseSelectBtn}
+                          onPress={() => setSelectedMessages({})}
                           activeOpacity={0.7}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                         >
-                          <Ionicons name="close" size={22} color={COLORS.textDark} />
+                          <Ionicons name="close" size={24} color={COLORS.textDark} />
                           <Text style={[styles.dmHeaderSelectCountText, isRtl && styles.arabicBoldText]}>
-                            {isRtl ? '١ محددة' : '1 selected'}
+                            {isRtl ? `${selectedCount} محددة` : `${selectedCount} selected`}
                           </Text>
                         </TouchableOpacity>
 
                         {/* Right: Red Delete Button in the Top Right of the Screen */}
                         <TouchableOpacity
-                          style={[styles.dmHeaderDeleteBtn, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => {
-                            if (selectedMessage) {
-                              const toDelete = selectedMessage;
-                              setSelectedMessage(null);
-                              handleDeleteMessage(toDelete);
-                            }
-                          }}
+                          style={styles.dmHeaderDeleteBtn}
+                          onPress={handleDeleteSelectedMessages}
                           activeOpacity={0.8}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="trash" size={17} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                          <Ionicons name="trash" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                           <Text style={[styles.dmHeaderDeleteBtnText, isRtl && styles.arabicBoldText]}>
-                            {isRtl ? 'حذف' : 'Delete'}
+                            {isRtl ? `حذف (${selectedCount})` : `Delete (${selectedCount})`}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -4284,24 +4320,16 @@ export default function CommunityScreen({
                     showsVerticalScrollIndicator={false}
                     keyboardDismissMode="on-drag"
                     keyboardShouldPersistTaps="handled"
-                    onTouchStart={() => {
-                      handleDismissKeyboard();
-                      if (selectedMessage) {
-                        setSelectedMessage(null);
+                    onTouchStart={handleDismissKeyboard}
+                    onContentSizeChange={() => {
+                      if (shouldScrollToBottomRef.current) {
+                        shouldScrollToBottomRef.current = false;
+                        dmScrollRef.current?.scrollToEnd({ animated: true });
                       }
                     }}
-                    onContentSizeChange={() => dmScrollRef.current?.scrollToEnd({ animated: true })}
                   >
                     {/* Profile Intro Banner inside Chat */}
-                    <TouchableOpacity
-                      activeOpacity={1}
-                      onPress={() => {
-                        if (selectedMessage) {
-                          setSelectedMessage(null);
-                        }
-                      }}
-                      style={styles.dmIntroCard}
-                    >
+                    <View style={styles.dmIntroCard}>
                       {directMessageUser?.avatar ? (
                         <Image source={directMessageUser.avatar} style={styles.dmIntroAvatar} resizeMode="cover" />
                       ) : (
@@ -4318,21 +4346,23 @@ export default function CommunityScreen({
                           ? `هذه بداية محادثتك المباشرة مع ${directMessageUser?.author}. تبادلا الخبرات واستفسرا عن التعديلات وقطع الغيار.`
                           : `This is the start of your direct conversation with ${directMessageUser?.author}. Connect, ask about car builds, or trade parts.`}
                       </Text>
-                    </TouchableOpacity>
+                    </View>
 
                     {/* Chat Messages */}
                     {((directMessageUser && dmHistory[directMessageUser.author]) || []).map((msg) => {
                       const isMe = msg.sender === 'user';
-                      const isSelected = selectedMessage?.id === msg.id;
+                      const isSelected = Boolean(selectedMessages[msg.id]);
                       return (
                         <TouchableOpacity
                           key={msg.id}
-                          activeOpacity={1}
+                          activeOpacity={isSelectionMode ? 0.75 : 1}
                           onPress={() => {
-                            if (selectedMessage) {
-                              setSelectedMessage(null);
+                            if (isSelectionMode) {
+                              handleToggleSelectMessage(msg);
                             }
                           }}
+                          onLongPress={() => handleLongPressMessage(msg)}
+                          delayLongPress={350}
                           style={[
                             styles.dmMessageRow,
                             isSelected && styles.dmMessageRowSelected,
@@ -4341,11 +4371,11 @@ export default function CommunityScreen({
                           ]}
                         >
                           <TouchableOpacity
-                            activeOpacity={selectedMessage ? 1 : 0.92}
+                            activeOpacity={isSelectionMode ? 0.75 : 0.92}
                             delayLongPress={350}
                             onPress={() => {
-                              if (selectedMessage) {
-                                setSelectedMessage(null);
+                              if (isSelectionMode) {
+                                handleToggleSelectMessage(msg);
                               }
                             }}
                             onLongPress={() => handleLongPressMessage(msg)}
@@ -4355,13 +4385,20 @@ export default function CommunityScreen({
                               isSelected && styles.dmBubbleSelected,
                             ]}
                           >
+                            {/* Selected Checkmark Badge */}
+                            {isSelected && (
+                              <View style={[styles.dmSelectCheckBadge, isMe ? styles.dmSelectCheckBadgeMe : styles.dmSelectCheckBadgeThem]}>
+                                <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                              </View>
+                            )}
+
                             {/* Attached Image inside bubble */}
                             {msg.mediaType === 'image' && msg.mediaUri && (
                               <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={() => {
-                                  if (selectedMessage) {
-                                    setSelectedMessage(null);
+                                  if (isSelectionMode) {
+                                    handleToggleSelectMessage(msg);
                                     return;
                                   }
                                   setViewingMedia({ type: 'image', uri: msg.mediaUri });
@@ -4382,8 +4419,8 @@ export default function CommunityScreen({
                               <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={() => {
-                                  if (selectedMessage) {
-                                    setSelectedMessage(null);
+                                  if (isSelectionMode) {
+                                    handleToggleSelectMessage(msg);
                                     return;
                                   }
                                   setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration });
@@ -4427,11 +4464,11 @@ export default function CommunityScreen({
 
                               return (
                                 <TouchableOpacity
-                                  activeOpacity={0.95}
+                                  activeOpacity={isSelectionMode ? 0.75 : 0.95}
                                   delayLongPress={350}
                                   onPress={() => {
-                                    if (selectedMessage) {
-                                      setSelectedMessage(null);
+                                    if (isSelectionMode) {
+                                      handleToggleSelectMessage(msg);
                                     }
                                   }}
                                   onLongPress={() => handleLongPressMessage(msg)}
@@ -4449,8 +4486,8 @@ export default function CommunityScreen({
                                       isPlaying && styles.dmAudioPlayBtnActive
                                     ]}
                                     onPress={() => {
-                                      if (selectedMessage) {
-                                        setSelectedMessage(null);
+                                      if (isSelectionMode) {
+                                        handleToggleSelectMessage(msg);
                                         return;
                                       }
                                       handleTogglePlayAudio(msg.id, msg.mediaUri);
@@ -4479,14 +4516,20 @@ export default function CommunityScreen({
                                       onStartShouldSetResponder={() => true}
                                       onMoveShouldSetResponder={() => true}
                                       onResponderGrant={(e) => {
-                                        if (selectedMessage) {
-                                          setSelectedMessage(null);
+                                        if (isSelectionMode) {
+                                          handleToggleSelectMessage(msg);
                                           return;
                                         }
                                         handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false);
                                       }}
-                                      onResponderMove={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false)}
-                                      onResponderRelease={(e) => handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, true)}
+                                      onResponderMove={(e) => {
+                                        if (isSelectionMode) return;
+                                        handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, false);
+                                      }}
+                                      onResponderRelease={(e) => {
+                                        if (isSelectionMode) return;
+                                        handleWaveScrub(msg.id, msg.mediaUri, e.nativeEvent.locationX, totalSec, true);
+                                      }}
                                     >
                                       <View style={[styles.dmAudioWaveformRow, isRtl && { flexDirection: 'row-reverse' }]}>
                                         {WAVEFORM_BAR_HEIGHTS.map((barH, barIdx) => {
@@ -5771,6 +5814,30 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 8,
     elevation: 6,
+  },
+  dmSelectCheckBadge: {
+    position: 'absolute',
+    top: -6,
+    zIndex: 20,
+    backgroundColor: '#FF3B30',
+    borderRadius: 11,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  dmSelectCheckBadgeMe: {
+    left: -6,
+  },
+  dmSelectCheckBadgeThem: {
+    right: -6,
   },
   selectorTabActive: {
     backgroundColor: colors.white,
