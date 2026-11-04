@@ -1259,11 +1259,11 @@ export default function CommunityScreen({
     const authorName = authorData.author || authorData.fullName || authorData.name;
     if (!authorName) return;
 
-    const currentAuthor = currentUser ? currentUser.fullName : 'Guest User';
+    const currentAuthor = currentUser?.fullName || '';
     const authorPosts = feedPosts.filter((p) => p.author === authorName);
     const primaryVehicle = authorData.vehicle || authorPosts.find((p) => p.vehicle && p.vehicle !== 'General')?.vehicle || (authorName === currentAuthor ? (currentCarName || '') : '');
     const userId = authorData.userId || authorData.user_id || authorPosts.find(p => p.userId)?.userId || null;
-    const isSelf = (currentUser?.id && userId === currentUser.id) || authorName === currentAuthor || authorData.isSelf === true;
+    const isSelf = (Boolean(currentUser?.id) && userId === currentUser.id) || (Boolean(currentUser?.fullName) && authorName === currentUser.fullName) || authorData.isSelf === true;
 
     if (isSelf) {
       setSelectedUserProfile(null);
@@ -1281,7 +1281,7 @@ export default function CommunityScreen({
       return;
     }
 
-    // Opening someone else's profile -> open a new page, DO NOT change selectedFeed or take to my profile section!
+    // Opening someone else's profile -> open a dedicated page modal, DO NOT change selectedFeed or take to my profile section!
     const cachedProf = userId ? userProfilesMap[userId] : null;
     let resolvedAvatar = cachedProf?.avatar_url
       ? { uri: cachedProf.avatar_url }
@@ -1299,14 +1299,9 @@ export default function CommunityScreen({
       isSelf: false,
     };
 
+    setActiveCommentsPost(null);
+    setExpandedPostId(null);
     setViewingOtherUser(otherUserData);
-    otherProfileSlideAnim.setValue(isRtl ? -SCREEN_WIDTH : SCREEN_WIDTH);
-    Animated.spring(otherProfileSlideAnim, {
-      toValue: 0,
-      friction: 8,
-      tension: 65,
-      useNativeDriver: true,
-    }).start();
 
     // Fetch latest fresh profile row from Supabase
     if (userId) {
@@ -1334,13 +1329,7 @@ export default function CommunityScreen({
   };
 
   const handleCloseOtherUserProfile = () => {
-    Animated.timing(otherProfileSlideAnim, {
-      toValue: isRtl ? -SCREEN_WIDTH : SCREEN_WIDTH,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(() => {
-      setViewingOtherUser(null);
-    });
+    setViewingOtherUser(null);
   };
 
   const handleOpenDirectMessage = async (user, fromInbox = false) => {
@@ -6093,17 +6082,16 @@ export default function CommunityScreen({
             </View>
           </Modal>
 
-          {/* Dedicated New Page for Another User's Profile */}
-          {Boolean(viewingOtherUser) && (
-            <Animated.View
-              style={[
-                styles.otherProfileContainer,
-                {
-                  transform: [{ translateX: otherProfileSlideAnim }],
-                },
-              ]}
-            >
-              <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bgCreamy }}>
+          {/* Dedicated New Page Modal for Another User's Profile */}
+          <Modal
+            visible={Boolean(viewingOtherUser)}
+            transparent={false}
+            animationType="slide"
+            statusBarTranslucent={true}
+            onRequestClose={handleCloseOtherUserProfile}
+          >
+            {Boolean(viewingOtherUser) && (
+              <View style={[styles.newPageContainer, { backgroundColor: COLORS.bgCreamy }]}>
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bgCreamy} />
 
                 {/* Top Header Bar */}
@@ -6133,7 +6121,11 @@ export default function CommunityScreen({
 
                   <TouchableOpacity
                     style={styles.otherProfileMsgHeaderBtn}
-                    onPress={() => handleOpenDirectMessage(viewingOtherUser)}
+                    onPress={() => {
+                      const userTarget = viewingOtherUser;
+                      setViewingOtherUser(null);
+                      handleOpenDirectMessage(userTarget);
+                    }}
                     activeOpacity={0.8}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
@@ -6200,7 +6192,11 @@ export default function CommunityScreen({
                         <TouchableOpacity
                           activeOpacity={0.82}
                           style={[styles.profileMessageBtn, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => handleOpenDirectMessage(viewingOtherUser)}
+                          onPress={() => {
+                            const userTarget = viewingOtherUser;
+                            setViewingOtherUser(null);
+                            handleOpenDirectMessage(userTarget);
+                          }}
                         >
                           <Ionicons 
                             name="chatbubble-ellipses" 
@@ -6327,7 +6323,10 @@ export default function CommunityScreen({
                               <TouchableOpacity 
                                 style={[styles.actionButton, isRtl ? { marginRight: 20 } : { marginLeft: 20 }]}
                                 activeOpacity={0.7}
-                                onPress={() => handleOpenComments(post)}
+                                onPress={() => {
+                                  setViewingOtherUser(null);
+                                  handleOpenComments(post);
+                                }}
                               >
                                 <Ionicons name="chatbubble-outline" size={19} color={COLORS.textMuted} />
                                 <Text style={styles.actionText}>{post.comments || (post.commentsList ? post.commentsList.length : 0)}</Text>
@@ -6338,7 +6337,11 @@ export default function CommunityScreen({
                               <TouchableOpacity 
                                 style={styles.contactSellerButton} 
                                 activeOpacity={0.8}
-                                onPress={() => handleOpenDirectMessage(viewingOtherUser)}
+                                onPress={() => {
+                                  const userTarget = viewingOtherUser;
+                                  setViewingOtherUser(null);
+                                  handleOpenDirectMessage(userTarget);
+                                }}
                               >
                                 <Ionicons name="chatbubble-ellipses" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
                                 <Text style={styles.contactSellerText}>Message Seller</Text>
@@ -6350,9 +6353,9 @@ export default function CommunityScreen({
                     )}
                   </View>
                 </ScrollView>
-              </SafeAreaView>
-            </Animated.View>
-          )}
+              </View>
+            )}
+          </Modal>
         </View>
       </View>
     </View>
@@ -9494,10 +9497,11 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 56 : (StatusBar.currentHeight || 24) + 12,
+    paddingBottom: 14,
     paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: colors.bgCreamy,
-    borderBottomWidth: 1,
+    borderBottomWidth: 1.2,
     borderBottomColor: colors.borderGreen,
   },
   otherProfileBackBtn: {
