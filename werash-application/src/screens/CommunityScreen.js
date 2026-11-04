@@ -49,7 +49,10 @@ const initialPosts = [];
 
 const formatTimeAgo = (dateString, isRtl) => {
   if (!dateString) return isRtl ? 'الآن' : 'Just now';
-  const diffMs = Date.now() - new Date(dateString).getTime();
+  const parsed = new Date(dateString);
+  const timeMs = parsed.getTime();
+  if (isNaN(timeMs)) return isRtl ? 'الآن' : 'Just now';
+  const diffMs = Date.now() - timeMs;
   const diffSec = Math.floor(diffMs / 1000);
   if (diffSec < 60) return isRtl ? 'الآن' : 'Just now';
   const diffMin = Math.floor(diffSec / 60);
@@ -59,7 +62,11 @@ const formatTimeAgo = (dateString, isRtl) => {
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay === 1) return isRtl ? 'أمس' : 'Yesterday';
   if (diffDay < 7) return isRtl ? `منذ ${diffDay} أيام` : `${diffDay}d ago`;
-  return new Date(dateString).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
+  try {
+    return parsed.toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
+  } catch (_) {
+    return isRtl ? 'الآن' : 'Just now';
+  }
 };
 
 const REPORT_REASONS = [
@@ -336,22 +343,26 @@ export default function CommunityScreen({
         keys.push(`@werash_deleted_messages_${currentUser.id}`);
       }
       const values = await AsyncStorage.multiGet(keys);
-      const combined = new Set(deletedForMeIdsRef.current);
-      values.forEach(([_, val]) => {
-        if (val) {
-          try {
-            const arr = JSON.parse(val);
-            if (Array.isArray(arr)) {
-              arr.forEach((id) => combined.add(id));
-            }
-          } catch (_) {}
-        }
-      });
+      const combined = new Set(deletedForMeIdsRef.current instanceof Set ? deletedForMeIdsRef.current : []);
+      if (Array.isArray(values)) {
+        values.forEach(([_, val]) => {
+          if (val) {
+            try {
+              const arr = JSON.parse(val);
+              if (Array.isArray(arr)) {
+                arr.forEach((id) => combined.add(id));
+              }
+            } catch (_) {}
+          }
+        });
+      }
       deletedForMeIdsRef.current = combined;
       setDeletedForMeIds(combined);
       return combined;
     } catch (_) {
-      return deletedForMeIdsRef.current;
+      const fallback = deletedForMeIdsRef.current instanceof Set ? deletedForMeIdsRef.current : new Set();
+      deletedForMeIdsRef.current = fallback;
+      return fallback;
     }
   };
 
@@ -494,7 +505,8 @@ export default function CommunityScreen({
         let displayTime = formatTimeAgo(c.last_message_at, isRtl);
 
         if (localHistory && Array.isArray(localHistory)) {
-          const visibleHistory = localHistory.filter((item) => !deletedForMeIdsRef.current.has(item.id));
+          const delSet = (deletedForMeIdsRef.current instanceof Set) ? deletedForMeIdsRef.current : new Set();
+          const visibleHistory = localHistory.filter((item) => item?.id && !delSet.has(item.id));
           if (visibleHistory.length > 0) {
             const lastItem = visibleHistory[visibleHistory.length - 1];
             displayLastMsg = lastItem.text || (lastItem.mediaType === 'audio' ? (isRtl ? '🎙️ رسالة صوتية' : '🎙️ Voice message') : (lastItem.mediaType === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image')));
@@ -546,8 +558,10 @@ export default function CommunityScreen({
         return;
       }
 
+      const delSet = (deletedIds instanceof Set) ? deletedIds : new Set();
+
       const formatted = (data || [])
-        .filter((m) => !deletedIds.has(m.id))
+        .filter((m) => m?.id && !delSet.has(m.id))
         .map((m) => {
           const isMe = m.sender_id === currentUser?.id;
           const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
@@ -591,18 +605,20 @@ export default function CommunityScreen({
           table: 'conversations',
         },
         (payload) => {
-          if (payload?.new) {
-            const c = payload.new;
-            if (c.last_sender_id && c.last_sender_id !== currentUser.id) {
-              if (directMessageUserRef.current?.conversationId !== c.id) {
-                setUnreadConversationsMap((prev) => ({
-                  ...prev,
-                  [c.id]: true,
-                }));
+          try {
+            if (payload?.new) {
+              const c = payload.new;
+              if (c.last_sender_id && c.last_sender_id !== currentUser.id) {
+                if (directMessageUserRef.current?.conversationId !== c.id) {
+                  setUnreadConversationsMap((prev) => ({
+                    ...prev,
+                    [c.id]: true,
+                  }));
+                }
               }
             }
-          }
-          fetchUserConversations();
+            fetchUserConversations().catch(() => {});
+          } catch (_) {}
         }
       )
       .subscribe();
@@ -618,18 +634,20 @@ export default function CommunityScreen({
           filter: `receiver_id=eq.${currentUser.id}`,
         },
         (payload) => {
-          if (payload?.new) {
-            const m = payload.new;
-            if (directMessageUserRef.current?.conversationId === m.conversation_id) {
-              markConversationAsRead(m.conversation_id);
-            } else {
-              setUnreadConversationsMap((prev) => ({
-                ...prev,
-                [m.conversation_id]: true,
-              }));
+          try {
+            if (payload?.new) {
+              const m = payload.new;
+              if (directMessageUserRef.current?.conversationId === m.conversation_id) {
+                markConversationAsRead(m.conversation_id);
+              } else {
+                setUnreadConversationsMap((prev) => ({
+                  ...prev,
+                  [m.conversation_id]: true,
+                }));
+              }
+              fetchUserConversations().catch(() => {});
             }
-            fetchUserConversations();
-          }
+          } catch (_) {}
         }
       )
       .subscribe();
@@ -658,35 +676,38 @@ export default function CommunityScreen({
           filter: `conversation_id=eq.${convId}`,
         },
         (payload) => {
-          if (payload.new) {
-            const m = payload.new;
-            if (deletedForMeIdsRef.current && deletedForMeIdsRef.current.has(m.id)) return;
-            const isMe = m.sender_id === currentUser?.id;
-            const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
-            const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
-            const newMsg = {
-              id: m.id,
-              sender: isMe ? 'user' : 'them',
-              text: m.text || '',
-              textAr: m.text || '',
-              mediaType: m.media_type,
-              mediaUri: m.media_url,
-              audioDuration,
-              time: formatTimeAgo(m.created_at, isRtl),
-              created_at: m.created_at,
-            };
-            setDmHistory((prev) => {
-              const list = prev[authorName] || [];
-              if (list.some((item) => item.id === newMsg.id)) return prev;
-              return {
-                ...prev,
-                [authorName]: [...list, newMsg],
+          try {
+            if (payload.new) {
+              const m = payload.new;
+              const delSet = (deletedForMeIdsRef.current instanceof Set) ? deletedForMeIdsRef.current : new Set();
+              if (m?.id && delSet.has(m.id)) return;
+              const isMe = m.sender_id === currentUser?.id;
+              const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
+              const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
+              const newMsg = {
+                id: m.id,
+                sender: isMe ? 'user' : 'them',
+                text: m.text || '',
+                textAr: m.text || '',
+                mediaType: m.media_type,
+                mediaUri: m.media_url,
+                audioDuration,
+                time: formatTimeAgo(m.created_at, isRtl),
+                created_at: m.created_at,
               };
-            });
-            shouldScrollToBottomRef.current = true;
-            markConversationAsRead(convId);
-            fetchUserConversations();
-          }
+              setDmHistory((prev) => {
+                const list = prev[authorName] || [];
+                if (list.some((item) => item.id === newMsg.id)) return prev;
+                return {
+                  ...prev,
+                  [authorName]: [...list, newMsg],
+                };
+              });
+              shouldScrollToBottomRef.current = true;
+              markConversationAsRead(convId);
+              fetchUserConversations().catch(() => {});
+            }
+          } catch (_) {}
         }
       )
       .on(
@@ -697,18 +718,20 @@ export default function CommunityScreen({
           table: 'direct_messages',
         },
         (payload) => {
-          if (payload?.old?.id) {
-            const deletedId = payload.old.id;
-            setDmHistory((prev) => {
-              const list = prev[authorName] || [];
-              if (!list.some((item) => item.id === deletedId)) return prev;
-              return {
-                ...prev,
-                [authorName]: list.filter((item) => item.id !== deletedId),
-              };
-            });
-            fetchUserConversations();
-          }
+          try {
+            if (payload?.old?.id) {
+              const deletedId = payload.old.id;
+              setDmHistory((prev) => {
+                const list = prev[authorName] || [];
+                if (!list.some((item) => item.id === deletedId)) return prev;
+                return {
+                  ...prev,
+                  [authorName]: list.filter((item) => item.id !== deletedId),
+                };
+              });
+              fetchUserConversations().catch(() => {});
+            }
+          } catch (_) {}
         }
       )
       .subscribe();
@@ -1493,34 +1516,34 @@ export default function CommunityScreen({
             receiver_id: targetUser.userId,
             text: textContent || null,
             media_url: uploadedMediaUrl,
-            media_type: mediaType,
+            media_type: mediaType || 'text',
           },
         ])
         .select()
         .single();
 
-      if (insertErr) {
+      if (insertErr || !insertedMsg) {
         console.warn('Error inserting direct message:', insertErr);
         Alert.alert(isRtl ? 'خطأ' : 'Error', isRtl ? 'فشل إرسال الرسالة.' : 'Failed to send message.');
         return;
       }
 
-      const summaryText = textContent || (mediaType === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image'));
+      const summaryText = textContent || (mediaType === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (mediaType === 'image' ? (isRtl ? '📷 صورة' : '📷 Image') : ''));
 
       const newMsg = {
         id: insertedMsg.id,
         sender: 'user',
         text: textContent,
         textAr: textContent,
-        mediaType,
+        mediaType: mediaType || 'text',
         mediaUri: uploadedMediaUrl || sentMedia?.uri,
         mediaDuration: sentMedia?.duration || null,
         time: isRtl ? 'الآن' : 'Just now',
-        created_at: insertedMsg.created_at,
+        created_at: insertedMsg.created_at || new Date().toISOString(),
       };
 
       setDmHistory((prev) => {
-        const list = prev[authorName] || [];
+        const list = (prev && prev[authorName]) || [];
         if (list.some((m) => m.id === newMsg.id)) return prev;
         return {
           ...prev,
@@ -1530,17 +1553,21 @@ export default function CommunityScreen({
 
       shouldScrollToBottomRef.current = true;
       setTimeout(() => {
-        dmScrollRef.current?.scrollToEnd({ animated: true });
+        try {
+          dmScrollRef.current?.scrollToEnd({ animated: true });
+        } catch (_) {}
       }, 80);
 
-      await supabase
-        .from('conversations')
-        .update({
-          last_message_text: summaryText,
-          last_message_at: new Date().toISOString(),
-          last_sender_id: currentUser.id,
-        })
-        .eq('id', targetUser.conversationId);
+      try {
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: summaryText,
+            last_message_at: new Date().toISOString(),
+            last_sender_id: currentUser.id,
+          })
+          .eq('id', targetUser.conversationId);
+      } catch (_) {}
 
       updateInboxConversation(authorName, summaryText, isRtl ? 'الآن' : 'Just now');
     } catch (err) {
@@ -1941,7 +1968,7 @@ export default function CommunityScreen({
         .select()
         .single();
 
-      if (insertErr) {
+      if (insertErr || !insertedMsg) {
         console.warn('Error inserting voice message:', insertErr);
         return;
       }
@@ -1955,11 +1982,11 @@ export default function CommunityScreen({
         text: summaryText,
         textAr: summaryText,
         time: isRtl ? 'الآن' : 'Just now',
-        created_at: insertedMsg.created_at,
+        created_at: insertedMsg.created_at || new Date().toISOString(),
       };
 
       setDmHistory((prev) => {
-        const cur = prev[authorName] || [];
+        const cur = (prev && prev[authorName]) || [];
         if (cur.some((m) => m.id === newMsg.id)) return prev;
         return {
           ...prev,
@@ -1969,17 +1996,21 @@ export default function CommunityScreen({
 
       shouldScrollToBottomRef.current = true;
       setTimeout(() => {
-        dmScrollRef.current?.scrollToEnd({ animated: true });
+        try {
+          dmScrollRef.current?.scrollToEnd({ animated: true });
+        } catch (_) {}
       }, 80);
 
-      await supabase
-        .from('conversations')
-        .update({
-          last_message_text: summaryText,
-          last_message_at: new Date().toISOString(),
-          last_sender_id: currentUser.id,
-        })
-        .eq('id', targetUser.conversationId);
+      try {
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: summaryText,
+            last_message_at: new Date().toISOString(),
+            last_sender_id: currentUser.id,
+          })
+          .eq('id', targetUser.conversationId);
+      } catch (_) {}
 
       updateInboxConversation(authorName, summaryText, isRtl ? 'الآن' : 'Just now');
     } catch (err) {
@@ -4291,7 +4322,9 @@ export default function CommunityScreen({
                     onContentSizeChange={() => {
                       if (shouldScrollToBottomRef.current) {
                         shouldScrollToBottomRef.current = false;
-                        dmScrollRef.current?.scrollToEnd({ animated: true });
+                        try {
+                          dmScrollRef.current?.scrollToEnd({ animated: true });
+                        } catch (_) {}
                       }
                     }}
                   >
