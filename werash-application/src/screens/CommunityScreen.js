@@ -321,6 +321,7 @@ export default function CommunityScreen({
   const [voiceTapTipVisible, setVoiceTapTipVisible] = useState(false);
   const [readTimestamps, setReadTimestamps] = useState({});
   const [unreadConversationsMap, setUnreadConversationsMap] = useState({});
+  const [messageToDelete, setMessageToDelete] = useState(null);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -1478,40 +1479,7 @@ export default function CommunityScreen({
 
   const handleLongPressMessage = (msg) => {
     if (!msg || !msg.id) return;
-    const isMe = msg.sender === 'user';
-    const isVoice = msg.mediaType === 'audio';
-    const isImage = msg.mediaType === 'image';
-    const isVideo = msg.mediaType === 'video';
-
-    let itemDesc = '';
-    if (isVoice) {
-      itemDesc = isRtl ? 'التسجيل الصوتي' : 'voice message';
-    } else if (isImage) {
-      itemDesc = isRtl ? 'الصورة' : 'image';
-    } else if (isVideo) {
-      itemDesc = isRtl ? 'الفيديو' : 'video';
-    } else {
-      itemDesc = isRtl ? 'الرسالة' : 'message';
-    }
-
-    Alert.alert(
-      isRtl ? 'حذف الرسالة' : 'Delete Message',
-      isRtl
-        ? `هل أنت متأكد من رغبتك في حذف ${itemDesc}؟`
-        : `Are you sure you want to delete this ${itemDesc}?`,
-      [
-        {
-          text: isRtl ? 'إلغاء' : 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: isRtl ? 'حذف' : 'Delete',
-          style: 'destructive',
-          onPress: () => handleDeleteMessage(msg),
-        },
-      ],
-      { cancelable: true }
-    );
+    setMessageToDelete(msg);
   };
 
   const handleDeleteMessage = async (msg) => {
@@ -4067,7 +4035,17 @@ export default function CommunityScreen({
             transparent={false}
             animationType="slide"
             statusBarTranslucent={true}
-            onRequestClose={directMessageUser ? handleCloseDirectMessage : () => setShowMessagesPage(false)}
+            onRequestClose={() => {
+              if (messageToDelete) {
+                setMessageToDelete(null);
+                return;
+              }
+              if (directMessageUser) {
+                handleCloseDirectMessage();
+                return;
+              }
+              setShowMessagesPage(false);
+            }}
           >
             <SafeAreaView style={[styles.newPageContainer, { backgroundColor: COLORS.bgCreamy }]}>
               <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bgCreamy} />
@@ -4691,6 +4669,110 @@ export default function CommunityScreen({
                   </ScrollView>
                   </View>
                 </TouchableWithoutFeedback>
+              )}
+
+              {/* Custom In-App Delete Message Confirmation Overlay */}
+              {messageToDelete && (
+                <View style={styles.deleteConfirmOverlay}>
+                  <BlurView
+                    intensity={Platform.OS === 'ios' ? 45 : 75}
+                    tint={isDarkMode ? 'dark' : 'default'}
+                    style={StyleSheet.absoluteFill}
+                  >
+                    <TouchableOpacity
+                      style={StyleSheet.absoluteFill}
+                      activeOpacity={1}
+                      onPress={() => setMessageToDelete(null)}
+                    />
+                  </BlurView>
+
+                  <View style={styles.deleteConfirmCard}>
+                    {/* Top Close Icon Button */}
+                    <TouchableOpacity
+                      style={[styles.deleteConfirmCloseBtn, isRtl && { right: undefined, left: 14 }]}
+                      onPress={() => setMessageToDelete(null)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close" size={16} color={COLORS.textDark} />
+                    </TouchableOpacity>
+
+                    {/* Red Trash Icon Badge */}
+                    <View style={styles.deleteConfirmIconBadge}>
+                      <Ionicons name="trash-outline" size={26} color="#FF3B30" />
+                    </View>
+
+                    {/* Title */}
+                    <Text style={[styles.deleteConfirmTitle, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'حذف الرسالة' : 'Delete Message'}
+                    </Text>
+
+                    {/* Description */}
+                    <Text style={[styles.deleteConfirmDesc, isRtl && styles.arabicRegularText]}>
+                      {isRtl
+                        ? 'هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.'
+                        : 'Are you sure you want to permanently delete this message? This action cannot be undone.'}
+                    </Text>
+
+                    {/* Message Preview Snippet Box */}
+                    <View style={styles.deleteConfirmPreviewBox}>
+                      {messageToDelete.mediaType === 'audio' ? (
+                        <View style={[styles.deleteConfirmPreviewRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Ionicons name="mic" size={15} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                          <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]}>
+                            {isRtl ? `تسجيل صوتي (${messageToDelete.audioDuration || '0:03'})` : `Voice message (${messageToDelete.audioDuration || '0:03'})`}
+                          </Text>
+                        </View>
+                      ) : messageToDelete.mediaType === 'image' ? (
+                        <View style={[styles.deleteConfirmPreviewRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Ionicons name="image" size={15} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                          <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]}>
+                            {isRtl ? 'صورة مرفقة' : 'Attached image'}
+                          </Text>
+                        </View>
+                      ) : messageToDelete.mediaType === 'video' ? (
+                        <View style={[styles.deleteConfirmPreviewRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                          <Ionicons name="videocam" size={15} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                          <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]}>
+                            {isRtl ? 'تسجيل فيديو مرفق' : 'Attached video'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.deleteConfirmPreviewText, isRtl && styles.arabicRegularText]} numberOfLines={2}>
+                          "{messageToDelete.text || ''}"
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Action Buttons Row */}
+                    <View style={[styles.deleteConfirmActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <TouchableOpacity
+                        style={styles.deleteConfirmCancelBtn}
+                        onPress={() => setMessageToDelete(null)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[styles.deleteConfirmCancelText, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'إلغاء' : 'Cancel'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.deleteConfirmDeleteBtn}
+                        onPress={() => {
+                          const target = messageToDelete;
+                          setMessageToDelete(null);
+                          handleDeleteMessage(target);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="trash" size={16} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                        <Text style={[styles.deleteConfirmDeleteText, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'حذف' : 'Delete'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
               )}
             </SafeAreaView>
           </Modal>
@@ -5517,6 +5599,136 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
     lineHeight: 12,
+  },
+  deleteConfirmOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 17, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  deleteConfirmCard: {
+    width: '100%',
+    maxWidth: 325,
+    backgroundColor: colors.bgCreamy,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: colors.borderGreen,
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: colors.bgBrand,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
+    position: 'relative',
+  },
+  deleteConfirmCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    zIndex: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteConfirmIconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: isDarkMode ? 'rgba(255, 59, 48, 0.16)' : '#FEECEC',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(255, 59, 48, 0.35)' : '#FCD4D4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    marginTop: 4,
+  },
+  deleteConfirmTitle: {
+    fontSize: 18,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
+    color: colors.textDark,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  deleteConfirmDesc: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 14,
+    paddingHorizontal: 6,
+  },
+  deleteConfirmPreviewBox: {
+    width: '100%',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: isDarkMode ? '#1E2520' : colors.bgBrandLight,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteConfirmPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteConfirmPreviewText: {
+    fontSize: 12.5,
+    fontFamily: 'PlusJakartaSans-Regular',
+    color: colors.textDark,
+    textAlign: 'center',
+  },
+  deleteConfirmActionsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 10,
+  },
+  deleteConfirmCancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: isDarkMode ? '#222C24' : colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteConfirmCancelText: {
+    color: colors.textDark,
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+  },
+  deleteConfirmDeleteBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FF3B30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  deleteConfirmDeleteText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '800',
   },
   selectorTabActive: {
     backgroundColor: colors.white,
