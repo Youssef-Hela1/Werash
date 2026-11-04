@@ -627,6 +627,28 @@ export default function CommunityScreen({
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'direct_messages',
+        },
+        (payload) => {
+          if (payload?.old?.id) {
+            const deletedId = payload.old.id;
+            setDmHistory((prev) => {
+              const list = prev[authorName] || [];
+              if (!list.some((item) => item.id === deletedId)) return prev;
+              return {
+                ...prev,
+                [authorName]: list.filter((item) => item.id !== deletedId),
+              };
+            });
+            fetchUserConversations();
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -1451,6 +1473,141 @@ export default function CommunityScreen({
       updateInboxConversation(authorName, summaryText, isRtl ? 'الآن' : 'Just now');
     } catch (err) {
       console.warn('handleSendDirectMessage error:', err);
+    }
+  };
+
+  const handleLongPressMessage = (msg) => {
+    if (!msg || !msg.id) return;
+    const isMe = msg.sender === 'user';
+    const isVoice = msg.mediaType === 'audio';
+    const isImage = msg.mediaType === 'image';
+    const isVideo = msg.mediaType === 'video';
+
+    let itemDesc = '';
+    if (isVoice) {
+      itemDesc = isRtl ? 'التسجيل الصوتي' : 'voice message';
+    } else if (isImage) {
+      itemDesc = isRtl ? 'الصورة' : 'image';
+    } else if (isVideo) {
+      itemDesc = isRtl ? 'الفيديو' : 'video';
+    } else {
+      itemDesc = isRtl ? 'الرسالة' : 'message';
+    }
+
+    Alert.alert(
+      isRtl ? 'حذف الرسالة' : 'Delete Message',
+      isRtl
+        ? `هل أنت متأكد من رغبتك في حذف ${itemDesc}؟`
+        : `Are you sure you want to delete this ${itemDesc}?`,
+      [
+        {
+          text: isRtl ? 'إلغاء' : 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: isRtl ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteMessage(msg),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleDeleteMessage = async (msg) => {
+    if (!msg || !msg.id) return;
+    const targetUser = directMessageUserRef.current || directMessageUser;
+    const authorName = targetUser?.author;
+    if (!authorName) return;
+
+    // Stop audio playback if this message is playing
+    if (playingAudioId === msg.id) {
+      try {
+        if (soundRef.current) {
+          if (soundRef.current.type === 'expo-audio') {
+            soundRef.current.sound.pause();
+          } else if (typeof soundRef.current.stopAsync === 'function') {
+            soundRef.current.stopAsync();
+          }
+        }
+      } catch (_) {}
+      setPlayingAudioId(null);
+    }
+
+    // Optimistically remove from active chat
+    let newLastText = '';
+    let newLastTime = '';
+    let newLastAt = new Date().toISOString();
+    let newLastSenderId = null;
+
+    setDmHistory((prev) => {
+      const currentList = prev[authorName] || [];
+      const updatedList = currentList.filter((m) => m.id !== msg.id);
+
+      const lastMsg = updatedList.length > 0 ? updatedList[updatedList.length - 1] : null;
+      if (lastMsg) {
+        if (lastMsg.mediaType === 'audio') {
+          newLastText = isRtl ? '🎙️ رسالة صوتية' : '🎙️ Voice message';
+        } else if (lastMsg.mediaType === 'video') {
+          newLastText = isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording';
+        } else if (lastMsg.mediaType === 'image') {
+          newLastText = isRtl ? '📷 صورة' : '📷 Image';
+        } else {
+          newLastText = lastMsg.text || '';
+        }
+        newLastTime = lastMsg.time || '';
+        newLastAt = lastMsg.created_at || new Date().toISOString();
+        newLastSenderId = lastMsg.sender === 'user' ? currentUser?.id : targetUser.userId;
+      }
+
+      return {
+        ...prev,
+        [authorName]: updatedList,
+      };
+    });
+
+    // Optimistically update inbox list
+    setInboxConversations((prev) =>
+      prev.map((c) => {
+        if (c.user === authorName || (targetUser?.conversationId && c.conversationId === targetUser.conversationId)) {
+          return {
+            ...c,
+            lastMessage: newLastText,
+            time: newLastTime,
+            lastMessageAt: newLastAt,
+            lastSenderId: newLastSenderId,
+          };
+        }
+        return c;
+      })
+    );
+
+    // Delete message from Supabase direct_messages
+    try {
+      const { error: delError } = await supabase
+        .from('direct_messages')
+        .delete()
+        .eq('id', msg.id);
+
+      if (delError) {
+        console.warn('Error deleting direct message from Supabase:', delError.message);
+      }
+
+      // Update conversations record with new last message
+      if (targetUser?.conversationId) {
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: newLastText,
+            last_message_at: newLastAt,
+            last_sender_id: newLastSenderId,
+          })
+          .eq('id', targetUser.conversationId);
+      }
+
+      fetchUserConversations();
+    } catch (err) {
+      console.warn('handleDeleteMessage error:', err);
     }
   };
   const handleCancelVoiceRecording = async () => {
@@ -4027,7 +4184,10 @@ export default function CommunityScreen({
                             isRtl && { flexDirection: isMe ? 'row-reverse' : 'row' }
                           ]}
                         >
-                          <View
+                          <TouchableOpacity
+                            activeOpacity={0.92}
+                            delayLongPress={350}
+                            onLongPress={() => handleLongPressMessage(msg)}
                             style={[
                               styles.dmBubble,
                               isMe ? styles.dmBubbleMe : styles.dmBubbleThem,
@@ -4038,6 +4198,8 @@ export default function CommunityScreen({
                               <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={() => setViewingMedia({ type: 'image', uri: msg.mediaUri })}
+                                onLongPress={() => handleLongPressMessage(msg)}
+                                delayLongPress={350}
                                 style={styles.dmBubbleMediaWrapper}
                               >
                                 <Image source={{ uri: msg.mediaUri }} style={styles.dmBubbleImage} resizeMode="cover" />
@@ -4052,6 +4214,8 @@ export default function CommunityScreen({
                               <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={() => setViewingMedia({ type: 'video', uri: msg.mediaUri, duration: msg.mediaDuration })}
+                                onLongPress={() => handleLongPressMessage(msg)}
+                                delayLongPress={350}
                                 style={styles.dmBubbleVideoCard}
                               >
                                 <View style={styles.dmBubbleVideoThumbnail}>
@@ -4088,7 +4252,10 @@ export default function CommunityScreen({
                               const isPlaying = playingAudioId === msg.id;
 
                               return (
-                                <View
+                                <TouchableOpacity
+                                  activeOpacity={0.95}
+                                  delayLongPress={350}
+                                  onLongPress={() => handleLongPressMessage(msg)}
                                   style={[
                                     styles.dmAudioCard,
                                     isMe ? styles.dmAudioCardMe : styles.dmAudioCardThem,
@@ -4103,6 +4270,8 @@ export default function CommunityScreen({
                                       isPlaying && styles.dmAudioPlayBtnActive
                                     ]}
                                     onPress={() => handleTogglePlayAudio(msg.id, msg.mediaUri)}
+                                    onLongPress={() => handleLongPressMessage(msg)}
+                                    delayLongPress={350}
                                     activeOpacity={0.8}
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                   >
@@ -4158,7 +4327,7 @@ export default function CommunityScreen({
                                       </Text>
                                     </View>
                                   </View>
-                                </View>
+                                </TouchableOpacity>
                               );
                             })()}
 
@@ -4180,7 +4349,7 @@ export default function CommunityScreen({
                             ]}>
                               {msg.time}
                             </Text>
-                          </View>
+                          </TouchableOpacity>
                         </View>
                       );
                     })}
