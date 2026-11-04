@@ -19,12 +19,6 @@ const CARD_BG     = '#EFF0EA'; // Blended cream-sage shade of the homescreen car
 const BORDER      = '#D5DED6';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const API_URL = Platform.select({
-  ios: 'http://localhost:3000',
-  android: 'http://10.0.2.2:3000',
-  default: 'http://localhost:3000',
-});
-
 const DEFAULT_CUSTOMER_USER = {
   id: 'customer-admin',
   role: 'customer',
