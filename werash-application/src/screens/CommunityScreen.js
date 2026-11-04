@@ -322,6 +322,9 @@ export default function CommunityScreen({
   const [readTimestamps, setReadTimestamps] = useState({});
   const [unreadConversationsMap, setUnreadConversationsMap] = useState({});
   const [selectedMessage, setSelectedMessage] = useState(null);
+  const [deletedForMeIds, setDeletedForMeIds] = useState(new Set());
+  const deletedForMeIdsRef = useRef(new Set());
+  deletedForMeIdsRef.current = deletedForMeIds;
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -330,6 +333,21 @@ export default function CommunityScreen({
         if (val) {
           try {
             setReadTimestamps(JSON.parse(val) || {});
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+
+    AsyncStorage.getItem(`@werash_deleted_messages_${currentUser.id}`)
+      .then((val) => {
+        if (val) {
+          try {
+            const arr = JSON.parse(val);
+            if (Array.isArray(arr)) {
+              const set = new Set(arr);
+              setDeletedForMeIds(set);
+              deletedForMeIdsRef.current = set;
+            }
           } catch (_) {}
         }
       })
@@ -453,6 +471,25 @@ export default function CommunityScreen({
         const otherHandle = isP1 ? c.participant_2_handle : c.participant_1_handle;
         const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
 
+        const localHistory = dmHistory[otherName];
+        let displayLastMsg = c.last_message_text || '';
+        let displayLastAt = c.last_message_at;
+        let displayLastSenderId = c.last_sender_id;
+        let displayTime = formatTimeAgo(c.last_message_at, isRtl);
+
+        if (localHistory && Array.isArray(localHistory)) {
+          if (localHistory.length > 0) {
+            const lastItem = localHistory[localHistory.length - 1];
+            displayLastMsg = lastItem.text || (lastItem.mediaType === 'audio' ? (isRtl ? '🎙️ رسالة صوتية' : '🎙️ Voice message') : (lastItem.mediaType === 'video' ? (isRtl ? '🎥 تسجيل فيديو' : '🎥 Video recording') : (isRtl ? '📷 صورة' : '📷 Image')));
+            displayLastAt = lastItem.created_at || displayLastAt;
+            displayLastSenderId = lastItem.sender === 'user' ? currentUser?.id : otherUserId;
+            displayTime = lastItem.time || displayTime;
+          } else {
+            displayLastMsg = '';
+            displayLastSenderId = null;
+          }
+        }
+
         return {
           id: c.id,
           conversationId: c.id,
@@ -461,10 +498,10 @@ export default function CommunityScreen({
           handle: otherHandle || `@${(otherName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
           avatar: otherAvatar ? { uri: otherAvatar } : null,
           avatarType: otherAvatar ? 'image' : 'icon',
-          lastMessage: c.last_message_text || '',
-          lastMessageAt: c.last_message_at,
-          lastSenderId: c.last_sender_id,
-          time: formatTimeAgo(c.last_message_at, isRtl),
+          lastMessage: displayLastMsg,
+          lastMessageAt: displayLastAt,
+          lastSenderId: displayLastSenderId,
+          time: displayTime,
           unread: 0,
         };
       });
@@ -489,22 +526,26 @@ export default function CommunityScreen({
         return;
       }
 
-      const formatted = (data || []).map((m) => {
-        const isMe = m.sender_id === currentUser?.id;
-        const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
-        const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
-        return {
-          id: m.id,
-          sender: isMe ? 'user' : 'them',
-          text: m.text || '',
-          textAr: m.text || '',
-          mediaType: m.media_type,
-          mediaUri: m.media_url,
-          audioDuration,
-          time: formatTimeAgo(m.created_at, isRtl),
-          created_at: m.created_at,
-        };
-      });
+      const deletedIds = deletedForMeIdsRef.current || new Set();
+
+      const formatted = (data || [])
+        .filter((m) => !deletedIds.has(m.id))
+        .map((m) => {
+          const isMe = m.sender_id === currentUser?.id;
+          const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
+          const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
+          return {
+            id: m.id,
+            sender: isMe ? 'user' : 'them',
+            text: m.text || '',
+            textAr: m.text || '',
+            mediaType: m.media_type,
+            mediaUri: m.media_url,
+            audioDuration,
+            time: formatTimeAgo(m.created_at, isRtl),
+            created_at: m.created_at,
+          };
+        });
 
       setDmHistory((prev) => ({
         ...prev,
@@ -573,6 +614,32 @@ export default function CommunityScreen({
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'direct_messages',
+        },
+        (payload) => {
+          if (payload?.old?.id) {
+            const deletedId = payload.old.id;
+            setDmHistory((prev) => {
+              let changed = false;
+              const next = { ...prev };
+              Object.keys(next).forEach((author) => {
+                const list = next[author] || [];
+                if (list.some((item) => item.id === deletedId)) {
+                  next[author] = list.filter((item) => item.id !== deletedId);
+                  changed = true;
+                }
+              });
+              return changed ? next : prev;
+            });
+            fetchUserConversations();
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -601,6 +668,7 @@ export default function CommunityScreen({
         (payload) => {
           if (payload.new) {
             const m = payload.new;
+            if (deletedForMeIdsRef.current && deletedForMeIdsRef.current.has(m.id)) return;
             const isMe = m.sender_id === currentUser?.id;
             const durationMatch = m.text ? (m.text.match(/\((.*?)\)/) || m.text.match(/(\d+:\d+)/)) : null;
             const audioDuration = durationMatch ? durationMatch[1] : (m.media_type === 'audio' ? '0:03' : null);
@@ -645,6 +713,32 @@ export default function CommunityScreen({
                 ...prev,
                 [authorName]: list.filter((item) => item.id !== deletedId),
               };
+            });
+            fetchUserConversations();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'direct_messages',
+        },
+        (payload) => {
+          if (payload?.old?.id) {
+            const deletedId = payload.old.id;
+            setDmHistory((prev) => {
+              let changed = false;
+              const next = { ...prev };
+              Object.keys(next).forEach((author) => {
+                const list = next[author] || [];
+                if (list.some((item) => item.id === deletedId)) {
+                  next[author] = list.filter((item) => item.id !== deletedId);
+                  changed = true;
+                }
+              });
+              return changed ? next : prev;
             });
             fetchUserConversations();
           }
@@ -1551,32 +1645,56 @@ export default function CommunityScreen({
       })
     );
 
-    // Delete message from Supabase direct_messages
-    try {
-      const { error: delError } = await supabase
-        .from('direct_messages')
-        .delete()
-        .eq('id', msg.id);
+    const isSentByMe = msg.sender === 'user';
 
-      if (delError) {
-        console.warn('Error deleting direct message from Supabase:', delError.message);
+    if (isSentByMe) {
+      // === DELETED FOR EVERYONE (Message I sent) ===
+      // Delete from Supabase direct_messages so it is removed for the other user too
+      try {
+        const { error: delError } = await supabase
+          .from('direct_messages')
+          .delete()
+          .eq('id', msg.id);
+
+        if (delError) {
+          console.warn('Error deleting direct message from Supabase:', delError.message);
+        }
+
+        // Update conversations record with new last message in Supabase
+        if (targetUser?.conversationId) {
+          await supabase
+            .from('conversations')
+            .update({
+              last_message_text: newLastText,
+              last_message_at: newLastAt,
+              last_sender_id: newLastSenderId,
+            })
+            .eq('id', targetUser.conversationId);
+        }
+
+        fetchUserConversations();
+      } catch (err) {
+        console.warn('handleDeleteMessage (everyone) error:', err);
       }
+    } else {
+      // === DELETED FOR ME ONLY (Message sent by the other user) ===
+      // Do NOT delete from Supabase so the other user still keeps it!
+      // Persist deleted message ID locally in AsyncStorage for currentUser
+      try {
+        const updatedSet = new Set(deletedForMeIdsRef.current);
+        updatedSet.add(msg.id);
+        setDeletedForMeIds(updatedSet);
+        deletedForMeIdsRef.current = updatedSet;
 
-      // Update conversations record with new last message
-      if (targetUser?.conversationId) {
-        await supabase
-          .from('conversations')
-          .update({
-            last_message_text: newLastText,
-            last_message_at: newLastAt,
-            last_sender_id: newLastSenderId,
-          })
-          .eq('id', targetUser.conversationId);
+        if (currentUser?.id) {
+          await AsyncStorage.setItem(
+            `@werash_deleted_messages_${currentUser.id}`,
+            JSON.stringify(Array.from(updatedSet))
+          );
+        }
+      } catch (err) {
+        console.warn('handleDeleteMessage (for me only) error:', err);
       }
-
-      fetchUserConversations();
-    } catch (err) {
-      console.warn('handleDeleteMessage error:', err);
     }
   };
   const handleCancelVoiceRecording = async () => {
