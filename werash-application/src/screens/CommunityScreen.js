@@ -2793,6 +2793,10 @@ export default function CommunityScreen({
 
 
   const handleOpenPostMenu = (post, e) => {
+    if (activeMenuPost?.id === post.id) {
+      setActiveMenuPost(null);
+      return;
+    }
     const isMine = Boolean(
       (currentUser?.id && (post.userId === currentUser.id || post.user_id === currentUser.id)) ||
       (currentUser?.fullName && post.author === currentUser.fullName)
@@ -5812,88 +5816,91 @@ export default function CommunityScreen({
             statusBarTranslucent={true}
             onRequestClose={() => setActiveMenuPost(null)}
           >
-            <TouchableWithoutFeedback onPress={() => setActiveMenuPost(null)}>
-              <View style={styles.postMenuOverlay}>
-                <TouchableWithoutFeedback>
-                  <View
-                    style={[
-                      styles.postMenuBubble,
-                      {
-                        top: menuPosition.top,
-                        ...(isRtl ? { left: 18 } : { right: 18 }),
-                      },
-                    ]}
-                  >
-                    {/* Arrow Pointer */}
-                    <View
-                      style={
-                        menuPosition.isAbove
-                          ? [styles.postMenuArrowDown, isRtl ? { left: 16 } : { right: 16 }]
-                          : [styles.postMenuArrowUp, isRtl ? { left: 16 } : { right: 16 }]
-                      }
-                    />
+            <View style={styles.postMenuOverlay}>
+              {/* Full-screen backdrop: tapping anywhere outside the bubble closes it */}
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setActiveMenuPost(null)}
+              />
 
-                    {/* Option 1: Delete (ONLY if my post) */}
-                    {Boolean(
-                      activeMenuPost && (
-                        (currentUser?.id && (activeMenuPost.userId === currentUser.id || activeMenuPost.user_id === currentUser.id)) ||
-                        (currentUser?.fullName && activeMenuPost.author === currentUser.fullName)
-                      )
-                    ) && (
-                      <>
-                        <TouchableOpacity
-                          style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
-                          onPress={() => handleDeletePost(activeMenuPost)}
-                          activeOpacity={0.65}
-                        >
-                          <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
-                            <Ionicons name="trash-outline" size={17} color="#E53935" />
-                          </View>
-                          <Text style={[styles.postMenuItemText, styles.postMenuDeleteText, isRtl && styles.arabicBoldText]}>
-                            {isRtl ? 'حذف المنشور' : 'Delete'}
-                          </Text>
-                        </TouchableOpacity>
-                        <View style={styles.postMenuDivider} />
-                      </>
-                    )}
+              <View
+                style={[
+                  styles.postMenuBubble,
+                  {
+                    top: menuPosition.top,
+                    ...(isRtl ? { left: 18 } : { right: 18 }),
+                  },
+                ]}
+              >
+                {/* Arrow Pointer */}
+                <View
+                  style={
+                    menuPosition.isAbove
+                      ? [styles.postMenuArrowDown, isRtl ? { left: 16 } : { right: 16 }]
+                      : [styles.postMenuArrowUp, isRtl ? { left: 16 } : { right: 16 }]
+                  }
+                />
 
-                    {/* Option 2: Not Interested */}
+                {/* Option 1: Delete (ONLY if my post) */}
+                {Boolean(
+                  activeMenuPost && (
+                    (currentUser?.id && (activeMenuPost.userId === currentUser.id || activeMenuPost.user_id === currentUser.id)) ||
+                    (currentUser?.fullName && activeMenuPost.author === currentUser.fullName)
+                  )
+                ) && (
+                  <>
                     <TouchableOpacity
                       style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
-                      onPress={() => handleNotInterested(activeMenuPost)}
+                      onPress={() => handleDeletePost(activeMenuPost)}
                       activeOpacity={0.65}
                     >
                       <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
-                        <Ionicons name="eye-off-outline" size={17} color={colors.textDark} />
+                        <Ionicons name="trash-outline" size={17} color="#E53935" />
                       </View>
-                      <Text style={[styles.postMenuItemText, isRtl && styles.arabicBoldText]}>
-                        {isRtl ? 'غير مهتم' : 'Not interested'}
+                      <Text style={[styles.postMenuItemText, styles.postMenuDeleteText, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? 'حذف المنشور' : 'Delete'}
                       </Text>
                     </TouchableOpacity>
-
                     <View style={styles.postMenuDivider} />
+                  </>
+                )}
 
-                    {/* Option 3: Report */}
-                    <TouchableOpacity
-                      style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
-                      onPress={() => {
-                        const post = activeMenuPost;
-                        setActiveMenuPost(null);
-                        handleOpenReportModal(post);
-                      }}
-                      activeOpacity={0.65}
-                    >
-                      <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
-                        <Ionicons name="flag-outline" size={17} color="#D97706" />
-                      </View>
-                      <Text style={[styles.postMenuItemText, styles.postMenuReportText, isRtl && styles.arabicBoldText]}>
-                        {isRtl ? 'إبلاغ عن المنشور' : 'Report'}
-                      </Text>
-                    </TouchableOpacity>
+                {/* Option 2: Not Interested */}
+                <TouchableOpacity
+                  style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+                  onPress={() => handleNotInterested(activeMenuPost)}
+                  activeOpacity={0.65}
+                >
+                  <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                    <Ionicons name="eye-off-outline" size={17} color={colors.textDark} />
                   </View>
-                </TouchableWithoutFeedback>
+                  <Text style={[styles.postMenuItemText, isRtl && styles.arabicBoldText]}>
+                    {isRtl ? 'غير مهتم' : 'Not interested'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.postMenuDivider} />
+
+                {/* Option 3: Report */}
+                <TouchableOpacity
+                  style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+                  onPress={() => {
+                    const post = activeMenuPost;
+                    setActiveMenuPost(null);
+                    handleOpenReportModal(post);
+                  }}
+                  activeOpacity={0.65}
+                >
+                  <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                    <Ionicons name="flag-outline" size={17} color="#D97706" />
+                  </View>
+                  <Text style={[styles.postMenuItemText, styles.postMenuReportText, isRtl && styles.arabicBoldText]}>
+                    {isRtl ? 'إبلاغ عن المنشور' : 'Report'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </TouchableWithoutFeedback>
+            </View>
           </Modal>
 
           {/* Report Post Modal */}
@@ -6967,9 +6974,8 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   /* Post Options Menu Bubble Styles */
   postMenuOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.12)',
-    zIndex: 9999,
   },
   postMenuBubble: {
     position: 'absolute',
