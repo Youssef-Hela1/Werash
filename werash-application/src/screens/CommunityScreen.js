@@ -3,7 +3,7 @@ import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   Image, ScrollView, Animated, StatusBar, Modal,
   KeyboardAvoidingView, Platform, Dimensions, Alert, SafeAreaView, PanResponder,
-  Keyboard, TouchableWithoutFeedback, RefreshControl, ActivityIndicator
+  Keyboard, TouchableWithoutFeedback, RefreshControl, ActivityIndicator, BackHandler
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -139,6 +139,8 @@ export default function CommunityScreen({
   const [selectedFeed, setSelectedFeed] = useState('feed'); // 'feed', 'profile', 'souq'
   const [showProfile, setShowProfile] = useState(false);
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
+  const [viewingOtherUser, setViewingOtherUser] = useState(null);
+  const otherProfileSlideAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
   const [directMessageUser, setDirectMessageUser] = useState(null);
   const [openedFromMessagesPage, setOpenedFromMessagesPage] = useState(false);
   const [dmHistory, setDmHistory] = useState({});
@@ -156,6 +158,18 @@ export default function CommunityScreen({
       }).catch(() => {});
     }
   }, [currentUser?.id, currentUser?.bannerUrl]);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (viewingOtherUser) {
+        handleCloseOtherUserProfile();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [viewingOtherUser]);
 
   const fetchCommunityPosts = async () => {
     try {
@@ -1249,15 +1263,32 @@ export default function CommunityScreen({
     const authorPosts = feedPosts.filter((p) => p.author === authorName);
     const primaryVehicle = authorData.vehicle || authorPosts.find((p) => p.vehicle && p.vehicle !== 'General')?.vehicle || (authorName === currentAuthor ? (currentCarName || '') : '');
     const userId = authorData.userId || authorData.user_id || authorPosts.find(p => p.userId)?.userId || null;
-    const isSelf = (currentUser?.id && userId === currentUser.id) || authorName === currentAuthor;
+    const isSelf = (currentUser?.id && userId === currentUser.id) || authorName === currentAuthor || authorData.isSelf === true;
 
+    if (isSelf) {
+      setSelectedUserProfile(null);
+      setSelectedFeed('profile');
+      setShowProfile(true);
+      setExpandedPostId(null);
+      scrollY.setValue(0);
+      if (scrollViewRef.current) {
+        if (typeof scrollViewRef.current.scrollTo === 'function') {
+          scrollViewRef.current.scrollTo({ y: 0, animated: false });
+        } else if (scrollViewRef.current.getNode && typeof scrollViewRef.current.getNode().scrollTo === 'function') {
+          scrollViewRef.current.getNode().scrollTo({ y: 0, animated: false });
+        }
+      }
+      return;
+    }
+
+    // Opening someone else's profile -> open a new page, DO NOT change selectedFeed or take to my profile section!
     const cachedProf = userId ? userProfilesMap[userId] : null;
     let resolvedAvatar = cachedProf?.avatar_url
       ? { uri: cachedProf.avatar_url }
       : (authorData.avatar || authorPosts.find((p) => p.avatar)?.avatar || null);
     let resolvedBanner = cachedProf?.banner_url ? { uri: cachedProf.banner_url } : null;
 
-    setSelectedUserProfile({
+    const otherUserData = {
       userId,
       author: authorName,
       handle: authorData.handle || `@${authorName.toLowerCase().replace(/[\s\W]+/g, '')}`,
@@ -1265,19 +1296,17 @@ export default function CommunityScreen({
       banner: resolvedBanner,
       avatarType: resolvedAvatar ? 'image' : 'icon',
       vehicle: primaryVehicle,
-      isSelf,
-    });
-    setSelectedFeed('profile');
-    setShowProfile(true);
-    setExpandedPostId(null);
-    scrollY.setValue(0);
-    if (scrollViewRef.current) {
-      if (typeof scrollViewRef.current.scrollTo === 'function') {
-        scrollViewRef.current.scrollTo({ y: 0, animated: false });
-      } else if (scrollViewRef.current.getNode && typeof scrollViewRef.current.getNode().scrollTo === 'function') {
-        scrollViewRef.current.getNode().scrollTo({ y: 0, animated: false });
-      }
-    }
+      isSelf: false,
+    };
+
+    setViewingOtherUser(otherUserData);
+    otherProfileSlideAnim.setValue(isRtl ? -SCREEN_WIDTH : SCREEN_WIDTH);
+    Animated.spring(otherProfileSlideAnim, {
+      toValue: 0,
+      friction: 8,
+      tension: 65,
+      useNativeDriver: true,
+    }).start();
 
     // Fetch latest fresh profile row from Supabase
     if (userId) {
@@ -1290,7 +1319,7 @@ export default function CommunityScreen({
 
         if (prof) {
           setUserProfilesMap((prev) => ({ ...prev, [userId]: prof }));
-          setSelectedUserProfile((prev) => {
+          setViewingOtherUser((prev) => {
             if (!prev || prev.userId !== userId) return prev;
             return {
               ...prev,
@@ -1302,6 +1331,16 @@ export default function CommunityScreen({
         }
       } catch (_) {}
     }
+  };
+
+  const handleCloseOtherUserProfile = () => {
+    Animated.timing(otherProfileSlideAnim, {
+      toValue: isRtl ? -SCREEN_WIDTH : SCREEN_WIDTH,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      setViewingOtherUser(null);
+    });
   };
 
   const handleOpenDirectMessage = async (user, fromInbox = false) => {
@@ -3523,18 +3562,6 @@ export default function CommunityScreen({
             {/* User Profile Summary Card */}
             {(selectedFeed === 'profile' || showProfile) && (
               <>
-                {selectedUserProfile && !selectedUserProfile.isSelf && (
-                  <TouchableOpacity 
-                    onPress={() => setSelectedUserProfile(null)} 
-                    style={[styles.backButton, { alignSelf: 'flex-start', marginBottom: 12, marginLeft: 16 }]}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name={isRtl ? "arrow-forward-outline" : "arrow-back-outline"} size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
-                    <Text style={[styles.backButtonText, isRtl && styles.arabicBoldText]}>
-                      {isRtl ? 'العودة لملفي' : 'Back to My Profile'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
                 <View style={styles.profileSummaryCard}>
                 {/* Banner Wallpaper behind avatar */}
                 <View style={styles.profileBannerContainer}>
@@ -6065,6 +6092,267 @@ export default function CommunityScreen({
               </SafeAreaView>
             </View>
           </Modal>
+
+          {/* Dedicated New Page for Another User's Profile */}
+          {Boolean(viewingOtherUser) && (
+            <Animated.View
+              style={[
+                styles.otherProfileContainer,
+                {
+                  transform: [{ translateX: otherProfileSlideAnim }],
+                },
+              ]}
+            >
+              <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bgCreamy }}>
+                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bgCreamy} />
+
+                {/* Top Header Bar */}
+                <View style={[styles.otherProfileHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+                  <TouchableOpacity
+                    style={[styles.otherProfileBackBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                    onPress={handleCloseOtherUserProfile}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Ionicons
+                      name={isRtl ? "chevron-forward" : "chevron-back"}
+                      size={20}
+                      color={COLORS.bgBrand}
+                    />
+                    <Text style={[styles.otherProfileBackText, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? 'الرجوع' : 'Back'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.otherProfileHeaderTitle, isRtl && styles.arabicBoldText]}
+                  >
+                    {viewingOtherUser.author}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.otherProfileMsgHeaderBtn}
+                    onPress={() => handleOpenDirectMessage(viewingOtherUser)}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="chatbubble-ellipses" size={18} color={COLORS.bgBrand} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Scrollable Profile & Posts */}
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 60 }}
+                >
+                  <View style={[styles.profileSummaryCard, { marginTop: 12 }]}>
+                    {/* Banner Wallpaper */}
+                    <View style={styles.profileBannerContainer}>
+                      <Image
+                        source={
+                          viewingOtherUser.banner
+                            ? (typeof viewingOtherUser.banner === 'string' ? { uri: viewingOtherUser.banner } : viewingOtherUser.banner)
+                            : require('../../assets/Banner wallpaper.png')
+                        }
+                        style={styles.profileBannerImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.profileBannerOverlay} />
+                    </View>
+
+                    {/* Centered Profile Header Section (Overlapping the banner) */}
+                    <View style={styles.profileHeaderCenter}>
+                      <View style={styles.profileAvatarWrapper}>
+                        {viewingOtherUser.avatar ? (
+                          <Image
+                            source={typeof viewingOtherUser.avatar === 'string' ? { uri: viewingOtherUser.avatar } : viewingOtherUser.avatar}
+                            style={styles.profileAvatarCenteredImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.profileAvatarCenteredIcon}>
+                            <Ionicons name="person" size={40} color="#FFFFFF" />
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Centered Name */}
+                      <Text style={[styles.profileSummaryName, isRtl && styles.arabicBoldText]}>
+                        {viewingOtherUser.author}
+                      </Text>
+
+                      {/* Centered Handle */}
+                      <Text style={styles.profileSummaryHandle}>
+                        {viewingOtherUser.handle}
+                      </Text>
+
+                      {/* Vehicle Tag if present */}
+                      {Boolean(viewingOtherUser.vehicle) && (
+                        <View style={styles.vehicleBadgeRow}>
+                          <Ionicons name="car-sport" size={13} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} />
+                          <Text style={styles.vehicleBadgeText}>{viewingOtherUser.vehicle}</Text>
+                        </View>
+                      )}
+
+                      {/* Action Button: Message */}
+                      <View style={styles.profileActionAreaCenter}>
+                        <TouchableOpacity
+                          activeOpacity={0.82}
+                          style={[styles.profileMessageBtn, isRtl && { flexDirection: 'row-reverse' }]}
+                          onPress={() => handleOpenDirectMessage(viewingOtherUser)}
+                        >
+                          <Ionicons 
+                            name="chatbubble-ellipses" 
+                            size={16} 
+                            color="#FFFFFF" 
+                            style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} 
+                          />
+                          <Text 
+                            numberOfLines={1}
+                            style={[styles.profileMessageBtnText, isRtl && styles.arabicBoldText]}
+                          >
+                            {isRtl ? 'محادثة' : 'Message'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Stats Bar */}
+                    <View style={[styles.profileStatsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={styles.profileStatItem}>
+                        <Text style={styles.profileStatValue}>
+                          {feedPosts.filter(p => p.author === viewingOtherUser.author).length}
+                        </Text>
+                        <Text style={[styles.profileStatLabel, isRtl && styles.arabicRegularText]}>
+                          {isRtl ? 'منشورات' : 'Posts'}
+                        </Text>
+                      </View>
+                      <View style={styles.statDivider} />
+                      <View style={styles.profileStatItem}>
+                        <Text style={styles.profileStatValue}>
+                          {feedPosts.filter(p => p.author === viewingOtherUser.author).reduce((sum, p) => sum + (p.likes || 0), 0)}
+                        </Text>
+                        <Text style={[styles.profileStatLabel, isRtl && styles.arabicRegularText]}>
+                          {isRtl ? 'إعجابات' : 'Likes'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Posts Section Title */}
+                  <View style={[{ paddingHorizontal: 16, marginTop: 16, marginBottom: 12 }, isRtl && { alignItems: 'flex-end' }]}>
+                    <Text style={[styles.sectionTitle, isRtl && styles.arabicBoldText]}>
+                      {isRtl ? `منشورات ${viewingOtherUser.author}` : `Posts by ${viewingOtherUser.author}`}
+                    </Text>
+                  </View>
+
+                  {/* Posts List */}
+                  <View style={{ paddingHorizontal: 16 }}>
+                    {feedPosts.filter(p => p.author === viewingOtherUser.author).length === 0 ? (
+                      <View style={styles.otherProfileEmptyCard}>
+                        <Ionicons name="documents-outline" size={32} color={COLORS.textMuted} />
+                        <Text style={[styles.otherProfileEmptyText, isRtl && styles.arabicRegularText]}>
+                          {isRtl ? 'لا توجد منشورات بعد لهذا المستخدم.' : 'No posts yet by this user.'}
+                        </Text>
+                      </View>
+                    ) : (
+                      feedPosts.filter(p => p.author === viewingOtherUser.author).map(post => (
+                        <View key={post.id} style={styles.postCard}>
+                          {/* Author Info */}
+                          <View style={[styles.authorRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <View style={[styles.authorLeft, isRtl && { flexDirection: 'row-reverse' }]}>
+                              {post.avatarType === 'image' && post.avatar ? (
+                                <Image source={typeof post.avatar === 'string' ? { uri: post.avatar } : post.avatar} style={styles.avatarImage} />
+                              ) : (
+                                <View style={styles.avatarIcon}>
+                                  <Ionicons name="person" size={16} color="#FFFFFF" />
+                                </View>
+                              )}
+                              <View style={[styles.authorDetails, isRtl ? { marginRight: 10, marginLeft: 0, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
+                                <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                                  <Text style={[styles.authorName, isRtl && styles.arabicBoldText]}>{post.author}</Text>
+                                  {post.isMarketplace && (
+                                    <View style={styles.saleBadge}>
+                                      <Text style={styles.saleBadgeText}>FOR SALE</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.authorHandle}>
+                                  {post.handle} • {post.time}
+                                  {post.location && ` • 📍 ${post.location}`}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <TouchableOpacity 
+                              activeOpacity={0.6}
+                              onPress={(e) => handleOpenPostMenu(post, e)}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.textMuted} />
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Content text */}
+                          <Text style={styles.postText}>{post.content}</Text>
+
+                          {/* Optional Image */}
+                          {post.postImage && (
+                            <Image source={post.postImage} style={styles.postCardImage} resizeMode="cover" />
+                          )}
+
+                          {/* Actions Row */}
+                          <View style={styles.actionDivider} />
+                          <View style={[styles.actionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                            <View style={[styles.actionsLeftGroup, isRtl && { flexDirection: 'row-reverse' }]}>
+                              <TouchableOpacity 
+                                style={styles.actionButton} 
+                                activeOpacity={0.7}
+                                onPress={() => handleLike(post.id)}
+                              >
+                                <Ionicons 
+                                  name={post.liked ? "heart" : "heart-outline"} 
+                                  size={20} 
+                                  color={post.liked ? COLORS.accentRed : COLORS.textMuted} 
+                                />
+                                <Text style={[
+                                  styles.actionText,
+                                  post.liked && { color: COLORS.accentRed, fontWeight: '700' }
+                                ]}>
+                                  {post.likes}
+                                </Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity 
+                                style={[styles.actionButton, isRtl ? { marginRight: 20 } : { marginLeft: 20 }]}
+                                activeOpacity={0.7}
+                                onPress={() => handleOpenComments(post)}
+                              >
+                                <Ionicons name="chatbubble-outline" size={19} color={COLORS.textMuted} />
+                                <Text style={styles.actionText}>{post.comments || (post.commentsList ? post.commentsList.length : 0)}</Text>
+                              </TouchableOpacity>
+                            </View>
+
+                            {post.isMarketplace && (
+                              <TouchableOpacity 
+                                style={styles.contactSellerButton} 
+                                activeOpacity={0.8}
+                                onPress={() => handleOpenDirectMessage(viewingOtherUser)}
+                              >
+                                <Ionicons name="chatbubble-ellipses" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                                <Text style={styles.contactSellerText}>Message Seller</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                </ScrollView>
+              </SafeAreaView>
+            </Animated.View>
+          )}
         </View>
       </View>
     </View>
@@ -9195,5 +9483,85 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   fbToolbarIconButton: {
     padding: 6,
     marginLeft: 12,
+  },
+  /* Other User Profile Page Styles */
+  otherProfileContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.bgCreamy,
+    zIndex: 9999,
+  },
+  otherProfileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.bgCreamy,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGreen,
+  },
+  otherProfileBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    borderRadius: 18,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+  },
+  otherProfileBackText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: colors.bgBrand,
+  },
+  otherProfileHeaderTitle: {
+    fontSize: 16,
+    fontFamily: 'AlkhalilArabic-Bold',
+    color: colors.textDark,
+    maxWidth: '55%',
+    textAlign: 'center',
+  },
+  otherProfileMsgHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 6,
+  },
+  vehicleBadgeText: {
+    fontSize: 12,
+    color: colors.bgBrand,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontWeight: '600',
+  },
+  otherProfileEmptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderGreen,
+    marginTop: 10,
+  },
+  otherProfileEmptyText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
