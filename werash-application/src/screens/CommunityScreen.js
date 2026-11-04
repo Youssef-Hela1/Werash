@@ -6094,7 +6094,7 @@ export default function CommunityScreen({
               <View style={[styles.newPageContainer, { backgroundColor: COLORS.bgCreamy }]}>
                 <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bgCreamy} />
 
-                {/* Top Header Bar */}
+                {/* Top Header Bar with only the Back button */}
                 <View style={[styles.otherProfileHeader, isRtl && { flexDirection: 'row-reverse' }]}>
                   <TouchableOpacity
                     style={[styles.otherProfileBackBtn, isRtl && { flexDirection: 'row-reverse' }]}
@@ -6110,26 +6110,6 @@ export default function CommunityScreen({
                     <Text style={[styles.otherProfileBackText, isRtl && styles.arabicBoldText]}>
                       {isRtl ? 'الرجوع' : 'Back'}
                     </Text>
-                  </TouchableOpacity>
-
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.otherProfileHeaderTitle, isRtl && styles.arabicBoldText]}
-                  >
-                    {viewingOtherUser.author}
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.otherProfileMsgHeaderBtn}
-                    onPress={() => {
-                      const userTarget = viewingOtherUser;
-                      setViewingOtherUser(null);
-                      handleOpenDirectMessage(userTarget);
-                    }}
-                    activeOpacity={0.8}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="chatbubble-ellipses" size={18} color={COLORS.bgBrand} />
                   </TouchableOpacity>
                 </View>
 
@@ -6214,33 +6194,41 @@ export default function CommunityScreen({
                       </View>
                     </View>
 
-                    {/* Stats Bar */}
-                    <View style={[styles.profileStatsRow, isRtl && { flexDirection: 'row-reverse' }]}>
-                      <View style={styles.profileStatItem}>
-                        <Text style={styles.profileStatValue}>
+                    {/* Stats Row */}
+                    <View style={[styles.statsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statVal}>
                           {feedPosts.filter(p => p.author === viewingOtherUser.author).length}
                         </Text>
-                        <Text style={[styles.profileStatLabel, isRtl && styles.arabicRegularText]}>
-                          {isRtl ? 'منشورات' : 'Posts'}
+                        <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'منشورات' : 'POSTS'}
                         </Text>
                       </View>
                       <View style={styles.statDivider} />
-                      <View style={styles.profileStatItem}>
-                        <Text style={styles.profileStatValue}>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statVal}>
                           {feedPosts.filter(p => p.author === viewingOtherUser.author).reduce((sum, p) => sum + (p.likes || 0), 0)}
                         </Text>
-                        <Text style={[styles.profileStatLabel, isRtl && styles.arabicRegularText]}>
-                          {isRtl ? 'إعجابات' : 'Likes'}
+                        <Text style={[styles.statLabel, isRtl && styles.arabicBoldText]}>
+                          {isRtl ? 'إعجابات' : 'LIKES'}
                         </Text>
                       </View>
                     </View>
                   </View>
 
                   {/* Posts Section Title */}
-                  <View style={[{ paddingHorizontal: 16, marginTop: 16, marginBottom: 12 }, isRtl && { alignItems: 'flex-end' }]}>
-                    <Text style={[styles.sectionTitle, isRtl && styles.arabicBoldText]}>
-                      {isRtl ? `منشورات ${viewingOtherUser.author}` : `Posts by ${viewingOtherUser.author}`}
-                    </Text>
+                  <View style={[styles.profileFeedHeaderRow, { marginHorizontal: 16, marginTop: 18, marginBottom: 10 }, isRtl && { flexDirection: 'row-reverse' }]}>
+                    <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="newspaper-outline" size={14} color={COLORS.bgBrand} style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+                      <Text style={[styles.profileFeedHeaderText, isRtl && styles.arabicBoldText]}>
+                        {isRtl ? `منشورات ${viewingOtherUser.author}` : `Posts by ${viewingOtherUser.author}`}
+                      </Text>
+                    </View>
+                    <View style={styles.profileFeedCountBadge}>
+                      <Text style={styles.profileFeedCountBadgeText}>
+                        {feedPosts.filter(p => p.author === viewingOtherUser.author).length}
+                      </Text>
+                    </View>
                   </View>
 
                   {/* Posts List */}
@@ -9496,12 +9484,12 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   otherProfileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingTop: Platform.OS === 'ios' ? 56 : (StatusBar.currentHeight || 24) + 12,
-    paddingBottom: 14,
+    paddingBottom: 12,
     paddingHorizontal: 16,
     backgroundColor: colors.bgCreamy,
-    borderBottomWidth: 1.2,
+    borderBottomWidth: 1,
     borderBottomColor: colors.borderGreen,
   },
   otherProfileBackBtn: {
