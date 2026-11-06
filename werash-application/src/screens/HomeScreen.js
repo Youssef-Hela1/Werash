@@ -94,22 +94,22 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   logoImage: {
-    width: 44,
-    height: 44,
-    marginRight: 10,
+    width: 52,
+    height: 52,
+    marginRight: 12,
   },
   logoImageRtl: {
     marginRight: 0,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   wordmarkImage: {
-    height: 44,
-    width: 130,
+    height: 52,
+    width: 154,
   },
   brandNameArabic: {
     fontFamily: 'ZafranArabic-Bold',
-    fontSize: 76,
+    fontSize: 88,
     letterSpacing: 0,
-    marginTop: -5,
+    marginTop: -6,
   },
 });
