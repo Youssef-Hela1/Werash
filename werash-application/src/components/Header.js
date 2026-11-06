@@ -80,7 +80,7 @@ export default function Header({
     return currentUser.fullName.trim().split(/\s+/)[0];
   };
 
-  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community' || currentTab === 'home') {
+  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community') {
     return (
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <SignInScreen 
@@ -144,90 +144,44 @@ export default function Header({
         />
       )}
 
-      {/* Top Corner Tire Track Blob (Home Only) */}
+      {/* Top Corner Satin Backdrop (Home Only) */}
       {isHome && (
         <Image 
           pointerEvents="none"
-          source={require('../../assets/forest_green_tire_tread_corner.png')} 
+          source={require('../../assets/forest_green_satin_backdrop.png')} 
           style={styles.cornerTireBlob} 
-          resizeMode="contain" 
+          resizeMode="cover" 
         />
       )}
 
-      <View style={[styles.topRow, isHome && styles.topRowHome, false]}>
-        {/* Logo, Text, and Greeting on Home */}
-        <View style={[styles.brandWrapper, false]}>
-          <View style={[styles.logoContainer, false]}>
-            <Image 
-              source={isHome ? require('../../assets/logo_green.png') : require('../../assets/logo.png')} 
-              style={[
-                styles.logoImage, 
-                isHome && styles.logoImageHome,
-                false
-              ]} 
-              resizeMode="contain" 
-            />
-            {selectedLanguage === 'Arabic' ? (
-              <Text style={[
-                styles.brandNameArabic,
-                isHome && styles.brandNameArabicHome,
-                isHome && { color: colors.bgBrand }
-              ]}>
-                وِرَش
-              </Text>
-            ) : (
+      {/* Top Row: Hidden on Home for blank canvas */}
+      {!isHome && (
+        <View style={styles.topRow}>
+          {/* Logo & Text on Other Tabs */}
+          <View style={styles.brandWrapper}>
+            <View style={styles.logoContainer}>
               <Image 
-                source={require('../../assets/Werash_wordmark.png')}
-                style={[
-                  styles.wordmarkImage,
-                  isHome && styles.wordmarkImageHome,
-                  { tintColor: colors.bgBrand },
-                ]}
-                resizeMode="contain"
+                source={require('../../assets/logo.png')} 
+                style={styles.logoImage} 
+                resizeMode="contain" 
               />
-            )}
+              {selectedLanguage === 'Arabic' ? (
+                <Text style={styles.brandNameArabic}>
+                  وِرَش
+                </Text>
+              ) : (
+                <Image 
+                  source={require('../../assets/Werash_wordmark.png')}
+                  style={[
+                    styles.wordmarkImage,
+                    { tintColor: colors.bgBrand },
+                  ]}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
           </View>
 
-          {isHome && (
-            <>
-              <Text style={[
-                styles.greetingText,
-                selectedLanguage === 'Arabic' && styles.greetingTextArabic
-              ]}>
-                {selectedLanguage === 'Arabic' 
-                  ? (getFirstName() ? `أهلاً ${getFirstName()}` : 'أهلاً بك')
-                  : (getFirstName() ? `Hello ${getFirstName()}` : 'Hello Guest')}
-              </Text>
-              <Text style={[
-                styles.taglineText,
-                selectedLanguage === 'Arabic' && styles.taglineTextArabic
-              ]}>
-                {selectedLanguage === 'Arabic' 
-                  ? 'عناية سيارتك تبدأ من هنا...' 
-                  : "Your car's care starts here..."}
-              </Text>
-            </>
-          )}
-        </View>
-
-        {/* Notifications Button on Home (Top Right inside Green Area) */}
-        {isHome && (
-          <TouchableOpacity 
-            style={styles.notificationButtonHome} 
-            activeOpacity={0.8}
-            onPress={() => setNotificationsVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-          >
-            <Ionicons name="notifications-outline" size={20} color={colors.textCream} />
-            {unreadCount > 0 && (
-              <View style={[styles.badgeContainer, { right: -4 }, { top: -4 }]}>
-                <Text style={styles.badgeText}>{unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-        {!isHome && (
           <View style={styles.buttonContainer}>
             {/* Sign In / Sign Out Button */}
             <TouchableOpacity 
@@ -274,8 +228,8 @@ export default function Header({
               <Ionicons name="settings-outline" size={18} color={colors.textCream} />
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+        </View>
+      )}
     </View>
   );
 }
