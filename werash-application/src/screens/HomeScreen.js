@@ -43,18 +43,18 @@ export default function HomeScreen({
       <View style={[styles.headerContainer, { paddingTop: topInset + 4 }, isRtl && styles.headerContainerRtl]}>
         <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
           <Image 
-            source={require('../../assets/logo_green.png')} 
+            source={require('../../assets/logo.png')} 
             style={[styles.logoImage, isRtl && styles.logoImageRtl]} 
             resizeMode="contain" 
           />
           {isRtl ? (
-            <Text style={[styles.brandNameArabic, { color: colors.bgBrand }]}>
+            <Text style={[styles.brandNameArabic, { color: '#FFFFFF' }]}>
               وِرَش
             </Text>
           ) : (
             <Image 
               source={require('../../assets/Werash_wordmark.png')}
-              style={[styles.wordmarkImage, { tintColor: colors.bgBrand }]}
+              style={[styles.wordmarkImage, { tintColor: '#FFFFFF' }]}
               resizeMode="contain"
             />
           )}
