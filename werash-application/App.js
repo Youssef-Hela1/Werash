@@ -702,11 +702,7 @@ function AppContent() {
     <View style={styles.appContainer}>
       {/* Animated Main Content Container (Moves Header + Home Content together on bounce) */}
       <Animated.View 
-        style={[
-          styles.mainContentContainer,
-          currentTab === 'home' && { transform: [{ translateY: homeTranslateY }] }
-        ]}
-        {...(currentTab === 'home' ? homePanResponder.panHandlers : {})}
+        style={styles.mainContentContainer}
       >
         {/* Global Persistent Header (Stays mounted, prevents reload animations) */}
         <Header 

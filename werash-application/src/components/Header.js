@@ -80,7 +80,7 @@ export default function Header({
     return currentUser.fullName.trim().split(/\s+/)[0];
   };
 
-  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community') {
+  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community' || currentTab === 'home') {
     return (
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <SignInScreen 
