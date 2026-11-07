@@ -70,22 +70,17 @@ export default function SettingsScreen({
       disabled={!onPress}
     >
       <View style={[styles.menuItemLeft, isRtl && styles.menuItemLeftRtl]}>
-        <View style={styles.menuIconBadge}>
-          <Ionicons name={icon} size={18} color="#37633B" />
-        </View>
+        <Ionicons 
+          name={icon} 
+          size={20} 
+          color="#37633B" 
+          style={[styles.menuIcon, isRtl && styles.menuIconRtl]} 
+        />
         <Text style={[styles.menuLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14 }]}>
           {label}
         </Text>
       </View>
-      {rightElement ? rightElement : (
-        <View style={styles.menuArrowBadge}>
-          <Ionicons 
-            name={isRtl ? "chevron-back" : "chevron-forward"} 
-            size={13} 
-            color="#37633B" 
-          />
-        </View>
-      )}
+      {rightElement || null}
     </TouchableOpacity>
   );
 
@@ -123,14 +118,6 @@ export default function SettingsScreen({
                 {currentUser ? currentUser.email : 'guest@werash.com'}
               </Text>
             </View>
-
-            <View style={styles.menuArrowBadge}>
-              <Ionicons 
-                name={isRtl ? "chevron-back" : "chevron-forward"} 
-                size={13} 
-                color="#37633B" 
-              />
-            </View>
           </View>
         </TouchableOpacity>
 
@@ -144,18 +131,9 @@ export default function SettingsScreen({
               'globe-outline',
               isRtl ? 'اللغة' : 'Language',
               () => setLanguageModalVisible(true),
-              <View style={[styles.langValueBadge, isRtl && styles.langValueBadgeRtl]}>
-                <Text style={[styles.langValueText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                  {selectedLanguage === 'English' ? 'English' : 'العربية'}
-                </Text>
-                <View style={styles.menuArrowBadge}>
-                  <Ionicons 
-                    name={isRtl ? "chevron-back" : "chevron-forward"} 
-                    size={13} 
-                    color="#37633B" 
-                  />
-                </View>
-              </View>,
+              <Text style={[styles.langValueText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                {selectedLanguage === 'English' ? 'English' : 'العربية'}
+              </Text>,
               true
             )}
           </View>
@@ -494,42 +472,18 @@ const createStyles = (colors) => StyleSheet.create({
   menuItemLeftRtl: {
     flexDirection: 'row-reverse',
   },
-  menuIconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.10)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  menuIcon: {
     marginRight: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1.5,
-    elevation: 1,
+  },
+  menuIconRtl: {
+    marginRight: 0,
+    marginLeft: 12,
   },
   menuLabel: {
     fontSize: 14,
     fontWeight: '700',
     color: '#1E2D1F',
     letterSpacing: -0.1,
-  },
-  menuArrowBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2.5,
-    elevation: 2,
   },
   langValueBadge: {
     flexDirection: 'row',
