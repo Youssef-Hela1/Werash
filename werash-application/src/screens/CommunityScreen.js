@@ -15,18 +15,30 @@ export default function CommunityScreen({
 
   return (
     <View style={[styles.container, { paddingTop: topInset + 6 }]}>
-      {/* Top Header Row with Right-Aligned Message Icon */}
+      {/* Top Header Row with Right-Aligned Search & Message Icons */}
       <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
         <View style={styles.spacer} />
         <TouchableOpacity
           style={styles.iconButton}
+          activeOpacity={0.7}
+          onPress={() => {
+            // Search handler
+          }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+        >
+          <Ionicons name="search-outline" size={27} color="#555555" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.iconButton, { marginLeft: 16 }]}
           activeOpacity={0.7}
           onPress={() => setChatsVisible(true)}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"
           accessibilityLabel="Messages"
         >
-          <Ionicons name="chatbubble-ellipses-outline" size={30} color="#555555" />
+          <Ionicons name="chatbubble-ellipses-outline" size={29} color="#555555" />
         </TouchableOpacity>
       </View>
 
