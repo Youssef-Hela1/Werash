@@ -309,7 +309,7 @@ export default function HomeScreen({
               >
                 <View style={styles.miniCardSurfaceGreen}>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
-                    <Ionicons name="construct-outline" size={48} color="#FFFFFF" />
+                    <Ionicons name="construct-outline" size={62} color="#FFFFFF" />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -704,11 +704,13 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   miniCardIconWrapper: {
     position: 'absolute',
-    right: 10,
-    bottom: 8,
+    right: -8,
+    bottom: -8,
+    transform: [{ rotate: '-20deg' }],
   },
   miniCardIconWrapperRtl: {
     right: 'auto',
-    left: 10,
+    left: -8,
+    transform: [{ rotate: '20deg' }],
   },
 });
