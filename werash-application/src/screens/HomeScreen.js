@@ -327,13 +327,20 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardContent: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    width: '100%',
+    height: '100%',
     position: 'relative',
+    alignItems: 'center',
   },
   cardLeftSection: {
-    flex: 1,
+    width: '50%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cardRightSection: {
+    width: '50%',
+    height: '100%',
   },
   cardBrandLogoContainer: {
     width: 124,
@@ -352,13 +359,14 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     elevation: 5,
   },
   cardMiddleDivider: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -0.75,
+    top: 6,
+    bottom: 6,
     width: 1.5,
-    height: '80%',
     backgroundColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 1,
-    alignSelf: 'center',
-  },
-  cardRightSection: {
-    flex: 1,
+    zIndex: 5,
   },
 });
