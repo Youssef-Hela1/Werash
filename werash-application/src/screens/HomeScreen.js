@@ -98,7 +98,7 @@ export default function HomeScreen({
 const createStyles = (colors, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgCreamy,
+    backgroundColor: '#FFFFFF', // Pure White
     position: 'relative',
     overflow: 'hidden',
   },
