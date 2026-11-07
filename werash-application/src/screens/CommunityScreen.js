@@ -26,7 +26,7 @@ export default function CommunityScreen({
       <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
         <View style={styles.logoWrapper}>
           <Image
-            source={require('../../assets/logo.png')}
+            source={require('../../assets/logo_green.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
