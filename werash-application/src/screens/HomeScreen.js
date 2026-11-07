@@ -444,12 +444,9 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardRightSection: {
     width: '60%',
     height: '100%',
-    paddingTop: 34,
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingBottom: 20,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   brandNameText: {
     fontSize: 10.5,
@@ -457,12 +454,13 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: '#8A8A8E', // Lighter Grey
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   brandNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 11,
     letterSpacing: 0,
-    textAlign: 'right',
+    textAlign: 'center',
   },
   modelNameText: {
     fontSize: 28,
@@ -470,14 +468,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: '#37633B', // Same green as header
     letterSpacing: -0.4,
     lineHeight: 32,
-    marginTop: 2,
+    marginTop: 3,
+    textAlign: 'center',
   },
   modelNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 28,
     letterSpacing: 0,
-    textAlign: 'right',
-    marginTop: 1,
+    textAlign: 'center',
+    marginTop: 2,
   },
   cardBrandLogoContainer: {
     width: 96,
