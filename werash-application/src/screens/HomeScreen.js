@@ -325,6 +325,15 @@ export default function HomeScreen({
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="construct-outline" size={86} color="#003514" />
                   </View>
+
+                  {/* Circular Arrow Button (Bottom Left) */}
+                  <View style={[styles.miniCardArrowButton, isRtl && styles.miniCardArrowButtonRtl]} pointerEvents="none">
+                    <Ionicons 
+                      name={isRtl ? "arrow-back" : "arrow-forward"} 
+                      size={13.5} 
+                      color="#37633B" 
+                    />
+                  </View>
                 </View>
               </TouchableOpacity>
 
@@ -352,6 +361,15 @@ export default function HomeScreen({
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="chatbubbles-outline" size={86} color="#003514" />
                   </View>
+
+                  {/* Circular Arrow Button (Bottom Left) */}
+                  <View style={[styles.miniCardArrowButton, isRtl && styles.miniCardArrowButtonRtl]} pointerEvents="none">
+                    <Ionicons 
+                      name={isRtl ? "arrow-back" : "arrow-forward"} 
+                      size={13.5} 
+                      color="#37633B" 
+                    />
+                  </View>
                 </View>
               </TouchableOpacity>
             </View>
@@ -376,6 +394,15 @@ export default function HomeScreen({
                   </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <MaterialCommunityIcons name="tow-truck" size={86} color="#003514" />
+                  </View>
+
+                  {/* Circular Arrow Button (Bottom Left) */}
+                  <View style={[styles.miniCardArrowButton, isRtl && styles.miniCardArrowButtonRtl]} pointerEvents="none">
+                    <Ionicons 
+                      name={isRtl ? "arrow-back" : "arrow-forward"} 
+                      size={13.5} 
+                      color="#37633B" 
+                    />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -409,6 +436,15 @@ export default function HomeScreen({
                   </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="person-outline" size={86} color="#003514" />
+                  </View>
+
+                  {/* Circular Arrow Button (Bottom Left) */}
+                  <View style={[styles.miniCardArrowButton, isRtl && styles.miniCardArrowButtonRtl]} pointerEvents="none">
+                    <Ionicons 
+                      name={isRtl ? "arrow-back" : "arrow-forward"} 
+                      size={13.5} 
+                      color="#37633B" 
+                    />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -812,5 +848,28 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: 0,
     textAlign: 'right',
     marginTop: 1.5,
+  },
+  miniCardArrowButton: {
+    position: 'absolute',
+    left: 14,
+    bottom: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    zIndex: 3,
+  },
+  miniCardArrowButtonRtl: {
+    left: 'auto',
+    right: 14,
   },
 });
