@@ -12,7 +12,7 @@ const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
 // Sized proportionally with taller height for spacious layout while staying clear of bottom nav
 const CARD_WIDTH = 230;
-const CARD_HEIGHT = 118;
+const CARD_HEIGHT = 125;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
@@ -429,7 +429,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adBrandLogoWrapper: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 12,
     right: 14,
     width: 65,
     height: 42,
@@ -449,7 +449,7 @@ const createStyles = (colors) => StyleSheet.create({
   adArrowButton: {
     position: 'absolute',
     left: 14,
-    bottom: 12,
+    bottom: 13,
     width: 28,
     height: 28,
     borderRadius: 14,
