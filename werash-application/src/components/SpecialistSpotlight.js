@@ -264,16 +264,16 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
               onPress={() => onSelectAd && onSelectAd(ad)}
             >
               <View style={styles.adCardSurface}>
-                {/* Upper Section: Full Image */}
-                <View style={styles.adImageContainer}>
-                  <Image 
-                    source={ad.image} 
-                    style={styles.adImageBanner} 
-                    resizeMode="cover" 
-                  />
+                {/* Top Section: Brand Image / Logo (Bosch, Shell, Mobil, etc.) */}
+                <View style={styles.adBrandArea}>
+                  {ad.serviceBrand ? (
+                    <ServiceBrandLogo brand={ad.serviceBrand} />
+                  ) : (
+                    <Image source={ad.image} style={styles.adBrandImage} resizeMode="contain" />
+                  )}
                 </View>
 
-                {/* Bottom Section: Green space with title in white */}
+                {/* Small Bottom Section: Green space with white title */}
                 <View style={styles.adBottomBar}>
                   <Text 
                     style={[styles.adBottomTitle, isRtl && styles.adBottomTitleArabic]} 
@@ -326,7 +326,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 17,
-    backgroundColor: '#003514',
+    backgroundColor: '#F2F4F5',
     marginRight: 12,
     overflow: 'visible',
     ...Platform.select({
@@ -344,33 +344,33 @@ const createStyles = (colors) => StyleSheet.create({
   adCardSurface: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#003514',
+    backgroundColor: '#F2F4F5',
     borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
   },
-  adImageContainer: {
+  adBrandArea: {
     flex: 1,
     width: '100%',
-    backgroundColor: '#1E2D1F',
-    overflow: 'hidden',
+    backgroundColor: '#F2F4F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
-  adImageBanner: {
-    width: '100%',
-    height: '100%',
+  adBrandImage: {
+    width: 90,
+    height: 48,
   },
   adBottomBar: {
-    height: 38,
+    height: 27,
     backgroundColor: '#003514',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 8,
   },
   adBottomTitle: {
-    fontSize: 12.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.1,
@@ -378,7 +378,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adBottomTitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 12,
+    fontSize: 10.5,
     letterSpacing: 0,
     textAlign: 'center',
   },
