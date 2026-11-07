@@ -11,6 +11,7 @@ import Header from './src/components/Header';
 import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
+import NotificationsModal from './src/components/NotificationsModal';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -207,6 +208,42 @@ function AppContent() {
   const [profileVisible, setProfileVisible] = useState(false);
   const [activeSpecialist, setActiveSpecialist] = useState(null);
   const [activeAd, setActiveAd] = useState(null);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: 'n1',
+      type: 'maintenance',
+      title: 'Service Due Alert',
+      titleAr: 'تنبيه موعد الصيانة',
+      body: 'Your Hyundai Coupe is due for Engine Oil replacement in 350 km.',
+      bodyAr: 'سيارتك هيونداي كوبيه مستحقة لتغيير زيت المحرك خلال 350 كم.',
+      date: '2 hours ago',
+      dateAr: 'منذ ساعتين',
+      read: false
+    },
+    {
+      id: 'n2',
+      type: 'message',
+      title: 'New Message',
+      titleAr: 'رسالة جديدة',
+      body: 'Samir Fahmy sent you a message: "Is the price negotiable for the BBS LM rims?"',
+      bodyAr: 'سمير فهمي أرسل لك رسالة: "هل السعر قابل للتفاوض لجنوط BBS LM؟"',
+      date: '1 day ago',
+      dateAr: 'منذ يوم',
+      read: false
+    },
+    {
+      id: 'n3',
+      type: 'offer',
+      title: 'Exclusive Offer',
+      titleAr: 'عرض حصري',
+      body: 'Specialist Elena offered a 15% discount on computerized diagnostics today.',
+      bodyAr: 'الأخصائية إيلينا قدمت خصماً بقيمة 15% على الفحص بالكمبيوتر اليوم.',
+      date: '2 days ago',
+      dateAr: 'منذ يومين',
+      read: false
+    }
+  ]);
   const [communityScrollTrigger, setCommunityScrollTrigger] = useState(0);
   const [splashFinished, setSplashFinished] = useState(false);
   
@@ -685,6 +722,7 @@ function AppContent() {
             selectedLanguage={selectedLanguage}
             onSelectLanguage={handleSelectLanguage}
             onSelectProfile={() => setProfileVisible(true)}
+            onClose={() => setCurrentTab('home')}
           />
         );
       default:
@@ -721,10 +759,15 @@ function AppContent() {
       </Animated.View>
 
       {/* Custom Floating Bottom Navigation Bar */}
-      {!activeSpecialist && !activeAd && (
+      {!activeSpecialist && !activeAd && currentTab !== 'more' && (
         <BottomNavBar 
           activeTab={currentTab} 
+          unreadNotificationsCount={notifications.filter(n => !n.read).length}
           onTabPress={(tab) => {
+            if (tab === 'notifications') {
+              setNotificationsVisible(true);
+              return;
+            }
             if (tab === 'community' && currentTab === 'community') {
               setCommunityScrollTrigger(prev => prev + 1);
             }
@@ -735,6 +778,15 @@ function AppContent() {
           }} 
         />
       )}
+
+      {/* Notifications Drawer Modal */}
+      <NotificationsModal 
+        visible={notificationsVisible}
+        onClose={() => setNotificationsVisible(false)}
+        notifications={notifications}
+        setNotifications={setNotifications}
+        selectedLanguage={selectedLanguage}
+      />
 
       {/* Specialist Detail Modal */}
       {activeSpecialist && (

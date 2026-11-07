@@ -4,6 +4,7 @@ import {
   Animated, Dimensions, Easing, Switch, ScrollView,
   Alert, Image, Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
@@ -84,9 +85,29 @@ export default function SettingsScreen({
     </TouchableOpacity>
   );
 
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
+
   return (
-    <View style={styles.screenContainer}>
+    <View style={[styles.screenContainer, { paddingTop: topInset + 10 }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Page Title & Close Button Header */}
+        <View style={[styles.titleContainer, isRtl && styles.titleContainerRtl]}>
+          <Text style={[styles.pageTitle, isRtl && styles.pageTitleArabic]}>
+            {isRtl ? 'الإعدادات' : 'Settings'}
+          </Text>
+          {onClose && (
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              activeOpacity={0.7} 
+              onPress={onClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={24} color="#37633B" />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Account Info Profile Card */}
         <TouchableOpacity 
           style={styles.cardShadow}
@@ -354,12 +375,41 @@ const createStyles = (colors) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: 60,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 60,
+  },
+  titleContainer: {
+    marginBottom: 20,
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  titleContainerRtl: {
+    flexDirection: 'row-reverse',
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F2F4F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#37633B',
+    letterSpacing: -0.4,
+  },
+  pageTitleArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 28,
+    letterSpacing: 0,
+    textAlign: 'right',
   },
   cardShadow: {
     width: '100%',

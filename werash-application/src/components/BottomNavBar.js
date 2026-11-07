@@ -50,7 +50,7 @@ function HomeFloatingButton({ isActive, onPress, colors, styles, centerLeft }) {
   );
 }
 
-function NavItem({ tab, isActive, onPress, colors, styles }) {
+function NavItem({ tab, isActive, onPress, colors, styles, badgeCount = 0 }) {
   const [scaleAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
@@ -74,19 +74,25 @@ function NavItem({ tab, isActive, onPress, colors, styles }) {
       <Animated.View style={{ 
         transform: [{ scale: scaleAnim }], 
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        position: 'relative',
       }}>
         <Ionicons 
           name={isActive ? tab.activeIcon : tab.icon} 
           size={tab.size || 23} 
           color={isActive ? colors.bgBrand : colors.textMuted} 
         />
+        {badgeCount > 0 && (
+          <View style={styles.badgeContainer}>
+            <View style={styles.badgeDot} />
+          </View>
+        )}
       </Animated.View>
     </TouchableOpacity>
   );
 }
 
-export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
+export default function BottomNavBar({ activeTab = 'home', onTabPress, unreadNotificationsCount = 0 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
   const { width } = useWindowDimensions();
@@ -97,7 +103,7 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
     { id: 'mechanics', label: 'Mechanics', icon: 'construct-outline', activeIcon: 'construct-sharp', size: 23 },
     { id: 'home', label: 'Home', isCenter: true },
     { id: 'community', label: 'Community', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles-sharp', size: 23 },
-    { id: 'more', label: 'More', icon: 'ellipsis-vertical', activeIcon: 'ellipsis-vertical', size: 23 },
+    { id: 'notifications', label: 'Notifications', icon: 'notifications-outline', activeIcon: 'notifications', size: 23 },
   ];
 
   // Sculpted cutout wrapping snugly around the button at its exact current position
@@ -192,6 +198,7 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress }) {
               onPress={() => onTabPress && onTabPress(tab.id)}
               colors={colors}
               styles={styles}
+              badgeCount={tab.id === 'notifications' ? unreadNotificationsCount : 0}
             />
           );
         })}
@@ -237,6 +244,19 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     flex: 1,
     height: 44,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+  },
+  badgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#C84B31',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
   centerSpacer: {
     flex: 1,
