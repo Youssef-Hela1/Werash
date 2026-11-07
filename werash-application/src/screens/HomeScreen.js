@@ -43,22 +43,24 @@ export default function HomeScreen({
   // Comfortable top clearance across devices
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 26));
 
-  // Ultra-subtle spring animation for cards movement (micro-give only)
+  // Ultra-subtle spring animation for cards movement (micro-give only, strictly away from header)
   const cardsTranslateY = useRef(new Animated.Value(0)).current;
 
-  // Ultra-limited travel range (6px max) with firm resistance
-  const MAX_TRAVEL = 6;
+  // Maximum downward travel (6px max). Upward travel is locked at 0 so card can never move towards the header.
+  const MAX_DOWN_TRAVEL = 6;
   const calculateDampedDelta = (dy) => {
-    const sign = dy < 0 ? -1 : 1;
-    const absDy = Math.abs(dy);
-    return sign * (absDy / (absDy + 120)) * MAX_TRAVEL;
+    if (dy <= 0) {
+      // Strictly prevent upward displacement to ensure card never covers logo/text
+      return 0;
+    }
+    return (dy / (dy + 120)) * MAX_DOWN_TRAVEL;
   };
 
   const cardsPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return gestureState.dy > 4 && gestureState.dy > Math.abs(gestureState.dx);
       },
       onPanResponderGrant: () => {
         cardsTranslateY.stopAnimation();
@@ -96,8 +98,28 @@ export default function HomeScreen({
         resizeMode="cover"
       />
 
-      {/* Top Left Brand Header (Static Logo, Wordmark & Greeting) */}
-      <View style={[styles.headerContainer, { paddingTop: topInset + 2 }, isRtl && styles.headerContainerRtl]}>
+      {/* Spring / Scroll Area for Cards Only (Rendered behind Header) */}
+      <View 
+        style={styles.cardsScrollArea}
+        {...cardsPanResponder.panHandlers}
+      >
+        <Animated.View
+          style={[
+            styles.cardsWrapper,
+            {
+              transform: [{ translateY: cardsTranslateY }],
+            },
+          ]}
+        >
+          <PremiumCard />
+        </Animated.View>
+      </View>
+
+      {/* Top Left Brand Header (Always in front: zIndex 100, elevation 100) */}
+      <View 
+        pointerEvents="box-none"
+        style={[styles.headerContainer, { paddingTop: topInset + 2 }, isRtl && styles.headerContainerRtl]}
+      >
         <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
           <Image 
             source={require('../../assets/logo.png')} 
@@ -127,23 +149,6 @@ export default function HomeScreen({
             : (getFirstName() ? `Hello ${getFirstName()}` : 'Hello Guest')}
         </Text>
       </View>
-
-      {/* Spring / Scroll Area for Cards Only */}
-      <View 
-        style={styles.cardsScrollArea}
-        {...cardsPanResponder.panHandlers}
-      >
-        <Animated.View
-          style={[
-            styles.cardsWrapper,
-            {
-              transform: [{ translateY: cardsTranslateY }],
-            },
-          ]}
-        >
-          <PremiumCard />
-        </Animated.View>
-      </View>
     </View>
   );
 }
@@ -165,7 +170,8 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 20,
     alignItems: 'flex-start',
-    zIndex: 10,
+    zIndex: 100,
+    elevation: 100,
   },
   headerContainerRtl: {
     alignItems: 'flex-end',
@@ -219,7 +225,8 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 20,
+    zIndex: 10,
+    elevation: 10,
     overflow: 'visible',
   },
   cardsWrapper: {
