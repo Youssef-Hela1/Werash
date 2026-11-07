@@ -634,35 +634,35 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   /* 4 Smaller Cards Grid Styles */
   cardsGrid: {
     marginHorizontal: 20,
-    marginTop: 14,
-    gap: 14,
+    marginTop: 12,
+    gap: 12,
   },
   gridRow: {
     flexDirection: 'row',
-    gap: 14,
+    gap: 12,
   },
   miniCardShadow: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: '#FAFBFB',
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.13,
+        shadowOffset: { width: 0, height: 2.5 },
+        shadowOpacity: 0.12,
         shadowRadius: 3,
       },
       android: {
-        elevation: 3,
+        elevation: 2.5,
       },
     }),
   },
   miniCardSurface: {
     width: '100%',
-    aspectRatio: 1.45,
+    aspectRatio: 1.85,
     backgroundColor: '#FAFBFB',
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
