@@ -378,12 +378,12 @@ export default function HomeScreen({
               {/* Bottom Left Card: Tow */}
               <TouchableOpacity 
                 activeOpacity={1} 
-                style={styles.miniCardShadow}
+                style={styles.miniCardShadowTow}
                 onPress={() => {
                   // Feature currently under construction
                 }}
               >
-                <View style={styles.miniCardSurface}>
+                <View style={styles.miniCardSurfaceTow}>
                   <View style={[styles.miniCardHeader, isRtl && styles.miniCardHeaderRtl]}>
                     <Text 
                       style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
@@ -822,6 +822,32 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: '100%',
     aspectRatio: 1.62,
     backgroundColor: '#F2F4F5',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  miniCardShadowTow: {
+    flex: 1,
+    borderRadius: 17,
+    backgroundColor: '#E5E8EA',
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2.8,
+      },
+    }),
+  },
+  miniCardSurfaceTow: {
+    width: '100%',
+    aspectRatio: 1.62,
+    backgroundColor: '#E5E8EA',
     borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
