@@ -9,11 +9,11 @@ const { width: screenWidth } = Dimensions.get('window');
 const BACKDROP_ASPECT = 1846 / 852;
 const BACKDROP_HEIGHT = Math.round(screenWidth * BACKDROP_ASPECT);
 
-// The green-to-cream transition boundary in the backdrop asset occurs at y = 535 / 852
-const TRANSITION_RATIO = 535 / 852;
+// The green satin arched boundary in the backdrop asset peaks at y = 540 / 852
+const TRANSITION_RATIO = 540 / 852;
 const GREEN_BOUNDARY = Math.round(screenWidth * TRANSITION_RATIO);
 
-// Card dimensions: 180 height centered on GREEN_BOUNDARY so exactly half is on green and half on cream
+// Card dimensions: 180 height centered on GREEN_BOUNDARY so exactly half is on green and half on pure white
 const OVERLAP_CARD_HEIGHT = 180;
 const OVERLAP_CARD_TOP = GREEN_BOUNDARY - Math.round(OVERLAP_CARD_HEIGHT / 2);
 
@@ -49,7 +49,7 @@ export default function HomeScreen({
       <Image 
         source={require('../../assets/forest_green_satin_backdrop.png')}
         style={styles.satinBackdrop}
-        resizeMode="contain"
+        resizeMode="cover"
       />
 
       {/* Top Left Brand Header (Logo & Wordmark only) */}

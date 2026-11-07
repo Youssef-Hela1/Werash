@@ -699,7 +699,7 @@ function AppContent() {
   };
 
   return (
-    <View style={styles.appContainer}>
+    <View style={[styles.appContainer, currentTab === 'home' && { backgroundColor: '#FFFFFF' }]}>
       {/* Animated Main Content Container (Moves Header + Home Content together on bounce) */}
       <Animated.View 
         style={styles.mainContentContainer}
