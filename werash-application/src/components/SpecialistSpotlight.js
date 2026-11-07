@@ -264,39 +264,23 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
               onPress={() => onSelectAd && onSelectAd(ad)}
             >
               <View style={styles.adCardSurface}>
-                {/* Header (Top Left): Sponsor & Offer Subtitle */}
-                <View style={[styles.adHeader, isRtl && styles.adHeaderRtl]}>
-                  <Text style={[styles.adSponsor, isRtl && styles.adSponsorArabic]} numberOfLines={1}>
-                    {ad.sponsor}
-                  </Text>
-                  <Text style={[styles.adTitle, isRtl && styles.adTitleArabic]} numberOfLines={1}>
+                {/* Upper Section: Full Image */}
+                <View style={styles.adImageContainer}>
+                  <Image 
+                    source={ad.image} 
+                    style={styles.adImageBanner} 
+                    resizeMode="cover" 
+                  />
+                </View>
+
+                {/* Bottom Section: Green space with title in white */}
+                <View style={styles.adBottomBar}>
+                  <Text 
+                    style={[styles.adBottomTitle, isRtl && styles.adBottomTitleArabic]} 
+                    numberOfLines={1}
+                  >
                     {ad.title}
                   </Text>
-                </View>
-
-                {/* Badge Pill (Top Right) */}
-                <View style={[styles.adBadgeWrapper, isRtl && styles.adBadgeWrapperRtl]}>
-                  <Text style={[styles.adBadgeText, isRtl && styles.adBadgeTextArabic]}>
-                    {ad.badge}
-                  </Text>
-                </View>
-
-                {/* Service Brand Logo / Watermark (Bottom Right) */}
-                <View style={[styles.adBrandLogoWrapper, isRtl && styles.adBrandLogoWrapperRtl]}>
-                  {ad.serviceBrand ? (
-                    <ServiceBrandLogo brand={ad.serviceBrand} size={36} />
-                  ) : (
-                    <Image source={ad.image} resizeMode="contain" style={styles.adImageLogo} />
-                  )}
-                </View>
-
-                {/* Circular Action Arrow Button (Bottom Left) */}
-                <View style={[styles.adArrowButton, isRtl && styles.adArrowButtonRtl]} pointerEvents="none">
-                  <Ionicons 
-                    name={isRtl ? "arrow-back" : "arrow-forward"} 
-                    size={12.5} 
-                    color="#37633B" 
-                  />
                 </View>
               </View>
             </TouchableOpacity>
@@ -342,7 +326,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 17,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: '#003514',
     marginRight: 12,
     overflow: 'visible',
     ...Platform.select({
@@ -360,113 +344,42 @@ const createStyles = (colors) => StyleSheet.create({
   adCardSurface: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#F2F4F5',
+    backgroundColor: '#003514',
     borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
-    position: 'relative',
   },
-  adHeader: {
-    position: 'absolute',
-    top: 13,
-    left: 14,
-    right: 74,
-    zIndex: 2,
+  adImageContainer: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#1E2D1F',
+    overflow: 'hidden',
   },
-  adHeaderRtl: {
-    left: 74,
-    right: 14,
-    alignItems: 'flex-end',
+  adImageBanner: {
+    width: '100%',
+    height: '100%',
   },
-  adSponsor: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#37633B',
-    letterSpacing: -0.2,
+  adBottomBar: {
+    height: 38,
+    backgroundColor: '#003514',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.12)',
   },
-  adSponsorArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 14.5,
-    letterSpacing: 0,
-    textAlign: 'right',
-  },
-  adTitle: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'rgba(55, 99, 59, 0.70)',
-    letterSpacing: 0.1,
-    marginTop: 2,
-  },
-  adTitleArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 9.5,
-    letterSpacing: 0,
-    textAlign: 'right',
-    marginTop: 1.5,
-  },
-  adBadgeWrapper: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
-    borderRadius: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  adBadgeWrapperRtl: {
-    right: 'auto',
-    left: 12,
-  },
-  adBadgeText: {
-    fontSize: 8.5,
+  adBottomTitle: {
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#37633B',
+    color: '#FFFFFF',
+    letterSpacing: -0.1,
+    textAlign: 'center',
   },
-  adBadgeTextArabic: {
+  adBottomTitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 9,
-  },
-  adBrandLogoWrapper: {
-    position: 'absolute',
-    bottom: 12,
-    right: 14,
-    width: 65,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  adBrandLogoWrapperRtl: {
-    right: 'auto',
-    left: 14,
-  },
-  adImageLogo: {
-    width: 52,
-    height: 40,
-    opacity: 0.9,
-  },
-  adArrowButton: {
-    position: 'absolute',
-    left: 14,
-    bottom: 13,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2.5,
-    elevation: 2,
-    zIndex: 3,
-  },
-  adArrowButtonRtl: {
-    left: 'auto',
-    right: 14,
+    fontSize: 12,
+    letterSpacing: 0,
+    textAlign: 'center',
   },
 });
