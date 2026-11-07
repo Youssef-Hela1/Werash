@@ -301,9 +301,15 @@ export default function HomeScreen({
           {/* 4 Smaller Cards Equally Spaced in a 2x2 Grid */}
           <View style={styles.cardsGrid}>
             <View style={styles.gridRow}>
-              {/* Top Left Card: Featured Brand Green */}
-              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadowGreen}>
-                <View style={styles.miniCardSurfaceGreen} />
+              {/* Top Left Card: Mechanics (Dark Forest Green) */}
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={styles.miniCardShadowGreen}
+                onPress={() => onNavigate && onNavigate('mechanics')}
+              >
+                <View style={styles.miniCardSurfaceGreen}>
+                  <Ionicons name="construct-outline" size={38} color="#FFFFFF" />
+                </View>
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
                 <View style={styles.miniCardSurface} />
@@ -693,5 +699,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
