@@ -26,7 +26,7 @@ export default function CommunityScreen({
           accessibilityRole="button"
           accessibilityLabel="Messages"
         >
-          <Ionicons name="chatbubble-ellipses-outline" size={26} color="#666666" />
+          <Ionicons name="chatbubble-ellipses-outline" size={30} color="#555555" />
         </TouchableOpacity>
       </View>
 
