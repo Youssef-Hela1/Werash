@@ -570,8 +570,12 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   settingsButton: {
-    width: 44,
+    width: 48,
     height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
