@@ -90,7 +90,7 @@ export default function SettingsScreen({
 
   return (
     <View style={[styles.screenContainer, { paddingTop: topInset + 10 }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.scrollContent}>
         {/* Page Title & Close Button Header */}
         <View style={[styles.titleContainer, isRtl && styles.titleContainerRtl]}>
           <Text style={[styles.pageTitle, isRtl && styles.pageTitleArabic]}>
@@ -256,7 +256,7 @@ export default function SettingsScreen({
             </Text>
           </TouchableOpacity>
         )}
-      </ScrollView>
+      </View>
 
         {/* Custom Language Selection Dialog Overlay */}
         <Modal
@@ -379,10 +379,11 @@ const createStyles = (colors) => StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 60,
+    paddingBottom: 24,
+    flex: 1,
   },
   titleContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
     marginTop: 4,
     flexDirection: 'row',
     alignItems: 'center',
@@ -415,7 +416,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: '100%',
     borderRadius: 17,
     backgroundColor: '#F2F4F5',
-    marginBottom: 20,
+    marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
