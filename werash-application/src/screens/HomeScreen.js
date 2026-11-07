@@ -671,27 +671,27 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardShadowGreen: {
     flex: 1,
     borderRadius: 17,
-    backgroundColor: '#37633B',
+    backgroundColor: '#003514',
     overflow: 'visible',
     ...Platform.select({
       ios: {
-        shadowColor: '#1A331D',
+        shadowColor: '#001A0A',
         shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.22,
+        shadowOpacity: 0.28,
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 3.5,
       },
     }),
   },
   miniCardSurfaceGreen: {
     width: '100%',
     aspectRatio: 1.62,
-    backgroundColor: '#37633B',
+    backgroundColor: '#003514',
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.22)',
     overflow: 'hidden',
   },
 });
