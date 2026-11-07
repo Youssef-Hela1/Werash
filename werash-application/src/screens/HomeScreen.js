@@ -9,6 +9,14 @@ const { width: screenWidth } = Dimensions.get('window');
 const BACKDROP_ASPECT = 1846 / 852;
 const BACKDROP_HEIGHT = Math.round(screenWidth * BACKDROP_ASPECT);
 
+// The green-to-cream transition boundary in the backdrop asset occurs at y = 535 / 852
+const TRANSITION_RATIO = 535 / 852;
+const GREEN_BOUNDARY = Math.round(screenWidth * TRANSITION_RATIO);
+
+// Card dimensions: 180 height centered on GREEN_BOUNDARY so exactly half is on green and half on cream
+const OVERLAP_CARD_HEIGHT = 180;
+const OVERLAP_CARD_TOP = GREEN_BOUNDARY - Math.round(OVERLAP_CARD_HEIGHT / 2);
+
 export default function HomeScreen({ 
   onNavigate, 
   currentUser, 
@@ -20,7 +28,7 @@ export default function HomeScreen({
   onSelectProfile,
   onScrollPositionChange 
 }) {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const isRtl = selectedLanguage === 'Arabic';
@@ -30,8 +38,8 @@ export default function HomeScreen({
     return currentUser.fullName.trim().split(/\s+/)[0];
   };
 
-  // Ensure comfortable top clearance on all devices (notch, Dynamic Island, status bar)
-  const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 52 : (StatusBar.currentHeight || 28));
+  // Comfortable top clearance across devices
+  const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 26));
 
   return (
     <View style={styles.container}>
@@ -45,7 +53,7 @@ export default function HomeScreen({
       />
 
       {/* Top Left Brand Header (Logo & Wordmark only) */}
-      <View style={[styles.headerContainer, { paddingTop: topInset + 4 }, isRtl && styles.headerContainerRtl]}>
+      <View style={[styles.headerContainer, { paddingTop: topInset + 2 }, isRtl && styles.headerContainerRtl]}>
         <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
           <Image 
             source={require('../../assets/logo.png')} 
@@ -75,11 +83,19 @@ export default function HomeScreen({
             : (getFirstName() ? `Hello ${getFirstName()}` : 'Hello Guest')}
         </Text>
       </View>
+
+      {/* Premium Ivory White Overlapping Card */}
+      <View style={[styles.overlapCardContainer, { top: OVERLAP_CARD_TOP }]}>
+        <View style={styles.premiumIvoryCard}>
+          {/* Subtle top inner highlight for depth */}
+          <View style={styles.cardInnerHighlight} pointerEvents="none" />
+        </View>
+      </View>
     </View>
   );
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bgCreamy,
@@ -109,37 +125,68 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   logoImage: {
-    width: 52,
-    height: 52,
-    marginRight: 12,
+    width: 48,
+    height: 48,
+    marginRight: 11,
   },
   logoImageRtl: {
     marginRight: 0,
-    marginLeft: 12,
+    marginLeft: 11,
   },
   wordmarkImage: {
-    height: 52,
-    width: 154,
+    height: 48,
+    width: 142,
   },
   brandNameArabic: {
     fontFamily: 'ZafranArabic-Bold',
-    fontSize: 88,
+    fontSize: 82,
     letterSpacing: 0,
-    marginTop: -6,
+    marginTop: -5,
   },
   greetingText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 18,
+    marginTop: 10,
     letterSpacing: -0.2,
   },
   greetingTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 14,
+    marginTop: 8,
     textAlign: 'right',
+  },
+
+  /* Overlapping Ivory Card */
+  overlapCardContainer: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    height: OVERLAP_CARD_HEIGHT,
+    zIndex: 20,
+  },
+  premiumIvoryCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFB', // Premium Ivory White
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    // Multi-layer ambient drop shadow for elevation over both dark green & light cream
+    shadowColor: '#051E0A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  cardInnerHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
 });
