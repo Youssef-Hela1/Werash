@@ -308,12 +308,20 @@ export default function HomeScreen({
                 onPress={() => onNavigate && onNavigate('mechanics')}
               >
                 <View style={styles.miniCardSurface}>
-                  <Text 
-                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
-                    numberOfLines={1}
-                  >
-                    {isRtl ? 'الميكانيكيين' : 'Mechanics'}
-                  </Text>
+                  <View style={[styles.miniCardHeader, isRtl && styles.miniCardHeaderRtl]}>
+                    <Text 
+                      style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'الميكانيكيين' : 'Mechanics'}
+                    </Text>
+                    <Text 
+                      style={[styles.miniCardSubtitle, isRtl && styles.miniCardSubtitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'فنيين وورش' : 'Top Specialists'}
+                    </Text>
+                  </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="construct-outline" size={86} color="#003514" />
                   </View>
@@ -327,12 +335,20 @@ export default function HomeScreen({
                 onPress={() => onNavigate && onNavigate('community')}
               >
                 <View style={styles.miniCardSurface}>
-                  <Text 
-                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
-                    numberOfLines={1}
-                  >
-                    {isRtl ? 'المجتمع' : 'Community'}
-                  </Text>
+                  <View style={[styles.miniCardHeader, isRtl && styles.miniCardHeaderRtl]}>
+                    <Text 
+                      style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'المجتمع' : 'Community'}
+                    </Text>
+                    <Text 
+                      style={[styles.miniCardSubtitle, isRtl && styles.miniCardSubtitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'نقاشات وتجارب' : 'Feed & Posts'}
+                    </Text>
+                  </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="chatbubbles-outline" size={86} color="#003514" />
                   </View>
@@ -344,12 +360,20 @@ export default function HomeScreen({
               {/* Bottom Left Card: Tow */}
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
                 <View style={styles.miniCardSurface}>
-                  <Text 
-                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
-                    numberOfLines={1}
-                  >
-                    {isRtl ? 'سطحة' : 'Tow'}
-                  </Text>
+                  <View style={[styles.miniCardHeader, isRtl && styles.miniCardHeaderRtl]}>
+                    <Text 
+                      style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'سطحة' : 'Tow'}
+                    </Text>
+                    <Text 
+                      style={[styles.miniCardSubtitle, isRtl && styles.miniCardSubtitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'طوارئ وسحب' : 'Roadside Assist'}
+                    </Text>
+                  </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <MaterialCommunityIcons name="tow-truck" size={86} color="#003514" />
                   </View>
@@ -369,12 +393,20 @@ export default function HomeScreen({
                 }}
               >
                 <View style={styles.miniCardSurface}>
-                  <Text 
-                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
-                    numberOfLines={1}
-                  >
-                    {isRtl ? 'الملف الشخصي' : 'Profile'}
-                  </Text>
+                  <View style={[styles.miniCardHeader, isRtl && styles.miniCardHeaderRtl]}>
+                    <Text 
+                      style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'الملف الشخصي' : 'Profile'}
+                    </Text>
+                    <Text 
+                      style={[styles.miniCardSubtitle, isRtl && styles.miniCardSubtitleArabic]}
+                      numberOfLines={1}
+                    >
+                      {isRtl ? 'الحساب والمركبات' : 'Account & Garage'}
+                    </Text>
+                  </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="person-outline" size={86} color="#003514" />
                   </View>
@@ -745,22 +777,40 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     opacity: 0.16,
     transform: [{ rotate: '20deg' }],
   },
-  miniCardTitle: {
+  miniCardHeader: {
     position: 'absolute',
-    top: 14,
+    top: 13,
     left: 14,
+    right: 14,
+    zIndex: 2,
+  },
+  miniCardHeaderRtl: {
+    alignItems: 'flex-end',
+  },
+  miniCardTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#37633B',
     letterSpacing: -0.2,
-    zIndex: 2,
   },
   miniCardTitleArabic: {
-    left: 'auto',
-    right: 14,
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 16.5,
     letterSpacing: 0,
     textAlign: 'right',
+  },
+  miniCardSubtitle: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: 'rgba(55, 99, 59, 0.70)',
+    letterSpacing: 0.1,
+    marginTop: 2,
+  },
+  miniCardSubtitleArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 10,
+    letterSpacing: 0,
+    textAlign: 'right',
+    marginTop: 1.5,
   },
 });
