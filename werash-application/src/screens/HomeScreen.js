@@ -308,7 +308,9 @@ export default function HomeScreen({
                 onPress={() => onNavigate && onNavigate('mechanics')}
               >
                 <View style={styles.miniCardSurfaceGreen}>
-                  <Ionicons name="construct-outline" size={38} color="#FFFFFF" />
+                  <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
+                    <Ionicons name="construct-outline" size={48} color="#FFFFFF" />
+                  </View>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
@@ -699,7 +701,14 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  miniCardIconWrapper: {
+    position: 'absolute',
+    right: 10,
+    bottom: 8,
+  },
+  miniCardIconWrapperRtl: {
+    right: 'auto',
+    left: 10,
   },
 });
