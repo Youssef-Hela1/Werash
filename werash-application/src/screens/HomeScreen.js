@@ -128,18 +128,18 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: -6,
   },
   greetingText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 8,
+    marginTop: 18,
     letterSpacing: -0.2,
   },
   greetingTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 6,
+    marginTop: 14,
     textAlign: 'right',
   },
 });
