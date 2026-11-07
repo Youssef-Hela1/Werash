@@ -396,6 +396,15 @@ export default function HomeScreen({
                     <MaterialCommunityIcons name="tow-truck" size={86} color="#003514" />
                   </View>
 
+                  {/* 3 Crossing Minimalist Hazard Ribbons */}
+                  <View style={styles.hazardTapeImageLayer} pointerEvents="none">
+                    <Image 
+                      source={require('../../assets/hazard_tape_cartoon.png')} 
+                      style={styles.hazardTapeImage} 
+                      resizeMode="cover" 
+                    />
+                  </View>
+
                   {/* Circular Arrow Button (Bottom Left) */}
                   <View style={[styles.miniCardArrowButton, isRtl && styles.miniCardArrowButtonRtl]} pointerEvents="none">
                     <Ionicons 
@@ -871,5 +880,22 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardArrowButtonRtl: {
     left: 'auto',
     right: 14,
+  },
+
+  /* 3 Crossing Minimalist Hazard Ribbons */
+  hazardTapeImageLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 4,
+    elevation: 3,
+  },
+  hazardTapeImage: {
+    width: '100%',
+    height: '100%',
   },
 });
