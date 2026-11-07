@@ -3,6 +3,7 @@ import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform, Animate
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import PremiumCard from '../components/PremiumCard';
+import { BRAND_LOGOS } from '../data/brandLogos';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -18,6 +19,58 @@ const GREEN_BOUNDARY = Math.round(screenWidth * TRANSITION_RATIO);
 const CARD_WIDTH = screenWidth - 40;
 const OVERLAP_CARD_HEIGHT = Math.round(CARD_WIDTH / 1.96);
 const OVERLAP_CARD_TOP = GREEN_BOUNDARY - Math.round(OVERLAP_CARD_HEIGHT / 2);
+
+const ARABIC_BRAND_MAP = {
+  'مرسيدس': 'mercedes',
+  'بي إم دبليو': 'bmw',
+  'أودي': 'audi',
+  'بورشه': 'porsche',
+  'فولكس فاجن': 'volkswagen',
+  'هيونداي': 'hyundai',
+  'نيسان': 'nissan',
+  'تويوتا': 'toyota',
+  'كيا': 'kia',
+  'فيات': 'fiat',
+  'رينو': 'renault',
+  'بيجو': 'peugeot',
+  'شيري': 'chery',
+  'إم جي': 'mg',
+  'ميتسوبيشي': 'mitsubishi',
+  'أوبل': 'opel',
+  'سكودا': 'skoda',
+  'سيات': 'seat',
+  'شيفروليه': 'chevrolet',
+  'فورد': 'ford',
+  'هوندا': 'honda',
+  'سوبارو': 'subaru',
+  'سوزوكي': 'suzuki',
+  'تسلا': 'tesla',
+  'فولفو': 'volvo',
+  'لاند روفر': 'land rover',
+  'مازدا': 'mazda',
+  'جيب': 'jeep',
+  'شانجان': 'changan',
+  'هافال': 'haval',
+  'جيلي': 'geely',
+  'بايك': 'baic',
+  'بي واي دي': 'byd',
+};
+
+const getBrandLogo = (brandName) => {
+  if (!brandName || typeof brandName !== 'string') return null;
+  const trimmed = brandName.trim();
+  const normalized = trimmed.toLowerCase();
+  const key = ARABIC_BRAND_MAP[trimmed] || normalized;
+  return (
+    BRAND_LOGOS[key] || 
+    BRAND_LOGOS[key.replace(/\s+/g, '-')] || 
+    BRAND_LOGOS[key.replace(/-/g, ' ')] || 
+    (key.includes('mercedes') ? BRAND_LOGOS['mercedes'] : null) || 
+    (key.includes('bmw') ? BRAND_LOGOS['bmw'] : null) || 
+    (key.includes('hyundai') ? BRAND_LOGOS['hyundai'] : null) || 
+    null
+  );
+};
 
 export default function HomeScreen({ 
   onNavigate, 
@@ -42,6 +95,22 @@ export default function HomeScreen({
 
   // Comfortable top clearance across devices
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 26));
+
+  // Resolve active vehicle & brand logo
+  const activeVehicle = (userVehicles && userVehicles.length > 0)
+    ? (userVehicles.find(v => v.id === activeVehicleId) || userVehicles[0])
+    : (currentUser && (currentUser.carBrand || currentUser.carModel) ? {
+        brand: currentUser.carBrand,
+        model: currentUser.carModel,
+        year: currentUser.carYear,
+      } : {
+        brand: 'Hyundai',
+        model: 'Coupe',
+        year: '2005',
+      });
+
+  const carBrand = activeVehicle?.brand || 'Hyundai';
+  const brandLogo = getBrandLogo(carBrand) || BRAND_LOGOS['hyundai'];
 
   // Elastic spring animation for cards movement in both directions
   const cardsTranslateY = useRef(new Animated.Value(0)).current;
@@ -110,7 +179,19 @@ export default function HomeScreen({
             },
           ]}
         >
-          <PremiumCard />
+          <PremiumCard>
+            <View style={styles.cardContent}>
+              <View style={styles.cardBrandLogoContainer}>
+                {brandLogo && (
+                  <Image 
+                    source={brandLogo} 
+                    style={styles.cardBrandLogo} 
+                    resizeMode="contain" 
+                  />
+                )}
+              </View>
+            </View>
+          </PremiumCard>
         </Animated.View>
       </View>
 
@@ -231,5 +312,23 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardsWrapper: {
     width: '100%',
     overflow: 'visible',
+  },
+
+  /* Premium Card Content */
+  cardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  cardBrandLogoContainer: {
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardBrandLogo: {
+    width: 56,
+    height: 56,
   },
 });
