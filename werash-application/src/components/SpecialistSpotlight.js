@@ -346,8 +346,8 @@ const createStyles = (colors) => StyleSheet.create({
     height: '100%',
     backgroundColor: '#F2F4F5',
     borderRadius: 17,
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#003514',
     overflow: 'hidden',
   },
   adBrandArea: {
