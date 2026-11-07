@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import PremiumCard from '../components/PremiumCard';
+import SpecialistSpotlight from '../components/SpecialistSpotlight';
 import { BRAND_LOGOS } from '../data/brandLogos';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -477,6 +478,13 @@ export default function HomeScreen({
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* 10 Auto-Scrolling Sponsored Ad Cards */}
+          <SpecialistSpotlight 
+            onNavigate={onNavigate} 
+            selectedLanguage={selectedLanguage} 
+            onSelectAd={onSelectAd} 
+          />
         </Animated.View>
       </View>
 

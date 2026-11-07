@@ -1,7 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Dimensions, Platform } from 'react-native';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import ServiceBrandLogo from './ServiceBrandLogo';
 
 
@@ -10,8 +11,8 @@ const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
 const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
 // Sized dynamically with generous canvas and placed proportionally for all screens
-const CARD_WIDTH = isTallPlus ? 240 : (isLargeScreen ? 230 : 220);
-const CARD_HEIGHT = isTallPlus ? 164 : (isLargeScreen ? 156 : 146);
+const CARD_WIDTH = 220;
+const CARD_HEIGHT = 105;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
@@ -248,8 +249,8 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
           {renderedAds.map((ad, idx) => (
             <TouchableOpacity 
               key={`${ad.id}-${idx}`} 
-              style={styles.card}
-              activeOpacity={0.9}
+              style={styles.adCardShadow}
+              activeOpacity={1}
               onPressIn={() => {
                 isInteractingRef.current = true;
                 if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
@@ -262,22 +263,41 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
               }}
               onPress={() => onSelectAd && onSelectAd(ad)}
             >
-              <BlurView
-                intensity={65}
-                tint={colors.white === '#FFFFFF' ? 'light' : 'dark'}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={{ flex: 1, backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }}>
-                {ad.serviceBrand ? (
-                  <ServiceBrandLogo brand={ad.serviceBrand} />
-                ) : (
-                  <Image source={ad.image} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
-                )}
-              </View>
-              <View style={styles.adFooter}>
-                <Text style={styles.adFooterText} numberOfLines={1}>
-                  {ad.sponsor}
-                </Text>
+              <View style={styles.adCardSurface}>
+                {/* Header (Top Left): Sponsor & Offer Subtitle */}
+                <View style={[styles.adHeader, isRtl && styles.adHeaderRtl]}>
+                  <Text style={[styles.adSponsor, isRtl && styles.adSponsorArabic]} numberOfLines={1}>
+                    {ad.sponsor}
+                  </Text>
+                  <Text style={[styles.adTitle, isRtl && styles.adTitleArabic]} numberOfLines={1}>
+                    {ad.title}
+                  </Text>
+                </View>
+
+                {/* Badge Pill (Top Right) */}
+                <View style={[styles.adBadgeWrapper, isRtl && styles.adBadgeWrapperRtl]}>
+                  <Text style={[styles.adBadgeText, isRtl && styles.adBadgeTextArabic]}>
+                    {ad.badge}
+                  </Text>
+                </View>
+
+                {/* Service Brand Logo / Watermark (Bottom Right) */}
+                <View style={[styles.adBrandLogoWrapper, isRtl && styles.adBrandLogoWrapperRtl]}>
+                  {ad.serviceBrand ? (
+                    <ServiceBrandLogo brand={ad.serviceBrand} size={36} />
+                  ) : (
+                    <Image source={ad.image} resizeMode="contain" style={styles.adImageLogo} />
+                  )}
+                </View>
+
+                {/* Circular Action Arrow Button (Bottom Left) */}
+                <View style={[styles.adArrowButton, isRtl && styles.adArrowButtonRtl]} pointerEvents="none">
+                  <Ionicons 
+                    name={isRtl ? "arrow-back" : "arrow-forward"} 
+                    size={12.5} 
+                    color="#37633B" 
+                  />
+                </View>
               </View>
             </TouchableOpacity>
           ))}
@@ -289,33 +309,23 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    marginTop: isTallPlus ? 28 : (isLargeScreen ? 25 : 22),
-    marginBottom: 0,
-    marginHorizontal: -20,
+    marginTop: 14,
+    marginBottom: 20,
+    width: '100%',
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 5,
+    marginBottom: 8,
   },
   sectionMain: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.bgBrand,
-    marginTop: 1,
-    letterSpacing: 0.4,
-  },
-  browseAllWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: 2,
-  },
-  browseAllText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: colors.textDark,
+    fontWeight: '800',
+    color: '#8E8E93',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   carouselWrapper: {
     position: 'relative',
@@ -323,57 +333,137 @@ const createStyles = (colors) => StyleSheet.create({
   },
   scrollContainer: {
     paddingLeft: 20,
-    paddingRight: 40,
+    paddingRight: 20,
   },
-  card: {
+  adCardShadow: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
-    borderWidth: 1.2,
-    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
-    borderRadius: 16,
+    borderRadius: 17,
+    backgroundColor: '#F2F4F5',
     marginRight: 12,
-    overflow: 'hidden',
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.3,
-    shadowRadius: 8,
-    elevation: 3,
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2.5 },
+        shadowOpacity: 0.12,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2.8,
+      },
+    }),
   },
-  adImage: {
-    flex: 1,
+  adCardSurface: {
     width: '100%',
-    resizeMode: 'cover',
-  },
-  adFooter: {
-    height: 30,
-    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(255, 255, 255, 0.65)' : 'rgba(26, 29, 26, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  adFooterText: {
-    fontSize: 12.5,
-    fontWeight: 'bold',
-    color: colors.textDark,
-  },
-  navArrow: {
-    position: 'absolute',
-    right: 12,
-    top: '32%',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
+    height: '100%',
+    backgroundColor: '#F2F4F5',
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
-  }
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  adHeader: {
+    position: 'absolute',
+    top: 13,
+    left: 14,
+    right: 74,
+    zIndex: 2,
+  },
+  adHeaderRtl: {
+    left: 74,
+    right: 14,
+    alignItems: 'flex-end',
+  },
+  adSponsor: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#37633B',
+    letterSpacing: -0.2,
+  },
+  adSponsorArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 14.5,
+    letterSpacing: 0,
+    textAlign: 'right',
+  },
+  adTitle: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(55, 99, 59, 0.70)',
+    letterSpacing: 0.1,
+    marginTop: 2,
+  },
+  adTitleArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 9.5,
+    letterSpacing: 0,
+    textAlign: 'right',
+    marginTop: 1.5,
+  },
+  adBadgeWrapper: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  adBadgeWrapperRtl: {
+    right: 'auto',
+    left: 12,
+  },
+  adBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#37633B',
+  },
+  adBadgeTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 9,
+  },
+  adBrandLogoWrapper: {
+    position: 'absolute',
+    bottom: 8,
+    right: 12,
+    width: 60,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  adBrandLogoWrapperRtl: {
+    right: 'auto',
+    left: 12,
+  },
+  adImageLogo: {
+    width: 48,
+    height: 36,
+    opacity: 0.85,
+  },
+  adArrowButton: {
+    position: 'absolute',
+    left: 14,
+    bottom: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2.5,
+    elevation: 2,
+    zIndex: 3,
+  },
+  adArrowButtonRtl: {
+    left: 'auto',
+    right: 14,
+  },
 });
