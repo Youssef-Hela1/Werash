@@ -10,9 +10,9 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
 const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
-// Sized proportionally with taller height for spacious layout
+// Sized proportionally with taller height for spacious layout while staying clear of bottom nav
 const CARD_WIDTH = 230;
-const CARD_HEIGHT = 135;
+const CARD_HEIGHT = 124;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
@@ -201,9 +201,9 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
   };
 
   return (
-    <View style={[styles.container, isRtl && { marginTop: 16 }]}>
+    <View style={[styles.container, isRtl && { marginTop: 9 }]}>
       {/* Spotlight Header Row */}
-      <View style={[styles.headerRow, false]}>
+      <View style={styles.headerRow}>
         <View>
           <Text style={[styles.sectionMain, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }, false]}>{labelSpotlight}</Text>
         </View>
@@ -309,8 +309,8 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    marginTop: 14,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 4,
     width: '100%',
   },
   headerRow: {
@@ -318,7 +318,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   sectionMain: {
     fontSize: 10,
@@ -330,22 +330,25 @@ const createStyles = (colors) => StyleSheet.create({
   carouselWrapper: {
     position: 'relative',
     width: '100%',
+    overflow: 'visible',
   },
   scrollContainer: {
     paddingLeft: 20,
     paddingRight: 20,
+    paddingTop: 2,
+    paddingBottom: 10,
   },
   adCardShadow: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    borderRadius: 17,
+    borderRadius: 16,
     backgroundColor: '#F2F4F5',
     marginRight: 12,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.12,
         shadowRadius: 3,
       },
@@ -358,7 +361,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#F2F4F5',
-    borderRadius: 17,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
@@ -426,8 +429,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adBrandLogoWrapper: {
     position: 'absolute',
-    bottom: 12,
-    right: 14,
+    bottom: 10,
+    right: 12,
     width: 65,
     height: 42,
     alignItems: 'center',
@@ -436,7 +439,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adBrandLogoWrapperRtl: {
     right: 'auto',
-    left: 14,
+    left: 12,
   },
   adImageLogo: {
     width: 52,
@@ -445,11 +448,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adArrowButton: {
     position: 'absolute',
-    left: 14,
-    bottom: 14,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    left: 12,
+    bottom: 11,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(55, 99, 59, 0.12)',
@@ -464,6 +467,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adArrowButtonRtl: {
     left: 'auto',
-    right: 14,
+    right: 12,
   },
 });
