@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform, Animated, PanResponder, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import PremiumCard from '../components/PremiumCard';
 import { BRAND_LOGOS } from '../data/brandLogos';
 
@@ -327,8 +327,13 @@ export default function HomeScreen({
               </TouchableOpacity>
             </View>
             <View style={styles.gridRow}>
+              {/* Bottom Left Card: Tow */}
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
-                <View style={styles.miniCardSurface} />
+                <View style={styles.miniCardSurface}>
+                  <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
+                    <MaterialCommunityIcons name="tow-truck" size={86} color="#003514" />
+                  </View>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
                 <View style={styles.miniCardSurface} />
