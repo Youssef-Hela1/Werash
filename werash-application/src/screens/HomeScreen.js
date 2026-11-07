@@ -226,7 +226,7 @@ export default function HomeScreen({
                   </Text>
                 </View>
 
-                {/* Left Side: Brand Logo & License Plate Badge (Centered in the 40% column) */}
+                {/* Left Side: Brand Logo & License Plate Badge (50% column) */}
                 <View style={styles.cardLeftSection}>
                   <View style={styles.cardBrandLogoContainer}>
                     {brandLogo && (
@@ -268,10 +268,10 @@ export default function HomeScreen({
                   ) : null}
                 </View>
 
-                {/* Vertical Divider Line at 40% boundary */}
+                {/* Vertical Divider Line in the middle (50%) */}
                 <View style={styles.cardMiddleDivider} />
 
-                {/* Right Side: 60% column */}
+                {/* Right Side: Vehicle Info (50% column) */}
                 <View style={styles.cardRightSection}>
                   <View style={styles.vehicleInfoGroup}>
                     <Text 
@@ -455,16 +455,16 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: 0,
   },
   cardLeftSection: {
-    width: '40%',
+    width: '50%',
     height: '100%',
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 36,
   },
   cardRightSection: {
-    width: '60%',
+    width: '50%',
     height: '100%',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -601,7 +601,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   cardMiddleDivider: {
     position: 'absolute',
-    left: '40%',
+    left: '50%',
     marginLeft: -0.75,
     top: 38,
     bottom: 38,
