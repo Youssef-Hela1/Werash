@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform, Animated, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import PremiumCard from '../components/PremiumCard';
@@ -43,18 +43,60 @@ export default function HomeScreen({
   // Comfortable top clearance across devices
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 26));
 
+  // Spring animation for cards movement
+  const cardsTranslateY = useRef(new Animated.Value(0)).current;
+
+  // Tactile rubber-band resistance curve
+  const calculateDampedDelta = (dy) => {
+    const sign = dy < 0 ? -1 : 1;
+    const absDy = Math.abs(dy);
+    return sign * (absDy * 0.55 / (1 + absDy * 0.0018));
+  };
+
+  const cardsPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderGrant: () => {
+        cardsTranslateY.stopAnimation();
+      },
+      onPanResponderMove: (_, gestureState) => {
+        cardsTranslateY.setValue(calculateDampedDelta(gestureState.dy));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        Animated.spring(cardsTranslateY, {
+          toValue: 0,
+          velocity: gestureState.vy,
+          tension: 75,
+          friction: 8,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(cardsTranslateY, {
+          toValue: 0,
+          tension: 75,
+          friction: 8,
+          useNativeDriver: true,
+        }).start();
+      },
+    })
+  ).current;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Forest Green Satin Backdrop */}
+      {/* Forest Green Satin Backdrop (Static) */}
       <Image 
         source={require('../../assets/forest_green_satin_backdrop.png')}
         style={styles.satinBackdrop}
         resizeMode="cover"
       />
 
-      {/* Top Left Brand Header (Logo & Wordmark only) */}
+      {/* Top Left Brand Header (Static Logo, Wordmark & Greeting) */}
       <View style={[styles.headerContainer, { paddingTop: topInset + 2 }, isRtl && styles.headerContainerRtl]}>
         <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
           <Image 
@@ -86,9 +128,21 @@ export default function HomeScreen({
         </Text>
       </View>
 
-      {/* Overlapping Premium Card */}
-      <View style={[styles.overlapCardContainer, { top: OVERLAP_CARD_TOP }]}>
-        <PremiumCard />
+      {/* Spring / Scroll Area for Cards Only */}
+      <View 
+        style={styles.cardsScrollArea}
+        {...cardsPanResponder.panHandlers}
+      >
+        <Animated.View
+          style={[
+            styles.cardsWrapper,
+            {
+              transform: [{ translateY: cardsTranslateY }],
+            },
+          ]}
+        >
+          <PremiumCard />
+        </Animated.View>
       </View>
     </View>
   );
@@ -158,11 +212,18 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'right',
   },
 
-  /* Overlapping Card Container */
-  overlapCardContainer: {
+  /* Scrollable / Spring Cards Container */
+  cardsScrollArea: {
     position: 'absolute',
+    top: OVERLAP_CARD_TOP,
     left: 0,
     right: 0,
+    bottom: 0,
     zIndex: 20,
+    overflow: 'visible',
+  },
+  cardsWrapper: {
+    width: '100%',
+    overflow: 'visible',
   },
 });
