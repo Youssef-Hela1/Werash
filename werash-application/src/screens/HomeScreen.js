@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
+import PremiumCard from '../components/PremiumCard';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -13,8 +14,9 @@ const BACKDROP_HEIGHT = Math.round(screenWidth * BACKDROP_ASPECT);
 const TRANSITION_RATIO = 540 / 852;
 const GREEN_BOUNDARY = Math.round(screenWidth * TRANSITION_RATIO);
 
-// Card dimensions: 180 height centered on GREEN_BOUNDARY so exactly half is on green and half on pure white
-const OVERLAP_CARD_HEIGHT = 180;
+// Card dimensions: 1.96 width-to-height ratio with horizontal margin 20 on each side
+const CARD_WIDTH = screenWidth - 40;
+const OVERLAP_CARD_HEIGHT = Math.round(CARD_WIDTH / 1.96);
 const OVERLAP_CARD_TOP = GREEN_BOUNDARY - Math.round(OVERLAP_CARD_HEIGHT / 2);
 
 export default function HomeScreen({ 
@@ -84,12 +86,9 @@ export default function HomeScreen({
         </Text>
       </View>
 
-      {/* Premium Ivory White Overlapping Card */}
+      {/* Overlapping Premium Card */}
       <View style={[styles.overlapCardContainer, { top: OVERLAP_CARD_TOP }]}>
-        <View style={styles.premiumIvoryCard}>
-          {/* Subtle top inner highlight for depth */}
-          <View style={styles.cardInnerHighlight} pointerEvents="none" />
-        </View>
+        <PremiumCard />
       </View>
     </View>
   );
@@ -159,34 +158,11 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'right',
   },
 
-  /* Overlapping Ivory Card */
+  /* Overlapping Card Container */
   overlapCardContainer: {
     position: 'absolute',
-    left: 20,
-    right: 20,
-    height: OVERLAP_CARD_HEIGHT,
-    zIndex: 20,
-  },
-  premiumIvoryCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFB', // Premium Ivory White
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.85)',
-    // Multi-layer ambient drop shadow for elevation over both dark green & light cream
-    shadowColor: '#051E0A',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  cardInnerHighlight: {
-    position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    zIndex: 20,
   },
 });
