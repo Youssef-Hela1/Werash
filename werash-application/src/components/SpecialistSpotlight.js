@@ -12,7 +12,7 @@ const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
 // Sized proportionally with taller height for spacious layout while staying clear of bottom nav
 const CARD_WIDTH = 230;
-const CARD_HEIGHT = 132;
+const CARD_HEIGHT = 144;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
@@ -359,18 +359,18 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 12,
   },
   adBrandImage: {
-    width: 90,
-    height: 48,
+    width: 96,
+    height: 52,
   },
   adBottomBar: {
-    height: 27,
+    height: 29,
     backgroundColor: '#003514',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 8,
   },
   adBottomTitle: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.1,
@@ -378,7 +378,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adBottomTitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 10.5,
+    fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
   },
