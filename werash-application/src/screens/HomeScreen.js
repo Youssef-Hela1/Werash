@@ -335,8 +335,23 @@ export default function HomeScreen({
                   </View>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
-                <View style={styles.miniCardSurface} />
+              {/* Bottom Right Card: Profile */}
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={styles.miniCardShadow}
+                onPress={() => {
+                  if (onSelectProfile) {
+                    onSelectProfile();
+                  } else if (onOpenSignIn) {
+                    onOpenSignIn();
+                  }
+                }}
+              >
+                <View style={styles.miniCardSurface}>
+                  <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
+                    <Ionicons name="person-outline" size={86} color="#003514" />
+                  </View>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
