@@ -326,9 +326,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     height: 130,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   cardBrandLogo: {
     width: 124,
     height: 124,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 5,
   },
 });
