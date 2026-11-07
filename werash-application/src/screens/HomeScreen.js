@@ -376,7 +376,13 @@ export default function HomeScreen({
 
             <View style={styles.gridRow}>
               {/* Bottom Left Card: Tow */}
-              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={styles.miniCardShadow}
+                onPress={() => {
+                  // Feature currently under construction
+                }}
+              >
                 <View style={styles.miniCardSurface}>
                   <View style={[styles.miniCardHeader, isRtl && styles.miniCardHeaderRtl]}>
                     <Text 
@@ -405,13 +411,25 @@ export default function HomeScreen({
                     />
                   </View>
 
-                  {/* Circular Arrow Button (Bottom Left) */}
-                  <View style={[styles.miniCardArrowButton, isRtl && styles.miniCardArrowButtonRtl]} pointerEvents="none">
-                    <Ionicons 
-                      name={isRtl ? "arrow-back" : "arrow-forward"} 
-                      size={13.5} 
-                      color="#37633B" 
-                    />
+                  {/* Construction Sign Plaque: Coming Soon */}
+                  <View style={[styles.constructionSignWrapper, isRtl && styles.constructionSignWrapperRtl]} pointerEvents="none">
+                    <View style={styles.constructionSign}>
+                      {/* Metallic Corner Rivets */}
+                      <View style={[styles.signBolt, { top: 2.5, left: 2.5 }]} />
+                      <View style={[styles.signBolt, { top: 2.5, right: 2.5 }]} />
+                      <View style={[styles.signBolt, { bottom: 2.5, left: 2.5 }]} />
+                      <View style={[styles.signBolt, { bottom: 2.5, right: 2.5 }]} />
+
+                      <Ionicons 
+                        name="warning" 
+                        size={11.5} 
+                        color="#141414" 
+                        style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                      />
+                      <Text style={[styles.constructionSignText, isRtl && styles.constructionSignTextArabic]}>
+                        {isRtl ? 'قريباً' : 'COMING SOON'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -897,5 +915,51 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   hazardTapeImage: {
     width: '100%',
     height: '100%',
+  },
+
+  /* Construction Sign Plaque */
+  constructionSignWrapper: {
+    position: 'absolute',
+    bottom: 10,
+    left: 12,
+    zIndex: 5,
+  },
+  constructionSignWrapperRtl: {
+    left: 'auto',
+    right: 12,
+  },
+  constructionSign: {
+    backgroundColor: '#FFD000',
+    borderWidth: 1.5,
+    borderColor: '#141414',
+    borderRadius: 6,
+    paddingVertical: 3.5,
+    paddingHorizontal: 8.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  signBolt: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#141414',
+  },
+  constructionSignText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#141414',
+    letterSpacing: 0.8,
+  },
+  constructionSignTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 10.5,
+    letterSpacing: 0,
   },
 });
