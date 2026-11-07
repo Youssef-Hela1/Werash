@@ -213,7 +213,7 @@ export default function HomeScreen({
           >
             <PremiumCard surfaceStyle={styles.cardSurface}>
               <View style={styles.cardContent}>
-                {/* Top Right "Active Vehicle" Header Label */}
+                {/* Top Center "Active Vehicle" Header Label */}
                 <View style={[styles.activeVehicleLabelRow, isRtl && styles.activeVehicleLabelRowRtl]}>
                   <Ionicons 
                     name="car-sport-outline" 
@@ -433,9 +433,11 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   activeVehicleLabelRow: {
     position: 'absolute',
     top: 14,
-    right: 16,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
   },
   activeVehicleLabelRowRtl: {
