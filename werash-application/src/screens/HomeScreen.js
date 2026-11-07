@@ -265,24 +265,26 @@ export default function HomeScreen({
 
               {/* Right Side: 60% column */}
               <View style={styles.cardRightSection}>
-                <Text 
-                  style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}
-                  numberOfLines={1}
-                >
-                  {carBrand}
-                </Text>
-                <Text 
-                  style={[styles.modelNameText, isRtl && styles.modelNameTextArabic]}
-                  numberOfLines={2}
-                >
-                  {carModel}
-                </Text>
-                <Text 
-                  style={[styles.yearText, isRtl && styles.yearTextArabic]}
-                  numberOfLines={1}
-                >
-                  {carYear}
-                </Text>
+                <View style={styles.vehicleInfoGroup}>
+                  <Text 
+                    style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}
+                    numberOfLines={1}
+                  >
+                    {carBrand}
+                  </Text>
+                  <Text 
+                    style={[styles.modelNameText, isRtl && styles.modelNameTextArabic]}
+                    numberOfLines={2}
+                  >
+                    {carModel}
+                  </Text>
+                  <Text 
+                    style={[styles.yearText, isRtl && styles.yearTextArabic]}
+                    numberOfLines={1}
+                  >
+                    {carYear}
+                  </Text>
+                </View>
               </View>
             </View>
           </PremiumCard>
@@ -453,57 +455,63 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardRightSection: {
     width: '60%',
     height: '100%',
-    padding: 16,
+    paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  brandNameText: {
+  vehicleInfoGroup: {
+    alignItems: 'center',
+    justifyContent: 'center',
     width: '100%',
-    fontSize: 10.5,
+  },
+  brandNameText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#8A8A8E', // Lighter Grey
-    letterSpacing: 0.8,
+    color: '#8E8E93',
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
     textAlign: 'center',
+    lineHeight: 12,
   },
   brandNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
+    lineHeight: 14,
   },
   modelNameText: {
-    width: '100%',
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: '800',
     color: '#37633B', // Same green as header
-    letterSpacing: -0.4,
-    lineHeight: 32,
-    marginTop: 3,
+    letterSpacing: -0.5,
+    lineHeight: 30,
     textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 6,
   },
   modelNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 28,
+    fontSize: 27,
     letterSpacing: 0,
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: 4,
+    marginBottom: 4,
   },
   yearText: {
-    width: '100%',
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#8A8A8E', // Same lighter grey as brand name
-    letterSpacing: 0.8,
+    color: '#8E8E93',
+    letterSpacing: 1.4,
     textAlign: 'center',
-    marginTop: 3,
+    lineHeight: 12,
   },
   yearTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
-    marginTop: 2,
+    lineHeight: 14,
   },
   cardBrandLogoContainer: {
     width: 96,
