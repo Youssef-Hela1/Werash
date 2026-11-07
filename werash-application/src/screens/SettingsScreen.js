@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, Text, Modal, TouchableOpacity,
   Animated, Dimensions, Easing, Switch, ScrollView,
-  Alert, Image
+  Alert, Image, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
