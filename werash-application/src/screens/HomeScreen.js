@@ -643,26 +643,26 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   miniCardShadow: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 17,
     backgroundColor: '#F2F4F5',
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.12,
         shadowRadius: 3,
       },
       android: {
-        elevation: 2.5,
+        elevation: 2.8,
       },
     }),
   },
   miniCardSurface: {
     width: '100%',
-    aspectRatio: 1.85,
+    aspectRatio: 1.62,
     backgroundColor: '#F2F4F5',
-    borderRadius: 16,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
