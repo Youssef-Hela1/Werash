@@ -488,28 +488,42 @@ export default function HomeScreen({
         </Animated.View>
       </View>
 
-      {/* Top Left Brand Header (Always in front: zIndex 100, elevation 100) */}
+      {/* Top Brand Header (Always in front: zIndex 100, elevation 100) */}
       <View 
         pointerEvents="box-none"
-        style={[styles.headerContainer, { paddingTop: topInset + 2 }, isRtl && styles.headerContainerRtl]}
+        style={[styles.headerContainer, { paddingTop: topInset + 2 }]}
       >
-        <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
-          <Image 
-            source={require('../../assets/logo.png')} 
-            style={[styles.logoImage, isRtl && styles.logoImageRtl]} 
-            resizeMode="contain" 
-          />
-          {isRtl ? (
-            <Text style={[styles.brandNameArabic, { color: '#FFFFFF' }]}>
-              وِرَش
-            </Text>
-          ) : (
+        <View style={[styles.headerTopRow, isRtl && styles.headerTopRowRtl]}>
+          <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
             <Image 
-              source={require('../../assets/Werash_wordmark.png')}
-              style={[styles.wordmarkImage, { tintColor: '#FFFFFF' }]}
-              resizeMode="contain"
+              source={require('../../assets/logo.png')} 
+              style={[styles.logoImage, isRtl && styles.logoImageRtl]} 
+              resizeMode="contain" 
             />
-          )}
+            {isRtl ? (
+              <Text style={[styles.brandNameArabic, { color: '#FFFFFF' }]}>
+                وِرَش
+              </Text>
+            ) : (
+              <Image 
+                source={require('../../assets/Werash_wordmark.png')}
+                style={[styles.wordmarkImage, { tintColor: '#FFFFFF' }]}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+
+          {/* Settings Icon on top right, level with Werash text */}
+          <TouchableOpacity
+            style={styles.settingsButton}
+            activeOpacity={0.7}
+            onPress={() => onNavigate && onNavigate('more')}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
 
         {/* Small Greeting beneath Logo */}
@@ -542,12 +556,24 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   headerContainer: {
     paddingHorizontal: 20,
-    alignItems: 'flex-start',
+    width: '100%',
     zIndex: 100,
     elevation: 100,
   },
-  headerContainerRtl: {
-    alignItems: 'flex-end',
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  headerTopRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  settingsButton: {
+    width: 44,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoContainer: {
     flexDirection: 'row',
