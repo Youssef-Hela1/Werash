@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: '#FFFFFF',
-    padding: 16,
+    paddingVertical: 16,
     overflow: 'hidden',
   },
   postHeaderRow: {
@@ -656,6 +656,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+    paddingHorizontal: 16,
   },
   postHeaderRowRtl: {
     flexDirection: 'row-reverse',
@@ -722,6 +723,7 @@ const styles = StyleSheet.create({
     color: '#1E2D1F',
     fontWeight: '600',
     marginBottom: 12,
+    paddingHorizontal: 16,
   },
   postBodyTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
@@ -729,11 +731,11 @@ const styles = StyleSheet.create({
   },
   postImageContainer: {
     width: '100%',
-    height: 200,
-    borderRadius: 16,
-    overflow: 'hidden',
+    aspectRatio: 1.33, // 4:3 standard social media / Facebook feed aspect ratio
     backgroundColor: '#E5E8EA',
     marginBottom: 14,
+    borderRadius: 0, // Sharp square edges (no rounded corners)
+    overflow: 'hidden',
   },
   postImage: {
     width: '100%',
@@ -743,6 +745,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 2,
+    paddingHorizontal: 16,
   },
   postEngagementRowRtl: {
     flexDirection: 'row-reverse',
