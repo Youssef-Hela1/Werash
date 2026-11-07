@@ -22,11 +22,8 @@ export default function CommunityScreen({
 
   return (
     <View style={[styles.container, { paddingTop: topInset + 6 }]}>
-      {/* Top Header Row with Community Title & Right-Aligned Icons */}
+      {/* Top Header Row with Right-Aligned Search & Message Icons */}
       <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
-        <Text style={[styles.screenTitle, isRtl && styles.screenTitleRtl]}>
-          {isRtl ? 'المجتمع' : 'Community'}
-        </Text>
         <View style={styles.spacer} />
         <TouchableOpacity
           style={styles.iconButton}
