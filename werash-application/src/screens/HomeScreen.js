@@ -204,7 +204,7 @@ export default function HomeScreen({
           ]}
         >
           <TouchableOpacity
-            activeOpacity={0.92}
+            activeOpacity={1}
             onPress={() => {
               if (onNavigate) {
                 onNavigate('garage');
