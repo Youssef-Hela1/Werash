@@ -132,6 +132,7 @@ export default function HomeScreen({
 
   const carBrand = activeVehicle?.brand || 'Hyundai';
   const carModel = activeVehicle?.model || 'Coupe';
+  const carYear = activeVehicle?.year ? String(activeVehicle.year) : '2005';
   const brandLogo = getBrandLogo(carBrand) || BRAND_LOGOS['hyundai'];
   const plateNumber = activeVehicle ? (activeVehicle.plateNumberArabic || activeVehicle.plateNumber || '١٨٧٣ ر و') : '١٨٧٣ ر و';
 
@@ -275,6 +276,12 @@ export default function HomeScreen({
                   numberOfLines={2}
                 >
                   {carModel}
+                </Text>
+                <Text 
+                  style={[styles.yearText, isRtl && styles.yearTextArabic]}
+                  numberOfLines={1}
+                >
+                  {carYear}
                 </Text>
               </View>
             </View>
@@ -478,6 +485,22 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   modelNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 28,
+    letterSpacing: 0,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  yearText: {
+    width: '100%',
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#8A8A8E', // Same lighter grey as brand name
+    letterSpacing: 0.8,
+    textAlign: 'center',
+    marginTop: 3,
+  },
+  yearTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
     marginTop: 2,
