@@ -10,9 +10,9 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
 const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
-// Sized proportionally with longer width for legible sponsor titles & offers
-const CARD_WIDTH = 265;
-const CARD_HEIGHT = 105;
+// Sized proportionally with taller height for spacious layout
+const CARD_WIDTH = 230;
+const CARD_HEIGHT = 135;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
@@ -426,30 +426,30 @@ const createStyles = (colors) => StyleSheet.create({
   },
   adBrandLogoWrapper: {
     position: 'absolute',
-    bottom: 8,
-    right: 12,
-    width: 60,
-    height: 38,
+    bottom: 12,
+    right: 14,
+    width: 65,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
   adBrandLogoWrapperRtl: {
     right: 'auto',
-    left: 12,
+    left: 14,
   },
   adImageLogo: {
-    width: 48,
-    height: 36,
-    opacity: 0.85,
+    width: 52,
+    height: 40,
+    opacity: 0.9,
   },
   adArrowButton: {
     position: 'absolute',
     left: 14,
-    bottom: 12,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    bottom: 14,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(55, 99, 59, 0.12)',
