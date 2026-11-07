@@ -322,13 +322,13 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     justifyContent: 'flex-start',
   },
   cardBrandLogoContainer: {
-    width: 90,
-    height: 90,
+    width: 130,
+    height: 130,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardBrandLogo: {
-    width: 86,
-    height: 86,
+    width: 124,
+    height: 124,
   },
 });
