@@ -72,6 +72,26 @@ const getBrandLogo = (brandName) => {
   );
 };
 
+// Helper to split numbers (left) and letters (right) on Egyptian license plates
+const splitPlate = (plateStr) => {
+  if (!plateStr || typeof plateStr !== 'string') return { numbers: '', letters: '', lettersList: [] };
+  
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  const digitRegex = /[0-9٠-٩]/g;
+  const digits = (plateStr.match(digitRegex) || []).map(d =>
+    /[0-9]/.test(d) ? arabicDigits[parseInt(d, 10)] : d
+  );
+  
+  const rawLetters = plateStr.replace(digitRegex, '').replace(/\s+/g, '');
+  const lettersList = Array.from(rawLetters);
+  
+  return {
+    numbers: digits.join(''),
+    letters: lettersList.join(' '),
+    lettersList,
+  };
+};
+
 export default function HomeScreen({ 
   onNavigate, 
   currentUser, 
@@ -111,6 +131,7 @@ export default function HomeScreen({
 
   const carBrand = activeVehicle?.brand || 'Hyundai';
   const brandLogo = getBrandLogo(carBrand) || BRAND_LOGOS['hyundai'];
+  const plateNumber = activeVehicle ? (activeVehicle.plateNumberArabic || activeVehicle.plateNumber || '١٨٧٣ ر و') : '١٨٧٣ ر و';
 
   // Elastic spring animation for cards movement in both directions
   const cardsTranslateY = useRef(new Animated.Value(0)).current;
@@ -181,7 +202,7 @@ export default function HomeScreen({
         >
           <PremiumCard surfaceStyle={styles.cardSurface}>
             <View style={styles.cardContent}>
-              {/* Left Side: Brand Logo (Exactly Centered in the 40% column) */}
+              {/* Left Side: Brand Logo & License Plate Badge (Exactly Centered in the 40% column) */}
               <View style={styles.cardLeftSection}>
                 <View style={styles.cardBrandLogoContainer}>
                   {brandLogo && (
@@ -192,6 +213,35 @@ export default function HomeScreen({
                     />
                   )}
                 </View>
+
+                {/* Egyptian License Plate Badge */}
+                {plateNumber ? (
+                  <View style={styles.plateBadge}>
+                    <View style={styles.plateBadgeHeader}>
+                      <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                        {isRtl ? 'مصر' : 'EGYPT'}
+                      </Text>
+                    </View>
+                    {(() => {
+                      const { numbers, lettersList } = splitPlate(plateNumber);
+                      return (
+                        <View style={styles.plateBadgeContent}>
+                          <Text style={styles.plateBadgeNumbers}>{numbers}</Text>
+                          {lettersList && lettersList.length > 0 ? (
+                            <>
+                              <View style={styles.plateBadgeDivider} />
+                              <View style={styles.plateBadgeLettersRow}>
+                                {lettersList.map((char, idx) => (
+                                  <Text key={idx} style={styles.plateBadgeLetters}>{char}</Text>
+                                ))}
+                              </View>
+                            </>
+                          ) : null}
+                        </View>
+                      );
+                    })()}
+                  </View>
+                ) : null}
               </View>
 
               {/* Vertical Divider Line at 40% boundary */}
@@ -339,7 +389,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 16,
+    paddingTop: 12,
   },
   cardRightSection: {
     width: '60%',
@@ -347,20 +397,81 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     padding: 20,
   },
   cardBrandLogoContainer: {
-    width: 106,
-    height: 96,
+    width: 96,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
   },
   cardBrandLogo: {
-    width: 102,
-    height: 92,
+    width: 92,
+    height: 76,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 4,
+  },
+  plateBadge: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 3.5,
+    borderWidth: 1.2,
+    borderColor: '#222222',
+    overflow: 'hidden',
+    width: 76,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.10,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  plateBadgeHeader: {
+    backgroundColor: '#0077C2',
+    height: 10,
+    width: '100%',
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderTopLeftRadius: 2.5,
+    borderTopRightRadius: 2.5,
+  },
+  plateBadgeHeaderText: {
+    fontSize: 6.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+    textAlign: 'center',
+  },
+  plateBadgeContent: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2.5,
+    paddingHorizontal: 4,
+  },
+  plateBadgeNumbers: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#1E1E1E',
+  },
+  plateBadgeDivider: {
+    width: 1,
+    height: 9,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    marginHorizontal: 3.5,
+  },
+  plateBadgeLettersRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 2,
+  },
+  plateBadgeLetters: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#1E1E1E',
   },
   cardMiddleDivider: {
     position: 'absolute',
