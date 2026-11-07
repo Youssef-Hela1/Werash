@@ -444,15 +444,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   brandNameText: {
-    fontSize: 11,
+    fontSize: 13.5,
     fontWeight: '700',
-    color: '#555555', // Dark Grey
-    letterSpacing: 0.8,
+    color: '#8A8A8E', // Lighter Grey
+    letterSpacing: 0.9,
     textTransform: 'uppercase',
   },
   brandNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 11.5,
+    fontSize: 14,
     letterSpacing: 0,
     textAlign: 'right',
   },
