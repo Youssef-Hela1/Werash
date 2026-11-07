@@ -297,6 +297,26 @@ export default function HomeScreen({
               </View>
             </PremiumCard>
           </TouchableOpacity>
+
+          {/* 4 Smaller Cards Equally Spaced in a 2x2 Grid */}
+          <View style={styles.cardsGrid}>
+            <View style={styles.gridRow}>
+              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
+                <View style={styles.miniCardSurface} />
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
+                <View style={styles.miniCardSurface} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.gridRow}>
+              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
+                <View style={styles.miniCardSurface} />
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
+                <View style={styles.miniCardSurface} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </Animated.View>
       </View>
 
@@ -609,5 +629,42 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 1,
     zIndex: 5,
+  },
+
+  /* 4 Smaller Cards Grid Styles */
+  cardsGrid: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    gap: 14,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  miniCardShadow: {
+    flex: 1,
+    borderRadius: 18,
+    backgroundColor: '#FAFBFB',
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.13,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  miniCardSurface: {
+    width: '100%',
+    aspectRatio: 1.45,
+    backgroundColor: '#FAFBFB',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
   },
 });
