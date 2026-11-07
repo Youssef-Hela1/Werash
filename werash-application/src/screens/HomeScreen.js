@@ -181,15 +181,24 @@ export default function HomeScreen({
         >
           <PremiumCard>
             <View style={styles.cardContent}>
-              <View style={styles.cardBrandLogoContainer}>
-                {brandLogo && (
-                  <Image 
-                    source={brandLogo} 
-                    style={styles.cardBrandLogo} 
-                    resizeMode="contain" 
-                  />
-                )}
+              {/* Left Side: Brand Logo */}
+              <View style={styles.cardLeftSection}>
+                <View style={styles.cardBrandLogoContainer}>
+                  {brandLogo && (
+                    <Image 
+                      source={brandLogo} 
+                      style={styles.cardBrandLogo} 
+                      resizeMode="contain" 
+                    />
+                  )}
+                </View>
               </View>
+
+              {/* Vertical Middle Divider (floating, does not touch top/bottom edges) */}
+              <View style={styles.cardMiddleDivider} />
+
+              {/* Right Side */}
+              <View style={styles.cardRightSection} />
             </View>
           </PremiumCard>
         </Animated.View>
@@ -319,22 +328,37 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    position: 'relative',
+  },
+  cardLeftSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardBrandLogoContainer: {
-    width: 130,
-    height: 130,
+    width: 124,
+    height: 124,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
   },
   cardBrandLogo: {
-    width: 124,
-    height: 124,
+    width: 120,
+    height: 120,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
     elevation: 5,
+  },
+  cardMiddleDivider: {
+    width: 1.5,
+    height: '80%',
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: 1,
+    alignSelf: 'center',
+  },
+  cardRightSection: {
+    flex: 1,
   },
 });
