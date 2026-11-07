@@ -10,8 +10,8 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isTallPlus = screenHeight >= 920; // iPhone 14/15/16 Pro Max, Plus models
 const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
-// Sized dynamically with generous canvas and placed proportionally for all screens
-const CARD_WIDTH = 220;
+// Sized proportionally with longer width for legible sponsor titles & offers
+const CARD_WIDTH = 265;
 const CARD_HEIGHT = 105;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
