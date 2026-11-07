@@ -43,24 +43,22 @@ export default function HomeScreen({
   // Comfortable top clearance across devices
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 26));
 
-  // Ultra-subtle spring animation for cards movement (micro-give only, strictly away from header)
+  // Elastic spring animation for cards movement in both directions
   const cardsTranslateY = useRef(new Animated.Value(0)).current;
 
-  // Maximum downward travel (6px max). Upward travel is locked at 0 so card can never move towards the header.
-  const MAX_DOWN_TRAVEL = 6;
+  // Balanced 12px travel limit: loosened feel while staying safely clear of header text
+  const MAX_TRAVEL = 12;
   const calculateDampedDelta = (dy) => {
-    if (dy <= 0) {
-      // Strictly prevent upward displacement to ensure card never covers logo/text
-      return 0;
-    }
-    return (dy / (dy + 120)) * MAX_DOWN_TRAVEL;
+    const sign = dy < 0 ? -1 : 1;
+    const absDy = Math.abs(dy);
+    return sign * (absDy / (absDy + 75)) * MAX_TRAVEL;
   };
 
   const cardsPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return gestureState.dy > 4 && gestureState.dy > Math.abs(gestureState.dx);
+        return Math.abs(gestureState.dy) > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
       },
       onPanResponderGrant: () => {
         cardsTranslateY.stopAnimation();
@@ -68,19 +66,20 @@ export default function HomeScreen({
       onPanResponderMove: (_, gestureState) => {
         cardsTranslateY.setValue(calculateDampedDelta(gestureState.dy));
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (_, gestureState) => {
         Animated.spring(cardsTranslateY, {
           toValue: 0,
-          tension: 220,
-          friction: 26,
+          velocity: (gestureState.vy || 0) * 0.2,
+          tension: 110,
+          friction: 14,
           useNativeDriver: true,
         }).start();
       },
       onPanResponderTerminate: () => {
         Animated.spring(cardsTranslateY, {
           toValue: 0,
-          tension: 220,
-          friction: 26,
+          tension: 110,
+          friction: 14,
           useNativeDriver: true,
         }).start();
       },
