@@ -43,15 +43,15 @@ export default function HomeScreen({
   // Comfortable top clearance across devices
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 26));
 
-  // Spring animation for cards movement with tight, highly limited travel
+  // Ultra-subtle spring animation for cards movement (micro-give only)
   const cardsTranslateY = useRef(new Animated.Value(0)).current;
 
-  // Very limited travel range (~20px max) with stiff resistance
-  const MAX_TRAVEL = 20;
+  // Ultra-limited travel range (6px max) with firm resistance
+  const MAX_TRAVEL = 6;
   const calculateDampedDelta = (dy) => {
     const sign = dy < 0 ? -1 : 1;
     const absDy = Math.abs(dy);
-    return sign * (absDy / (absDy + 80)) * MAX_TRAVEL;
+    return sign * (absDy / (absDy + 120)) * MAX_TRAVEL;
   };
 
   const cardsPanResponder = useRef(
@@ -66,20 +66,19 @@ export default function HomeScreen({
       onPanResponderMove: (_, gestureState) => {
         cardsTranslateY.setValue(calculateDampedDelta(gestureState.dy));
       },
-      onPanResponderRelease: (_, gestureState) => {
+      onPanResponderRelease: () => {
         Animated.spring(cardsTranslateY, {
           toValue: 0,
-          velocity: (gestureState.vy || 0) * 0.1,
-          tension: 140,
-          friction: 18,
+          tension: 220,
+          friction: 26,
           useNativeDriver: true,
         }).start();
       },
       onPanResponderTerminate: () => {
         Animated.spring(cardsTranslateY, {
           toValue: 0,
-          tension: 140,
-          friction: 18,
+          tension: 220,
+          friction: 26,
           useNativeDriver: true,
         }).start();
       },
