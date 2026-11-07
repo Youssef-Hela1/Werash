@@ -264,13 +264,15 @@ export default function HomeScreen({
 
               {/* Right Side: 60% column */}
               <View style={styles.cardRightSection}>
-                <Text style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}>
+                <Text 
+                  style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}
+                  numberOfLines={1}
+                >
                   {carBrand}
                 </Text>
                 <Text 
                   style={[styles.modelNameText, isRtl && styles.modelNameTextArabic]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
+                  numberOfLines={2}
                 >
                   {carModel}
                 </Text>
@@ -449,6 +451,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   brandNameText: {
+    width: '100%',
     fontSize: 10.5,
     fontWeight: '700',
     color: '#8A8A8E', // Lighter Grey
@@ -463,6 +466,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   modelNameText: {
+    width: '100%',
     fontSize: 28,
     fontWeight: '800',
     color: '#37633B', // Same green as header
