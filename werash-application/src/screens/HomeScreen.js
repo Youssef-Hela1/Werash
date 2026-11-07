@@ -262,7 +262,11 @@ export default function HomeScreen({
               <View style={styles.cardMiddleDivider} />
 
               {/* Right Side: 60% column */}
-              <View style={styles.cardRightSection} />
+              <View style={styles.cardRightSection}>
+                <Text style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}>
+                  {carBrand}
+                </Text>
+              </View>
             </View>
           </PremiumCard>
         </Animated.View>
@@ -432,7 +436,25 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardRightSection: {
     width: '60%',
     height: '100%',
-    padding: 20,
+    paddingTop: 36,
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingBottom: 20,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  brandNameText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#555555', // Dark Grey
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  brandNameTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 11.5,
+    letterSpacing: 0,
+    textAlign: 'right',
   },
   cardBrandLogoContainer: {
     width: 96,
