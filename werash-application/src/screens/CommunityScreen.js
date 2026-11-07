@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ChatsModal from '../components/ChatsModal';
@@ -22,8 +22,15 @@ export default function CommunityScreen({
 
   return (
     <View style={[styles.container, { paddingTop: topInset + 6 }]}>
-      {/* Top Header Row with Right-Aligned Search & Message Icons */}
+      {/* Top Header Row with Logo on Left and Search & Message on Right */}
       <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
         <View style={styles.spacer} />
         <TouchableOpacity
           style={styles.iconButton}
@@ -100,16 +107,15 @@ const styles = StyleSheet.create({
   headerRowRtl: {
     flexDirection: 'row-reverse',
   },
-  screenTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#003514',
-    letterSpacing: -0.6,
+  logoWrapper: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  screenTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-    letterSpacing: 0,
-    fontSize: 30,
+  logoImage: {
+    width: 28,
+    height: 28,
   },
   spacer: {
     flex: 1,
