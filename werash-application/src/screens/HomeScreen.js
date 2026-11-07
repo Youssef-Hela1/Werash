@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform, Animated, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
 import PremiumCard from '../components/PremiumCard';
 import { BRAND_LOGOS } from '../data/brandLogos';
 
@@ -202,7 +203,20 @@ export default function HomeScreen({
         >
           <PremiumCard surfaceStyle={styles.cardSurface}>
             <View style={styles.cardContent}>
-              {/* Left Side: Brand Logo & License Plate Badge (Exactly Centered in the 40% column) */}
+              {/* Top Left "Active Vehicle" Header Label */}
+              <View style={[styles.activeVehicleLabelRow, isRtl && styles.activeVehicleLabelRowRtl]}>
+                <Ionicons 
+                  name="car-sport-outline" 
+                  size={12} 
+                  color={colors.bgBrand} 
+                  style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                />
+                <Text style={[styles.activeVehicleText, isRtl && styles.activeVehicleTextArabic]}>
+                  {isRtl ? 'المركبة النشطة' : 'ACTIVE VEHICLE'}
+                </Text>
+              </View>
+
+              {/* Left Side: Brand Logo & License Plate Badge (Centered in the 40% column) */}
               <View style={styles.cardLeftSection}>
                 <View style={styles.cardBrandLogoContainer}>
                   {brandLogo && (
@@ -383,6 +397,30 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'relative',
+  },
+  activeVehicleLabelRow: {
+    position: 'absolute',
+    top: 14,
+    left: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  activeVehicleLabelRowRtl: {
+    left: 'auto',
+    right: 16,
+    flexDirection: 'row-reverse',
+  },
+  activeVehicleText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: colors.bgBrand,
+    letterSpacing: 0.8,
+  },
+  activeVehicleTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 10.5,
+    letterSpacing: 0,
   },
   cardLeftSection: {
     width: '40%',
