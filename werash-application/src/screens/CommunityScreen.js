@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ChatsModal from '../components/ChatsModal';
+
+const TABS = [
+  { id: 'feed', label: 'Feed', labelAr: 'الرئيسية' },
+  { id: 'profile', label: 'Profile', labelAr: 'الملف' },
+  { id: 'souq', label: 'Souq', labelAr: 'سوق' },
+];
 
 export default function CommunityScreen({
   currentUser,
@@ -11,12 +17,16 @@ export default function CommunityScreen({
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
   const [chatsVisible, setChatsVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState('feed');
   const isRtl = selectedLanguage === 'Arabic';
 
   return (
     <View style={[styles.container, { paddingTop: topInset + 6 }]}>
-      {/* Top Header Row with Right-Aligned Search & Message Icons */}
+      {/* Top Header Row with Community Title & Right-Aligned Icons */}
       <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
+        <Text style={[styles.screenTitle, isRtl && styles.screenTitleRtl]}>
+          {isRtl ? 'المجتمع' : 'Community'}
+        </Text>
         <View style={styles.spacer} />
         <TouchableOpacity
           style={styles.iconButton}
@@ -42,6 +52,33 @@ export default function CommunityScreen({
         </TouchableOpacity>
       </View>
 
+      {/* Tabs Navigation: Feed | Profile | Souq */}
+      <View style={[styles.tabsBar, isRtl && styles.tabsBarRtl]}>
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={styles.tabItem}
+              activeOpacity={0.7}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              <Text style={[
+                styles.tabText,
+                isActive && styles.tabTextActive,
+                isRtl && styles.tabTextRtl,
+              ]}>
+                {isRtl ? tab.labelAr : tab.label}
+              </Text>
+              <View style={[
+                styles.tabIndicator,
+                isActive && styles.tabIndicatorActive,
+              ]} />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {/* Chats Drawer Modal */}
       <ChatsModal
         visible={chatsVisible}
@@ -60,12 +97,22 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
     paddingHorizontal: 20,
-    height: 44,
+    height: 48,
   },
   headerRowRtl: {
     flexDirection: 'row-reverse',
+  },
+  screenTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#003514',
+    letterSpacing: -0.6,
+  },
+  screenTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    letterSpacing: 0,
+    fontSize: 30,
   },
   spacer: {
     flex: 1,
@@ -75,5 +122,43 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tabsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDEDED',
+  },
+  tabsBarRtl: {
+    flexDirection: 'row-reverse',
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#8E9990',
+    paddingBottom: 10,
+  },
+  tabTextActive: {
+    color: '#003514',
+    fontWeight: '800',
+  },
+  tabTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  tabIndicator: {
+    width: '100%',
+    height: 2.5,
+    backgroundColor: 'transparent',
+    borderRadius: 2,
+  },
+  tabIndicatorActive: {
+    backgroundColor: '#003514',
   },
 });
