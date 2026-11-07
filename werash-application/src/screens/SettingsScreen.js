@@ -309,7 +309,7 @@ export default function SettingsScreen({
 const createStyles = (colors) => StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: colors.bgCreamy,
+    backgroundColor: '#FFFFFF',
     paddingTop: 60,
   },
   scrollContent: {
