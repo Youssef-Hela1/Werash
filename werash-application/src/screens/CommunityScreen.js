@@ -28,17 +28,17 @@ export default function CommunityScreen({
           accessibilityRole="button"
           accessibilityLabel="Search"
         >
-          <Ionicons name="search-outline" size={27} color="#555555" />
+          <Ionicons name="search-outline" size={28} color="#003514" />
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.iconButton, { marginLeft: 16 }]}
+          style={[styles.iconButton, { marginLeft: 14 }]}
           activeOpacity={0.7}
           onPress={() => setChatsVisible(true)}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"
           accessibilityLabel="Messages"
         >
-          <Ionicons name="chatbubble-ellipses-outline" size={29} color="#555555" />
+          <Ionicons name="chatbubble-ellipses-outline" size={28} color="#003514" />
         </TouchableOpacity>
       </View>
 
