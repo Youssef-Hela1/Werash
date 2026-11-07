@@ -313,8 +313,17 @@ export default function HomeScreen({
                   </View>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
-                <View style={styles.miniCardSurface} />
+              {/* Top Right Card: Community */}
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={styles.miniCardShadow}
+                onPress={() => onNavigate && onNavigate('community')}
+              >
+                <View style={styles.miniCardSurface}>
+                  <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
+                    <Ionicons name="chatbubbles-outline" size={86} color="#003514" />
+                  </View>
+                </View>
               </TouchableOpacity>
             </View>
             <View style={styles.gridRow}>
