@@ -301,15 +301,15 @@ export default function HomeScreen({
           {/* 4 Smaller Cards Equally Spaced in a 2x2 Grid */}
           <View style={styles.cardsGrid}>
             <View style={styles.gridRow}>
-              {/* Top Left Card: Mechanics (Dark Forest Green) */}
+              {/* Top Left Card: Mechanics */}
               <TouchableOpacity 
                 activeOpacity={1} 
-                style={styles.miniCardShadowGreen}
+                style={styles.miniCardShadow}
                 onPress={() => onNavigate && onNavigate('mechanics')}
               >
-                <View style={styles.miniCardSurfaceGreen}>
+                <View style={styles.miniCardSurface}>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
-                    <Ionicons name="construct-outline" size={62} color="#FFFFFF" />
+                    <Ionicons name="construct-outline" size={62} color="#003514" />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -674,32 +674,6 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  miniCardShadowGreen: {
-    flex: 1,
-    borderRadius: 17,
-    backgroundColor: '#003514',
-    overflow: 'visible',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#001A0A',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.28,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3.5,
-      },
-    }),
-  },
-  miniCardSurfaceGreen: {
-    width: '100%',
-    aspectRatio: 1.62,
-    backgroundColor: '#003514',
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
     overflow: 'hidden',
   },
   miniCardIconWrapper: {
