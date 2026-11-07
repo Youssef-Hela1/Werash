@@ -22,14 +22,25 @@ export default function CommunityScreen({
 
   return (
     <View style={[styles.container, { paddingTop: topInset + 6 }]}>
-      {/* Top Header Row with Logo on Left and Search & Message on Right */}
+      {/* Top Header Row with Logo & Wordmark on Left and Search & Message on Right */}
       <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
-        <View style={styles.logoWrapper}>
+        <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
           <Image
             source={require('../../assets/logo_green.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
+          {isRtl ? (
+            <Text style={styles.brandNameArabic}>
+              وِرَش
+            </Text>
+          ) : (
+            <Image
+              source={require('../../assets/Werash_wordmark.png')}
+              style={styles.wordmarkImage}
+              resizeMode="contain"
+            />
+          )}
         </View>
         <View style={styles.spacer} />
         <TouchableOpacity
@@ -107,15 +118,30 @@ const styles = StyleSheet.create({
   headerRowRtl: {
     flexDirection: 'row-reverse',
   },
-  logoWrapper: {
-    width: 32,
-    height: 32,
+  logoContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    height: 32,
+  },
+  logoContainerRtl: {
+    flexDirection: 'row-reverse',
   },
   logoImage: {
     width: 28,
     height: 28,
+    marginRight: 8,
+  },
+  wordmarkImage: {
+    height: 28,
+    width: 83,
+    tintColor: '#003514',
+  },
+  brandNameArabic: {
+    fontFamily: 'ZafranArabic-Bold',
+    fontSize: 38,
+    letterSpacing: 0,
+    color: '#003514',
+    marginRight: 8,
   },
   spacer: {
     flex: 1,
