@@ -55,24 +55,36 @@ export default function SettingsScreen({
     });
   };
 
-  const renderMenuItem = (icon, label, onPress, rightElement = null, isFlat = false, isLast = false) => (
+  const isRtl = selectedLanguage === 'Arabic';
+
+  const renderMenuItem = (icon, label, onPress, rightElement = null, isLast = false) => (
     <TouchableOpacity
       key={label}
       style={[
         styles.menuItem,
-        isFlat && styles.flatMenuItem,
-        isLast && { borderBottomWidth: 0 }
+        isLast && { borderBottomWidth: 0 },
+        isRtl && styles.menuItemRtl
       ]}
-      activeOpacity={0.7}
+      activeOpacity={onPress ? 0.7 : 1}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={styles.menuItemLeft}>
-        <Ionicons name={icon} size={20} color={colors.bgBrand} style={styles.menuIcon} />
-        <Text style={[styles.menuLabel, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>{label}</Text>
+      <View style={[styles.menuItemLeft, isRtl && styles.menuItemLeftRtl]}>
+        <View style={styles.menuIconBadge}>
+          <Ionicons name={icon} size={18} color="#37633B" />
+        </View>
+        <Text style={[styles.menuLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14 }]}>
+          {label}
+        </Text>
       </View>
       {rightElement ? rightElement : (
-        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+        <View style={styles.menuArrowBadge}>
+          <Ionicons 
+            name={isRtl ? "chevron-back" : "chevron-forward"} 
+            size={13} 
+            color="#37633B" 
+          />
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -80,118 +92,172 @@ export default function SettingsScreen({
   return (
     <View style={styles.screenContainer}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {/* Account Info Section */}
-            <TouchableOpacity 
-              style={styles.profileCard}
-              activeOpacity={0.8}
-              onPress={() => {
-                if (onSelectProfile) onSelectProfile();
-              }}
-            >
-              {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
-                <Image
-                  source={
-                    typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
-                      ? { uri: currentUser.avatarUrl || currentUser.avatar }
-                      : (currentUser.avatarUrl || currentUser.avatar)
-                  }
-                  style={styles.profileAvatarImage}
-                />
-              ) : (
-                <View style={styles.profileAvatar}>
-                  <Ionicons name="person" size={24} color={colors.bgCreamy} />
-                </View>
-              )}
-              <View style={styles.profileDetails}>
-                <Text style={[styles.profileName, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>{currentUser ? currentUser.fullName : (selectedLanguage === 'Arabic' ? 'حساب زائر' : 'Guest User')}</Text>
-                <Text style={styles.profileEmail}>{currentUser ? currentUser.email : 'guest@werash.com'}</Text>
+        {/* Account Info Profile Card */}
+        <TouchableOpacity 
+          style={styles.cardShadow}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (onSelectProfile) onSelectProfile();
+          }}
+        >
+          <View style={[styles.profileCardSurface, isRtl && styles.profileCardSurfaceRtl]}>
+            {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
+              <Image
+                source={
+                  typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
+                    ? { uri: currentUser.avatarUrl || currentUser.avatar }
+                    : (currentUser.avatarUrl || currentUser.avatar)
+                }
+                style={styles.profileAvatarImage}
+              />
+            ) : (
+              <View style={styles.profileAvatar}>
+                <Ionicons name="person" size={24} color="#FFFFFF" />
               </View>
-            </TouchableOpacity>
-
-            {/* Account Settings group */}
-            <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>{selectedLanguage === 'Arabic' ? 'الحساب' : 'ACCOUNT'}</Text>
-            <View style={styles.menuGroup}>
-              {renderMenuItem(
-                'globe-outline',
-                selectedLanguage === 'Arabic' ? 'اللغة' : 'Language',
-                () => {
-                  setLanguageModalVisible(true);
-                },
-                <Text style={{ fontSize: 13, color: colors.textMuted, marginRight: 4, fontWeight: '600' }}>
-                  {selectedLanguage === 'English' ? 'English' : 'العربية'}
-                </Text>,
-                false,
-                true
-              )}
-            </View>
-
-            {/* Preferences settings group */}
-            <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>{selectedLanguage === 'Arabic' ? 'التفضيلات' : 'PREFERENCES'}</Text>
-            <View style={styles.flatMenuGroup}>
-              {renderMenuItem(
-                'notifications-outline',
-                selectedLanguage === 'Arabic' ? 'إشعارات الهاتف' : 'Push Notifications',
-                null,
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={setNotificationsEnabled}
-                  trackColor={{ false: '#D5DED6', true: colors.bgBrand }}
-                  thumbColor={colors.bgCreamy}
-                />,
-                true
-              )}
-              {renderMenuItem(
-                'moon-outline',
-                selectedLanguage === 'Arabic' ? 'الوضع الداكن' : 'Dark Mode',
-                null,
-                <Switch
-                  value={isDarkMode}
-                  onValueChange={toggleDarkMode}
-                  trackColor={{ false: '#D5DED6', true: colors.bgBrand }}
-                  thumbColor={colors.bgCreamy}
-                />,
-                true
-              )}
-            </View>
-
-            {/* Support settings group */}
-            <Text style={[styles.sectionHeader, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>{selectedLanguage === 'Arabic' ? 'الدعم' : 'SUPPORT'}</Text>
-            <View style={styles.menuGroup}>
-              {renderMenuItem('help-circle-outline', selectedLanguage === 'Arabic' ? 'مركز المساعدة' : 'Help Center', () => console.log('Help'))}
-              {renderMenuItem('document-text-outline', selectedLanguage === 'Arabic' ? 'شروط الخدمة' : 'Terms of Service', () => console.log('Terms'))}
-              {renderMenuItem('information-circle-outline', selectedLanguage === 'Arabic' ? 'عن وِرَش' : 'About Werash', () => console.log('About'), null, false, true)}
-            </View>
-
-            {/* Log Out Button */}
-            {currentUser && (
-              <TouchableOpacity 
-                style={styles.logoutButton} 
-                activeOpacity={0.8} 
-                onPress={() => {
-                  Alert.alert(
-                    selectedLanguage === 'Arabic' ? 'تسجيل الخروج' : 'Sign Out',
-                    selectedLanguage === 'Arabic' ? 'هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟' : 'Are you sure you want to sign out of your account?',
-                    [
-                      { text: selectedLanguage === 'Arabic' ? 'إلغاء' : 'Cancel', style: 'cancel' },
-                      { 
-                        text: selectedLanguage === 'Arabic' ? 'خروج' : 'Sign Out', 
-                        style: 'destructive', 
-                        onPress: () => {
-                          handleClose();
-                          if (onLogOut) {
-                            onLogOut();
-                          }
-                        } 
-                      }
-                    ]
-                  );
-                }}
-              >
-                <Ionicons name="log-out-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={[styles.logoutText, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>{selectedLanguage === 'Arabic' ? 'تسجيل الخروج' : 'Log Out'}</Text>
-              </TouchableOpacity>
             )}
-          </ScrollView>
+            <View style={[styles.profileDetails, isRtl && styles.profileDetailsRtl]}>
+              <Text style={[styles.profileName, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                {currentUser ? currentUser.fullName : (isRtl ? 'حساب زائر' : 'Guest User')}
+              </Text>
+              <Text style={styles.profileEmail}>
+                {currentUser ? currentUser.email : 'guest@werash.com'}
+              </Text>
+            </View>
+
+            <View style={styles.menuArrowBadge}>
+              <Ionicons 
+                name={isRtl ? "chevron-back" : "chevron-forward"} 
+                size={13} 
+                color="#37633B" 
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Account Settings / Language Card */}
+        <Text style={[styles.sectionHeader, isRtl && styles.sectionHeaderRtl]}>
+          {isRtl ? 'الحساب' : 'ACCOUNT'}
+        </Text>
+        <View style={styles.cardShadow}>
+          <View style={styles.cardSurface}>
+            {renderMenuItem(
+              'globe-outline',
+              isRtl ? 'اللغة' : 'Language',
+              () => setLanguageModalVisible(true),
+              <View style={[styles.langValueBadge, isRtl && styles.langValueBadgeRtl]}>
+                <Text style={[styles.langValueText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                  {selectedLanguage === 'English' ? 'English' : 'العربية'}
+                </Text>
+                <View style={styles.menuArrowBadge}>
+                  <Ionicons 
+                    name={isRtl ? "chevron-back" : "chevron-forward"} 
+                    size={13} 
+                    color="#37633B" 
+                  />
+                </View>
+              </View>,
+              true
+            )}
+          </View>
+        </View>
+
+        {/* Preferences Card: Push Notifications & Dark Mode */}
+        <Text style={[styles.sectionHeader, isRtl && styles.sectionHeaderRtl]}>
+          {isRtl ? 'التفضيلات' : 'PREFERENCES'}
+        </Text>
+        <View style={styles.cardShadow}>
+          <View style={styles.cardSurface}>
+            {renderMenuItem(
+              'notifications-outline',
+              isRtl ? 'إشعارات الهاتف' : 'Push Notifications',
+              null,
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={setNotificationsEnabled}
+                trackColor={{ false: '#D9DDE0', true: '#37633B' }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor="#D9DDE0"
+              />,
+              false
+            )}
+            {renderMenuItem(
+              'moon-outline',
+              isRtl ? 'الوضع الداكن' : 'Dark Mode',
+              null,
+              <Switch
+                value={isDarkMode}
+                onValueChange={toggleDarkMode}
+                trackColor={{ false: '#D9DDE0', true: '#37633B' }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor="#D9DDE0"
+              />,
+              true
+            )}
+          </View>
+        </View>
+
+        {/* Support Card: Help Center, Terms, About Werash */}
+        <Text style={[styles.sectionHeader, isRtl && styles.sectionHeaderRtl]}>
+          {isRtl ? 'الدعم' : 'SUPPORT'}
+        </Text>
+        <View style={styles.cardShadow}>
+          <View style={styles.cardSurface}>
+            {renderMenuItem(
+              'help-circle-outline', 
+              isRtl ? 'مركز المساعدة' : 'Help Center', 
+              () => console.log('Help'),
+              null,
+              false
+            )}
+            {renderMenuItem(
+              'document-text-outline', 
+              isRtl ? 'شروط الخدمة' : 'Terms of Service', 
+              () => console.log('Terms'),
+              null,
+              false
+            )}
+            {renderMenuItem(
+              'information-circle-outline', 
+              isRtl ? 'عن وِرَش' : 'About Werash', 
+              () => console.log('About'), 
+              null, 
+              true
+            )}
+          </View>
+        </View>
+
+        {/* Log Out Button */}
+        {currentUser && (
+          <TouchableOpacity 
+            style={styles.logoutButton} 
+            activeOpacity={0.85} 
+            onPress={() => {
+              Alert.alert(
+                isRtl ? 'تسجيل الخروج' : 'Sign Out',
+                isRtl ? 'هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟' : 'Are you sure you want to sign out of your account?',
+                [
+                  { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
+                  { 
+                    text: isRtl ? 'خروج' : 'Sign Out', 
+                    style: 'destructive', 
+                    onPress: () => {
+                      handleClose();
+                      if (onLogOut) {
+                        onLogOut();
+                      }
+                    } 
+                  }
+                ]
+              );
+            }}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#FFFFFF" style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
+            <Text style={[styles.logoutText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+              {isRtl ? 'تسجيل الخروج' : 'Log Out'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
 
         {/* Custom Language Selection Dialog Overlay */}
         <Modal
@@ -313,71 +379,101 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 60,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 60,
   },
-  profileCard: {
+  cardShadow: {
+    width: '100%',
+    borderRadius: 17,
+    backgroundColor: '#F2F4F5',
+    marginBottom: 20,
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2.5 },
+        shadowOpacity: 0.10,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2.8,
+      },
+    }),
+  },
+  cardSurface: {
+    width: '100%',
+    backgroundColor: '#F2F4F5',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  profileCardSurface: {
+    width: '100%',
+    backgroundColor: '#F2F4F5',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgBrandLight,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  profileCardSurfaceRtl: {
+    flexDirection: 'row-reverse',
   },
   profileAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.bgBrand,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#37633B',
     justifyContent: 'center',
     alignItems: 'center',
   },
   profileAvatarImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    borderColor: '#FFFFFF',
   },
   profileDetails: {
-    marginLeft: 12,
+    flex: 1,
+    marginLeft: 14,
+  },
+  profileDetailsRtl: {
+    marginLeft: 0,
+    marginRight: 14,
+    alignItems: 'flex-end',
   },
   profileName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textDark,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E2D1F',
+    letterSpacing: -0.2,
   },
   profileEmail: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: '#8E8E93',
     marginTop: 2,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   sectionHeader: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-    marginBottom: 10,
-    marginTop: 8,
+    color: '#8E8E93',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  menuGroup: {
-    backgroundColor: colors.bgBrandLight,
-    borderRadius: 16,
-    paddingVertical: 4,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.borderGreen,
-  },
-  flatMenuGroup: {
-    marginBottom: 24,
-    paddingHorizontal: 4,
-  },
-  flatMenuItem: {
-    borderBottomWidth: 0,
-    paddingVertical: 12,
+  sectionHeaderRtl: {
+    marginLeft: 0,
+    marginRight: 4,
+    textAlign: 'right',
   },
   menuItem: {
     flexDirection: 'row',
@@ -385,19 +481,68 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderGreen,
+    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  menuItemRtl: {
+    flexDirection: 'row-reverse',
   },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  menuIcon: {
-    marginRight: 10,
+  menuItemLeftRtl: {
+    flexDirection: 'row-reverse',
+  },
+  menuIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1.5,
+    elevation: 1,
   },
   menuLabel: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: colors.textDark,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E2D1F',
+    letterSpacing: -0.1,
+  },
+  menuArrowBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2.5,
+    elevation: 2,
+  },
+  langValueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  langValueBadgeRtl: {
+    flexDirection: 'row-reverse',
+  },
+  langValueText: {
+    fontSize: 13,
+    color: '#37633B',
+    fontWeight: '700',
   },
   logoutButton: {
     flexDirection: 'row',
@@ -435,16 +580,16 @@ const createStyles = (colors) => StyleSheet.create({
   alertCard: {
     width: '100%',
     maxWidth: 325,
-    backgroundColor: colors.bgCreamy,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(55, 99, 59, 0.12)',
     padding: 24,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
     position: 'relative',
   },
   alertCloseIcon: {
@@ -455,7 +600,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: '#F2F4F5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -467,7 +612,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: '#F2F4F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -494,17 +639,17 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    backgroundColor: '#F2F4F5',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 8,
   },
   langToggleRowActive: {
-    backgroundColor: colors.bgBrandLight,
-    borderColor: colors.bgBrand,
+    backgroundColor: 'rgba(55, 99, 59, 0.08)',
+    borderColor: '#37633B',
   },
   langToggleLeft: {
     flexDirection: 'row',
