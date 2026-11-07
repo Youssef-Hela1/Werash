@@ -94,6 +94,48 @@ export default function CommunityScreen({
         })}
       </View>
 
+      {/* Post Creator Bar (Premium Card Style) */}
+      <View style={styles.contentArea}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.postBarShadow}
+          onPress={() => {
+            // Open post creation modal/screen
+          }}
+        >
+          <View style={[styles.postBarSurface, isRtl && styles.postBarSurfaceRtl]}>
+            {/* User Avatar */}
+            {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
+              <Image
+                source={
+                  typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
+                    ? { uri: currentUser.avatarUrl || currentUser.avatar }
+                    : (currentUser.avatarUrl || currentUser.avatar)
+                }
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={18} color="#FFFFFF" />
+              </View>
+            )}
+
+            {/* Vertical Divider */}
+            <View style={styles.postDivider} />
+
+            {/* Input Placeholder Text */}
+            <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
+              {isRtl ? 'شارك تحديثاً لسيارتك...' : 'Share a car update...'}
+            </Text>
+
+            {/* Plus Circular Button */}
+            <View style={styles.postPlusButton}>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* Chats Drawer Modal */}
       <ChatsModal
         visible={chatsVisible}
@@ -189,5 +231,80 @@ const styles = StyleSheet.create({
   },
   tabIndicatorActive: {
     backgroundColor: '#003514',
+  },
+  contentArea: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+  },
+  postBarShadow: {
+    width: '100%',
+    borderRadius: 20,
+    backgroundColor: '#F2F4F5',
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2.5 },
+        shadowOpacity: 0.10,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2.8,
+      },
+    }),
+  },
+  postBarSurface: {
+    width: '100%',
+    backgroundColor: '#F2F4F5',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  postBarSurfaceRtl: {
+    flexDirection: 'row-reverse',
+  },
+  avatarPlaceholder: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#37633B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  postDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    marginHorizontal: 12,
+  },
+  postInputPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    color: '#8A959E',
+    fontWeight: '500',
+  },
+  postInputPlaceholderRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    textAlign: 'right',
+  },
+  postPlusButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#003514',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
   },
 });
