@@ -389,7 +389,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 12,
+    paddingTop: 25,
   },
   cardRightSection: {
     width: '60%',
