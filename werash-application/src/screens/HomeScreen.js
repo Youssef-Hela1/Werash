@@ -308,11 +308,18 @@ export default function HomeScreen({
                 onPress={() => onNavigate && onNavigate('mechanics')}
               >
                 <View style={styles.miniCardSurface}>
+                  <Text 
+                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                    numberOfLines={1}
+                  >
+                    {isRtl ? 'الميكانيكيين' : 'Mechanics'}
+                  </Text>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="construct-outline" size={86} color="#003514" />
                   </View>
                 </View>
               </TouchableOpacity>
+
               {/* Top Right Card: Community */}
               <TouchableOpacity 
                 activeOpacity={1} 
@@ -320,21 +327,35 @@ export default function HomeScreen({
                 onPress={() => onNavigate && onNavigate('community')}
               >
                 <View style={styles.miniCardSurface}>
+                  <Text 
+                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                    numberOfLines={1}
+                  >
+                    {isRtl ? 'المجتمع' : 'Community'}
+                  </Text>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="chatbubbles-outline" size={86} color="#003514" />
                   </View>
                 </View>
               </TouchableOpacity>
             </View>
+
             <View style={styles.gridRow}>
               {/* Bottom Left Card: Tow */}
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
                 <View style={styles.miniCardSurface}>
+                  <Text 
+                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                    numberOfLines={1}
+                  >
+                    {isRtl ? 'سطحة' : 'Tow'}
+                  </Text>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <MaterialCommunityIcons name="tow-truck" size={86} color="#003514" />
                   </View>
                 </View>
               </TouchableOpacity>
+
               {/* Bottom Right Card: Profile */}
               <TouchableOpacity 
                 activeOpacity={1} 
@@ -348,6 +369,12 @@ export default function HomeScreen({
                 }}
               >
                 <View style={styles.miniCardSurface}>
+                  <Text 
+                    style={[styles.miniCardTitle, isRtl && styles.miniCardTitleArabic]}
+                    numberOfLines={1}
+                  >
+                    {isRtl ? 'الملف الشخصي' : 'Profile'}
+                  </Text>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
                     <Ionicons name="person-outline" size={86} color="#003514" />
                   </View>
@@ -717,5 +744,23 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     left: -12,
     opacity: 0.16,
     transform: [{ rotate: '20deg' }],
+  },
+  miniCardTitle: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    fontSize: 21,
+    fontWeight: '800',
+    color: '#003514',
+    letterSpacing: -0.4,
+    zIndex: 2,
+  },
+  miniCardTitleArabic: {
+    left: 'auto',
+    right: 14,
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 21,
+    letterSpacing: 0,
+    textAlign: 'right',
   },
 });
