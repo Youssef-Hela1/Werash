@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Platform, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ChatsModal from '../components/ChatsModal';
+import { supabase } from '../services/supabase';
 
 const TABS = [
   { id: 'feed', label: 'Feed', labelAr: 'الرئيسية' },
@@ -10,61 +11,193 @@ const TABS = [
   { id: 'souq', label: 'Souq', labelAr: 'سوق' },
 ];
 
-const INITIAL_SAMPLE_POSTS = [
-  {
-    id: 'post-aly',
-    author: 'Aly Omar',
-    handle: '@alyomar',
-    time: '2d ago',
-    timeAr: 'منذ يومين',
-    avatar: require('../../assets/expert_samir.png'),
-    content: 'WIP',
-    contentAr: 'قيد العمل',
-    postImage: require('../../assets/expert_samir.png'),
-    likes: 0,
-    comments: 2,
-    liked: false,
-  },
-  {
-    id: 'post-karim',
-    author: 'Karim Hamed',
-    handle: '@karimhamed',
-    time: '2d ago',
-    timeAr: 'منذ يومين',
-    avatar: require('../../assets/expert_michael.png'),
-    content: 'First official post\n4/11/2026',
-    contentAr: 'أول منشور رسمي\n٤/١١/٢٠٢٦',
-    postImage: null,
-    likes: 0,
-    comments: 0,
-    liked: false,
-  },
-];
+const formatTimeAgo = (dateString, isRtl) => {
+  if (!dateString) return isRtl ? 'الآن' : 'Just now';
+  const parsed = new Date(dateString);
+  const timeMs = parsed.getTime();
+  if (isNaN(timeMs)) return isRtl ? 'الآن' : 'Just now';
+  const diffMs = Date.now() - timeMs;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return isRtl ? 'الآن' : 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return isRtl ? `منذ ${diffMin} د` : `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return isRtl ? `منذ ${diffHr} س` : `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return isRtl ? 'أمس' : 'Yesterday';
+  if (diffDay < 7) return isRtl ? `منذ ${diffDay} أيام` : `${diffDay}d ago`;
+  try {
+    return parsed.toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
+  } catch (_) {
+    return isRtl ? 'الآن' : 'Just now';
+  }
+};
 
 export default function CommunityScreen({
   currentUser,
   selectedLanguage,
+  onOpenSignIn,
 }) {
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
   const [chatsVisible, setChatsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
-  const [posts, setPosts] = useState(INITIAL_SAMPLE_POSTS);
+  const [posts, setPosts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isRtl = selectedLanguage === 'Arabic';
 
-  const handleToggleLike = (postId) => {
+  // Fetch live posts from Supabase cloud
+  const fetchCloudPosts = async () => {
+    try {
+      // 1. Fetch user profiles for avatars
+      let profMap = {};
+      try {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, banner_url');
+        if (profs && Array.isArray(profs)) {
+          profs.forEach((pr) => {
+            if (pr.id) profMap[pr.id] = pr;
+          });
+        }
+      } catch (_) {}
+
+      // 2. Fetch posts ordered by newest first
+      const { data: postsData, error: postsError } = await supabase
+        .from('community_posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (postsError) {
+        console.warn('Error fetching community posts:', postsError.message);
+        return;
+      }
+
+      // 3. Check likes by current user
+      let likedPostIds = new Set();
+      if (currentUser?.id) {
+        try {
+          const { data: likesData } = await supabase
+            .from('community_post_likes')
+            .select('post_id')
+            .eq('user_id', currentUser.id);
+          likedPostIds = new Set((likesData || []).map(l => l.post_id));
+        } catch (_) {}
+      }
+
+      const mapped = (postsData || []).map(p => {
+        const authorProf = p.user_id ? profMap[p.user_id] : null;
+        const finalAvatarUrl = authorProf?.avatar_url || p.author_avatar;
+        return {
+          id: p.id,
+          userId: p.user_id,
+          author: p.author_name || 'Community Member',
+          handle: p.author_handle || `@${(p.author_name || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
+          avatar: finalAvatarUrl ? { uri: finalAvatarUrl } : null,
+          time: formatTimeAgo(p.created_at, isRtl),
+          content: p.content,
+          postImage: p.media_url ? { uri: p.media_url } : null,
+          likes: p.likes_count || 0,
+          comments: p.comments_count || 0,
+          liked: likedPostIds.has(p.id),
+          vehicle: p.vehicle || 'General',
+          isMarketplace: Boolean(p.is_marketplace),
+          price: p.price || null,
+          location: p.location || null,
+        };
+      });
+
+      setPosts(mapped);
+    } catch (err) {
+      console.warn('fetchCloudPosts error:', err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCloudPosts();
+
+    // Subscribe to realtime changes in community_posts
+    const channel = supabase
+      .channel('community_posts_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'community_posts' },
+        () => {
+          fetchCloudPosts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id, isRtl]);
+
+  const handleToggleLike = async (postId) => {
+    if (!currentUser?.id) {
+      Alert.alert(
+        isRtl ? 'تسجيل الدخول مطلوب' : 'Sign In Required',
+        isRtl
+          ? 'يرجى تسجيل الدخول للتفاعل مع منشورات المجتمع.'
+          : 'Please sign in to like posts and interact with the community.',
+        [
+          { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
+          {
+            text: isRtl ? 'تسجيل الدخول' : 'Sign In',
+            onPress: () => {
+              if (typeof onOpenSignIn === 'function') onOpenSignIn();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    const targetPost = posts.find(p => p.id === postId);
+    if (!targetPost) return;
+
+    const willBeLiked = !targetPost.liked;
+    const nextLikesCount = willBeLiked ? targetPost.likes + 1 : Math.max(0, targetPost.likes - 1);
+
+    // Optimistic UI update
     setPosts(prev => prev.map(post => {
       if (post.id === postId) {
-        const nextLiked = !post.liked;
         return {
           ...post,
-          liked: nextLiked,
-          likes: nextLiked ? post.likes + 1 : Math.max(0, post.likes - 1),
+          liked: willBeLiked,
+          likes: nextLikesCount,
         };
       }
       return post;
     }));
+
+    try {
+      if (willBeLiked) {
+        await supabase.from('community_post_likes').insert({ post_id: postId, user_id: currentUser.id });
+      } else {
+        await supabase.from('community_post_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
+      }
+      await supabase.from('community_posts').update({ likes_count: nextLikesCount }).eq('id', postId);
+    } catch (err) {
+      console.warn('Error syncing like to Supabase:', err);
+    }
   };
+
+  // Filter posts based on active tab
+  const displayedPosts = posts.filter(post => {
+    if (activeTab === 'souq') {
+      return post.isMarketplace;
+    }
+    if (activeTab === 'profile') {
+      return currentUser?.id ? post.userId === currentUser.id : false;
+    }
+    // Default 'feed' shows general community posts
+    return !post.isMarketplace;
+  });
 
   return (
     <View style={[styles.container, { paddingTop: topInset + 6 }]}>
@@ -144,6 +277,17 @@ export default function CommunityScreen({
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollListContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => {
+              setIsRefreshing(true);
+              fetchCloudPosts();
+            }}
+            tintColor="#003514"
+            colors={['#003514']}
+          />
+        }
       >
         {/* Post Creator Bar (Premium Card Style) */}
         <TouchableOpacity
@@ -185,8 +329,28 @@ export default function CommunityScreen({
           </View>
         </TouchableOpacity>
 
+        {/* Loading Indicator */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#003514" />
+          </View>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && displayedPosts.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="newspaper-outline" size={38} color="#A0AAB0" />
+            <Text style={[styles.emptyTitle, isRtl && styles.emptyTitleRtl]}>
+              {isRtl ? 'لا توجد منشورات حتى الآن' : 'No posts yet'}
+            </Text>
+            <Text style={[styles.emptySubtitle, isRtl && styles.emptySubtitleRtl]}>
+              {isRtl ? 'كن أول من يشارك تحديثاً مع المجتمع!' : 'Be the first to share an update with the community!'}
+            </Text>
+          </View>
+        )}
+
         {/* Post Cards Feed */}
-        {posts.map((post) => (
+        {displayedPosts.map((post) => (
           <View key={post.id} style={styles.postCardShadow}>
             <View style={styles.postCardSurface}>
               {/* Post Header: Avatar, Name, Handle, Time & 3-Dots */}
@@ -594,5 +758,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8A959E',
     fontWeight: '600',
+  },
+  loadingContainer: {
+    paddingVertical: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4B5563',
+    marginTop: 12,
+  },
+  emptyTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#8A959E',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  emptySubtitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
   },
 });
