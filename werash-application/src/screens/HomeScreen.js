@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform, Animated, PanResponder } from 'react-native';
+import { StyleSheet, View, StatusBar, Image, Text, Dimensions, Platform, Animated, PanResponder, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -203,91 +203,100 @@ export default function HomeScreen({
             },
           ]}
         >
-          <PremiumCard surfaceStyle={styles.cardSurface}>
-            <View style={styles.cardContent}>
-              {/* Top Left "Active Vehicle" Header Label */}
-              <View style={[styles.activeVehicleLabelRow, isRtl && styles.activeVehicleLabelRowRtl]}>
-                <Ionicons 
-                  name="car-sport-outline" 
-                  size={12} 
-                  color={colors.bgBrand} 
-                  style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
-                />
-                <Text style={[styles.activeVehicleText, isRtl && styles.activeVehicleTextArabic]}>
-                  {isRtl ? 'المركبة النشطة' : 'ACTIVE VEHICLE'}
-                </Text>
-              </View>
-
-              {/* Left Side: Brand Logo & License Plate Badge (Centered in the 40% column) */}
-              <View style={styles.cardLeftSection}>
-                <View style={styles.cardBrandLogoContainer}>
-                  {brandLogo && (
-                    <Image 
-                      source={brandLogo} 
-                      style={styles.cardBrandLogo} 
-                      resizeMode="contain" 
-                    />
-                  )}
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => {
+              if (onNavigate) {
+                onNavigate('garage');
+              }
+            }}
+          >
+            <PremiumCard surfaceStyle={styles.cardSurface}>
+              <View style={styles.cardContent}>
+                {/* Top Left "Active Vehicle" Header Label */}
+                <View style={[styles.activeVehicleLabelRow, isRtl && styles.activeVehicleLabelRowRtl]}>
+                  <Ionicons 
+                    name="car-sport-outline" 
+                    size={12} 
+                    color={colors.bgBrand} 
+                    style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
+                  />
+                  <Text style={[styles.activeVehicleText, isRtl && styles.activeVehicleTextArabic]}>
+                    {isRtl ? 'المركبة النشطة' : 'ACTIVE VEHICLE'}
+                  </Text>
                 </View>
 
-                {/* Egyptian License Plate Badge */}
-                {plateNumber ? (
-                  <View style={styles.plateBadge}>
-                    <View style={styles.plateBadgeHeader}>
-                      <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
-                        {isRtl ? 'مصر' : 'EGYPT'}
-                      </Text>
-                    </View>
-                    {(() => {
-                      const { numbers, lettersList } = splitPlate(plateNumber);
-                      return (
-                        <View style={styles.plateBadgeContent}>
-                          <Text style={styles.plateBadgeNumbers}>{numbers}</Text>
-                          {lettersList && lettersList.length > 0 ? (
-                            <>
-                              <View style={styles.plateBadgeDivider} />
-                              <View style={styles.plateBadgeLettersRow}>
-                                {lettersList.map((char, idx) => (
-                                  <Text key={idx} style={styles.plateBadgeLetters}>{char}</Text>
-                                ))}
-                              </View>
-                            </>
-                          ) : null}
-                        </View>
-                      );
-                    })()}
+                {/* Left Side: Brand Logo & License Plate Badge (Centered in the 40% column) */}
+                <View style={styles.cardLeftSection}>
+                  <View style={styles.cardBrandLogoContainer}>
+                    {brandLogo && (
+                      <Image 
+                        source={brandLogo} 
+                        style={styles.cardBrandLogo} 
+                        resizeMode="contain" 
+                      />
+                    )}
                   </View>
-                ) : null}
-              </View>
 
-              {/* Vertical Divider Line at 40% boundary */}
-              <View style={styles.cardMiddleDivider} />
+                  {/* Egyptian License Plate Badge */}
+                  {plateNumber ? (
+                    <View style={styles.plateBadge}>
+                      <View style={styles.plateBadgeHeader}>
+                        <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                          {isRtl ? 'مصر' : 'EGYPT'}
+                        </Text>
+                      </View>
+                      {(() => {
+                        const { numbers, lettersList } = splitPlate(plateNumber);
+                        return (
+                          <View style={styles.plateBadgeContent}>
+                            <Text style={styles.plateBadgeNumbers}>{numbers}</Text>
+                            {lettersList && lettersList.length > 0 ? (
+                              <>
+                                <View style={styles.plateBadgeDivider} />
+                                <View style={styles.plateBadgeLettersRow}>
+                                  {lettersList.map((char, idx) => (
+                                    <Text key={idx} style={styles.plateBadgeLetters}>{char}</Text>
+                                  ))}
+                                </View>
+                              </>
+                            ) : null}
+                          </View>
+                        );
+                      })()}
+                    </View>
+                  ) : null}
+                </View>
 
-              {/* Right Side: 60% column */}
-              <View style={styles.cardRightSection}>
-                <View style={styles.vehicleInfoGroup}>
-                  <Text 
-                    style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}
-                    numberOfLines={1}
-                  >
-                    {carBrand}
-                  </Text>
-                  <Text 
-                    style={[styles.modelNameText, isRtl && styles.modelNameTextArabic]}
-                    numberOfLines={2}
-                  >
-                    {carModel}
-                  </Text>
-                  <Text 
-                    style={[styles.yearText, isRtl && styles.yearTextArabic]}
-                    numberOfLines={1}
-                  >
-                    {carYear}
-                  </Text>
+                {/* Vertical Divider Line at 40% boundary */}
+                <View style={styles.cardMiddleDivider} />
+
+                {/* Right Side: 60% column */}
+                <View style={styles.cardRightSection}>
+                  <View style={styles.vehicleInfoGroup}>
+                    <Text 
+                      style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}
+                      numberOfLines={1}
+                    >
+                      {carBrand}
+                    </Text>
+                    <Text 
+                      style={[styles.modelNameText, isRtl && styles.modelNameTextArabic]}
+                      numberOfLines={2}
+                    >
+                      {carModel}
+                    </Text>
+                    <Text 
+                      style={[styles.yearText, isRtl && styles.yearTextArabic]}
+                      numberOfLines={1}
+                    >
+                      {carYear}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          </PremiumCard>
+            </PremiumCard>
+          </TouchableOpacity>
         </Animated.View>
       </View>
 
