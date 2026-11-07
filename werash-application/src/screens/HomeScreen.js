@@ -301,8 +301,9 @@ export default function HomeScreen({
           {/* 4 Smaller Cards Equally Spaced in a 2x2 Grid */}
           <View style={styles.cardsGrid}>
             <View style={styles.gridRow}>
-              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
-                <View style={styles.miniCardSurface} />
+              {/* Top Left Card: Featured Brand Green */}
+              <TouchableOpacity activeOpacity={1} style={styles.miniCardShadowGreen}>
+                <View style={styles.miniCardSurfaceGreen} />
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={1} style={styles.miniCardShadow}>
                 <View style={styles.miniCardSurface} />
@@ -665,6 +666,32 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  miniCardShadowGreen: {
+    flex: 1,
+    borderRadius: 17,
+    backgroundColor: '#37633B',
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#1A331D',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.22,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  miniCardSurfaceGreen: {
+    width: '100%',
+    aspectRatio: 1.62,
+    backgroundColor: '#37633B',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     overflow: 'hidden',
   },
 });
