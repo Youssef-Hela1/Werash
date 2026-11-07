@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Platform, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Platform, ActivityIndicator, Alert, RefreshControl, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ChatsModal from '../components/ChatsModal';
@@ -46,6 +46,52 @@ export default function CommunityScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isRtl = selectedLanguage === 'Arabic';
+
+  // "Back to top" floating pill button state & animations
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const backToTopAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef(null);
+  const lastOffsetY = useRef(0);
+
+  const handleScroll = (event) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+    const diff = currentY - lastOffsetY.current;
+
+    // Show button when user is down (> 320px) and scrolls UP (diff < -8)
+    if (currentY > 320 && diff < -8) {
+      if (!showBackToTop) {
+        setShowBackToTop(true);
+        Animated.spring(backToTopAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 60,
+          useNativeDriver: true,
+        }).start();
+      }
+    } else if (currentY <= 120 || diff > 15) {
+      // Hide button if near top or scrolling down actively
+      if (showBackToTop) {
+        setShowBackToTop(false);
+        Animated.timing(backToTopAnim, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+
+    lastOffsetY.current = currentY;
+  };
+
+  const handleScrollToTop = () => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    setShowBackToTop(false);
+    Animated.timing(backToTopAnim, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  };
 
   // Fetch live posts from Supabase cloud
   const fetchCloudPosts = async () => {
@@ -203,8 +249,11 @@ export default function CommunityScreen({
     <View style={styles.container}>
       {/* Scrollable Feed List with Non-Fixed Header & Tabs */}
       <ScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollListContent, { paddingTop: topInset + 6 }]}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -454,6 +503,43 @@ export default function CommunityScreen({
           ))}
         </View>
       </ScrollView>
+
+      {/* Floating "Back to top" Pill Button */}
+      <Animated.View
+        pointerEvents={showBackToTop ? 'auto' : 'none'}
+        style={[
+          styles.backToTopContainer,
+          {
+            top: topInset + 12,
+            opacity: backToTopAnim,
+            transform: [
+              {
+                translateY: backToTopAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-18, 0],
+                }),
+              },
+              {
+                scale: backToTopAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.88, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backToTopButton}
+          activeOpacity={0.88}
+          onPress={handleScrollToTop}
+        >
+          <Ionicons name="arrow-up" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Text style={[styles.backToTopText, isRtl && styles.backToTopTextRtl]}>
+            {isRtl ? 'العودة للأعلى' : 'Back to top'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Chats Drawer Modal */}
       <ChatsModal
@@ -797,6 +883,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptySubtitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  backToTopContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99,
+  },
+  backToTopButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#003514',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.18,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  backToTopText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  backToTopTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
 });
