@@ -179,9 +179,9 @@ export default function HomeScreen({
             },
           ]}
         >
-          <PremiumCard>
+          <PremiumCard surfaceStyle={styles.cardSurface}>
             <View style={styles.cardContent}>
-              {/* Left Side: Brand Logo */}
+              {/* Left Side: Brand Logo (Exactly Centered in the 40% column) */}
               <View style={styles.cardLeftSection}>
                 <View style={styles.cardBrandLogoContainer}>
                   {brandLogo && (
@@ -194,10 +194,10 @@ export default function HomeScreen({
                 </View>
               </View>
 
-              {/* Vertical Middle Divider (floating, does not touch top/bottom edges) */}
+              {/* Vertical Divider Line at 40% boundary */}
               <View style={styles.cardMiddleDivider} />
 
-              {/* Right Side */}
+              {/* Right Side: 60% column */}
               <View style={styles.cardRightSection} />
             </View>
           </PremiumCard>
@@ -323,14 +323,16 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     overflow: 'visible',
   },
 
-  /* Premium Card Content */
+  /* Premium Card Styles */
+  cardSurface: {
+    padding: 0,
+  },
   cardContent: {
     flex: 1,
     flexDirection: 'row',
     width: '100%',
     height: '100%',
     position: 'relative',
-    alignItems: 'center',
   },
   cardLeftSection: {
     width: '40%',
@@ -341,17 +343,18 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardRightSection: {
     width: '60%',
     height: '100%',
+    padding: 20,
   },
   cardBrandLogoContainer: {
-    width: 110,
-    height: 110,
+    width: 104,
+    height: 104,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
   },
   cardBrandLogo: {
-    width: 104,
-    height: 104,
+    width: 98,
+    height: 98,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
@@ -362,8 +365,8 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     position: 'absolute',
     left: '40%',
     marginLeft: -0.75,
-    top: 6,
-    bottom: 6,
+    top: 20,
+    bottom: 20,
     width: 1.5,
     backgroundColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 1,

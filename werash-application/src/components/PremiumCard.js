@@ -1,10 +1,10 @@
 import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-export function PremiumCard({ children, style }) {
+export function PremiumCard({ children, style, surfaceStyle }) {
   return (
     <View style={[styles.shadow, style]}>
-      <View style={styles.surface}>{children}</View>
+      <View style={[styles.surface, surfaceStyle]}>{children}</View>
     </View>
   );
 }
