@@ -13,7 +13,7 @@ const styles = StyleSheet.create({
   shadow: {
     marginHorizontal: 20,
     borderRadius: 22,
-    backgroundColor: '#FAFBFB',
+    backgroundColor: '#F2F4F5',
     overflow: 'visible',
 
     ...Platform.select({
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   surface: {
     width: '100%',
     aspectRatio: 1.96,
-    backgroundColor: '#FAFBFB',
+    backgroundColor: '#F2F4F5',
     borderRadius: 22,
     borderWidth: 1,
     borderColor: '#FFFFFF',

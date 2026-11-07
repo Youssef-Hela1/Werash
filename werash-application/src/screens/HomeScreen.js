@@ -644,7 +644,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardShadow: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: '#FAFBFB',
+    backgroundColor: '#F2F4F5',
     overflow: 'visible',
     ...Platform.select({
       ios: {
@@ -661,7 +661,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardSurface: {
     width: '100%',
     aspectRatio: 1.85,
-    backgroundColor: '#FAFBFB',
+    backgroundColor: '#F2F4F5',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#FFFFFF',
