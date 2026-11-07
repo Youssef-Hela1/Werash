@@ -131,6 +131,7 @@ export default function HomeScreen({
       });
 
   const carBrand = activeVehicle?.brand || 'Hyundai';
+  const carModel = activeVehicle?.model || 'Coupe';
   const brandLogo = getBrandLogo(carBrand) || BRAND_LOGOS['hyundai'];
   const plateNumber = activeVehicle ? (activeVehicle.plateNumberArabic || activeVehicle.plateNumber || '١٨٧٣ ر و') : '١٨٧٣ ر و';
 
@@ -265,6 +266,13 @@ export default function HomeScreen({
               <View style={styles.cardRightSection}>
                 <Text style={[styles.brandNameText, isRtl && styles.brandNameTextArabic]}>
                   {carBrand}
+                </Text>
+                <Text 
+                  style={[styles.modelNameText, isRtl && styles.modelNameTextArabic]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {carModel}
                 </Text>
               </View>
             </View>
@@ -455,6 +463,20 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontSize: 14,
     letterSpacing: 0,
     textAlign: 'right',
+  },
+  modelNameText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#37633B', // Same green as header
+    letterSpacing: -0.3,
+    marginTop: 3,
+  },
+  modelNameTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 23,
+    letterSpacing: 0,
+    textAlign: 'right',
+    marginTop: 2,
   },
   cardBrandLogoContainer: {
     width: 96,
