@@ -12,7 +12,7 @@ const isLargeScreen = screenHeight >= 880; // iPhone 11, XR, tall Androids
 
 // Sized proportionally with taller height for spacious layout while staying clear of bottom nav
 const CARD_WIDTH = 230;
-const CARD_HEIGHT = 125;
+const CARD_HEIGHT = 132;
 
 export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSelectAd }) {
   const { colors } = useTheme();
