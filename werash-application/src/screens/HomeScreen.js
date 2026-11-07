@@ -444,7 +444,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   cardRightSection: {
     width: '60%',
     height: '100%',
-    paddingTop: 36,
+    paddingTop: 30,
     paddingLeft: 16,
     paddingRight: 16,
     paddingBottom: 20,
@@ -465,18 +465,19 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'right',
   },
   modelNameText: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 44,
+    fontWeight: '900',
     color: '#37633B', // Same green as header
-    letterSpacing: -0.3,
-    marginTop: 3,
+    letterSpacing: -1,
+    lineHeight: 48,
+    marginTop: 2,
   },
   modelNameTextArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 23,
+    fontSize: 42,
     letterSpacing: 0,
     textAlign: 'right',
-    marginTop: 2,
+    marginTop: 1,
   },
   cardBrandLogoContainer: {
     width: 96,
