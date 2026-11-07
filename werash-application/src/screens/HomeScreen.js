@@ -25,6 +25,11 @@ export default function HomeScreen({
   const insets = useSafeAreaInsets();
   const isRtl = selectedLanguage === 'Arabic';
 
+  const getFirstName = () => {
+    if (!currentUser || !currentUser.fullName) return '';
+    return currentUser.fullName.trim().split(/\s+/)[0];
+  };
+
   // Ensure comfortable top clearance on all devices (notch, Dynamic Island, status bar)
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 52 : (StatusBar.currentHeight || 28));
 
@@ -59,6 +64,16 @@ export default function HomeScreen({
             />
           )}
         </View>
+
+        {/* Small Greeting beneath Logo */}
+        <Text style={[
+          styles.greetingText,
+          isRtl && styles.greetingTextArabic
+        ]}>
+          {isRtl 
+            ? (getFirstName() ? `أهلاً ${getFirstName()}` : 'أهلاً بك')
+            : (getFirstName() ? `Hello ${getFirstName()}` : 'Hello Guest')}
+        </Text>
       </View>
     </View>
   );
@@ -111,5 +126,20 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 88,
     letterSpacing: 0,
     marginTop: -6,
+  },
+  greetingText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 8,
+    letterSpacing: -0.2,
+  },
+  greetingTextArabic: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 6,
+    textAlign: 'right',
   },
 });
