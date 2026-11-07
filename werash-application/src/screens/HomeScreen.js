@@ -20,7 +20,7 @@ const GREEN_BOUNDARY = Math.round(screenWidth * TRANSITION_RATIO);
 // Card dimensions: 1.96 width-to-height ratio with horizontal margin 20 on each side
 const CARD_WIDTH = screenWidth - 40;
 const OVERLAP_CARD_HEIGHT = Math.round(CARD_WIDTH / 1.96);
-const OVERLAP_CARD_TOP = GREEN_BOUNDARY - Math.round(OVERLAP_CARD_HEIGHT / 2) - 10;
+const OVERLAP_CARD_TOP = GREEN_BOUNDARY - Math.round(OVERLAP_CARD_HEIGHT / 2);
 
 const ARABIC_BRAND_MAP = {
   'مرسيدس': 'mercedes',
@@ -802,22 +802,22 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   /* 4 Smaller Cards Grid Styles */
   cardsGrid: {
     marginHorizontal: 20,
-    marginTop: 9,
-    gap: 9,
+    marginTop: 12,
+    gap: 12,
   },
   gridRow: {
     flexDirection: 'row',
-    gap: 9,
+    gap: 12,
   },
   miniCardShadow: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 17,
     backgroundColor: '#F2F4F5',
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.12,
         shadowRadius: 3,
       },
@@ -828,22 +828,22 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   miniCardSurface: {
     width: '100%',
-    aspectRatio: 1.74,
+    aspectRatio: 1.62,
     backgroundColor: '#F2F4F5',
-    borderRadius: 16,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
   },
   miniCardShadowTow: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 17,
     backgroundColor: '#E5E8EA',
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.12,
         shadowRadius: 3,
       },
@@ -854,69 +854,69 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   miniCardSurfaceTow: {
     width: '100%',
-    aspectRatio: 1.74,
+    aspectRatio: 1.62,
     backgroundColor: '#E5E8EA',
-    borderRadius: 16,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
   },
   miniCardIconWrapper: {
     position: 'absolute',
-    right: -10,
-    bottom: -10,
+    right: -12,
+    bottom: -12,
     opacity: 0.16,
     transform: [{ rotate: '-20deg' }],
   },
   miniCardIconWrapperRtl: {
     right: 'auto',
-    left: -10,
+    left: -12,
     opacity: 0.16,
     transform: [{ rotate: '20deg' }],
   },
   miniCardHeader: {
     position: 'absolute',
-    top: 11,
-    left: 13,
-    right: 13,
+    top: 13,
+    left: 14,
+    right: 14,
     zIndex: 2,
   },
   miniCardHeaderRtl: {
     alignItems: 'flex-end',
   },
   miniCardTitle: {
-    fontSize: 15.5,
+    fontSize: 16,
     fontWeight: '800',
     color: '#37633B',
     letterSpacing: -0.2,
   },
   miniCardTitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 16,
+    fontSize: 16.5,
     letterSpacing: 0,
     textAlign: 'right',
   },
   miniCardSubtitle: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '600',
     color: 'rgba(55, 99, 59, 0.70)',
     letterSpacing: 0.1,
-    marginTop: 1.5,
+    marginTop: 2,
   },
   miniCardSubtitleArabic: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 9.5,
+    fontSize: 10,
     letterSpacing: 0,
     textAlign: 'right',
-    marginTop: 1,
+    marginTop: 1.5,
   },
   miniCardArrowButton: {
     position: 'absolute',
-    left: 13,
-    bottom: 10,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    left: 14,
+    bottom: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(55, 99, 59, 0.12)',
@@ -925,13 +925,13 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1.5 },
     shadowOpacity: 0.08,
-    shadowRadius: 2.5,
+    shadowRadius: 3,
     elevation: 2,
     zIndex: 3,
   },
   miniCardArrowButtonRtl: {
     left: 'auto',
-    right: 13,
+    right: 14,
   },
 
   /* 3 Crossing Minimalist Hazard Ribbons */
