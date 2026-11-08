@@ -1029,9 +1029,18 @@ export default function CommunityScreen({
       setActiveMenuPost(null);
       return;
     }
-    const pageY = e?.nativeEvent?.pageY || 250;
-    // Always appear below the dots
-    const top = pageY + 12;
+    const pageY = e?.nativeEvent?.pageY;
+    const locationY = e?.nativeEvent?.locationY;
+
+    // Invariant button bottom calculation: subtract touch offset inside button
+    const buttonTop = (pageY !== undefined && locationY !== undefined)
+      ? pageY - locationY
+      : (pageY || 250);
+    const buttonHeight = 32;
+    const buttonBottom = buttonTop + buttonHeight;
+
+    // Anchor precisely 6px below the bottom edge of the 3-dots button
+    const top = buttonBottom + 6;
 
     setMenuPosition({
       top,
@@ -2646,7 +2655,7 @@ export default function CommunityScreen({
             <View
               style={[
                 menuPosition.isAbove ? styles.postMenuArrowDown : styles.postMenuArrowUp,
-                isRtl ? { left: 16 } : { right: 16 },
+                isRtl ? { left: 24 } : { right: 24 },
               ]}
             />
 
