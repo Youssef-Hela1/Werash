@@ -2173,28 +2173,30 @@ export default function CommunityScreen({
               backgroundColor={colors.screenBg}
             />
 
-            {/* Top Bar Header */}
-            <View style={[styles.otherProfileHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.otherProfileHeaderRowRtl]}>
-              <TouchableOpacity
-                onPress={handleCloseOtherUserProfile}
-                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-                activeOpacity={0.7}
-                style={styles.otherProfileBackButton}
-              >
-                <Ionicons
-                  name={isRtl ? 'arrow-forward' : 'arrow-back'}
-                  size={26}
-                  color={colors.primaryText}
-                />
-              </TouchableOpacity>
+            {/* Top Bar Header (Hidden when in image viewing state) */}
+            {!previewImage && (
+              <View style={[styles.otherProfileHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.otherProfileHeaderRowRtl]}>
+                <TouchableOpacity
+                  onPress={handleCloseOtherUserProfile}
+                  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                  activeOpacity={0.7}
+                  style={styles.otherProfileBackButton}
+                >
+                  <Ionicons
+                    name={isRtl ? 'arrow-forward' : 'arrow-back'}
+                    size={26}
+                    color={colors.primaryText}
+                  />
+                </TouchableOpacity>
 
-              <Text style={[styles.otherProfileHeaderTitle, isRtl && styles.otherProfileHeaderTitleRtl]} numberOfLines={1}>
-                {viewingOtherUser.author}
-              </Text>
+                <Text style={[styles.otherProfileHeaderTitle, isRtl && styles.otherProfileHeaderTitleRtl]} numberOfLines={1}>
+                  {viewingOtherUser.author}
+                </Text>
 
-              {/* Balance spacer to keep title centered */}
-              <View style={styles.otherProfileHeaderSpacer} />
-            </View>
+                {/* Balance spacer to keep title centered */}
+                <View style={styles.otherProfileHeaderSpacer} />
+              </View>
+            )}
 
             {/* Scrollable Profile Details & Feed */}
             <ScrollView
@@ -5108,6 +5110,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.96)',
     zIndex: 99999,
+    elevation: 99999,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -5122,6 +5125,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     zIndex: 100000,
+    elevation: 100000,
   },
   imageViewerHeaderRtl: {
     flexDirection: 'row-reverse',
