@@ -1497,7 +1497,7 @@ export default function CommunityScreen({
         onRequestClose={() => setIsCreatePostActive(false)}
       >
         <View style={styles.blankPageContainer}>
-          <View style={[styles.blankPageHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRowRtl]}>
+          <View style={[styles.createPostHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.createPostHeaderRowRtl]}>
             <TouchableOpacity
               onPress={() => {
                 setIsCreatePostActive(false);
@@ -1512,6 +1512,18 @@ export default function CommunityScreen({
                 size={26}
                 color="#003514"
               />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.createPostSubmitButton}
+              onPress={() => {
+                // Post handler
+              }}
+            >
+              <Text style={[styles.createPostSubmitButtonText, isRtl && styles.createPostSubmitButtonTextRtl]}>
+                {isRtl ? 'نشر' : 'Post'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -2683,5 +2695,31 @@ const styles = StyleSheet.create({
   createPostPromptTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
     textAlign: 'right',
+  },
+  createPostHeaderRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  createPostHeaderRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  createPostSubmitButton: {
+    backgroundColor: '#003514',
+    paddingVertical: 7,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createPostSubmitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '700',
+  },
+  createPostSubmitButtonTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
   },
 });
