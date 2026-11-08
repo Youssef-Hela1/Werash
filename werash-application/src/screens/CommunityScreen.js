@@ -74,12 +74,15 @@ export default function CommunityScreen({
 
   // Blank white search page state
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef(null);
 
   // Hardware back button dismisses blank search page
   useEffect(() => {
     if (!isSearchActive) return;
     const backAction = () => {
       setIsSearchActive(false);
+      setSearchQuery('');
       return true;
     };
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
@@ -1224,7 +1227,10 @@ export default function CommunityScreen({
           <View style={[styles.blankPageHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRowRtl]}>
             {/* Arrow outside the card */}
             <TouchableOpacity
-              onPress={() => setIsSearchActive(false)}
+              onPress={() => {
+                setIsSearchActive(false);
+                setSearchQuery('');
+              }}
               hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
               activeOpacity={0.7}
               style={[styles.blankPageBackButton, isRtl ? { marginLeft: 10 } : { marginRight: 10 }]}
@@ -1236,12 +1242,28 @@ export default function CommunityScreen({
               />
             </TouchableOpacity>
 
-            {/* Card containing Search Werash */}
+            {/* Card containing Search TextInput */}
             <View style={styles.searchCardShadow}>
               <View style={[styles.searchCardSurface, isRtl && styles.searchCardSurfaceRtl]}>
-                <Text style={[styles.blankPageTitle, isRtl && styles.blankPageTitleRtl]}>
-                  {isRtl ? 'ابحث في وِرَش' : 'Search Werash'}
-                </Text>
+                <TextInput
+                  ref={searchInputRef}
+                  style={[styles.searchInput, isRtl && styles.searchInputRtl]}
+                  placeholder={isRtl ? 'ابحث في وِرَش' : 'Search Werash'}
+                  placeholderTextColor="#8A959E"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus={true}
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery('')}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={isRtl ? { marginRight: 6 } : { marginLeft: 6 }}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#8A959E" />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -2128,6 +2150,18 @@ const styles = StyleSheet.create({
   },
   searchCardSurfaceRtl: {
     flexDirection: 'row-reverse',
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 15.5,
+    fontWeight: '600',
+    color: '#1A211B',
+    paddingVertical: 0,
+  },
+  searchInputRtl: {
+    textAlign: 'right',
+    fontFamily: 'AlkhalilArabic-Bold',
   },
   blankPageTitle: {
     fontSize: 15.5,
