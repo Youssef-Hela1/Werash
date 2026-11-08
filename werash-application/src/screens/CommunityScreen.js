@@ -16,6 +16,8 @@ import {
   BackHandler,
   Modal,
   KeyboardAvoidingView,
+  Dimensions,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +32,10 @@ const TABS = [
   { id: 'profile', label: 'Profile', labelAr: 'الملف' },
   { id: 'souq', label: 'Souq', labelAr: 'سوق' },
 ];
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
+const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
 
 const formatTimeAgo = (dateString, isRtl) => {
   if (!dateString) return isRtl ? 'الآن' : 'Just now';
@@ -91,6 +97,17 @@ export default function CommunityScreen({
   const [isPosting, setIsPosting] = useState(false);
   const [isPickingPostImage, setIsPickingPostImage] = useState(false);
   const createPostInputRef = useRef(null);
+
+  // Interactive Comments state & animations
+  const [activeCommentsPost, setActiveCommentsPost] = useState(null);
+  const [commentInputText, setCommentInputText] = useState('');
+  const [replyingTo, setReplyingTo] = useState(null); // { commentId, author }
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const commentsScrollRef = useRef(null);
+  const commentInputRef = useRef(null);
+  const isCommentsExpandedRef = useRef(false);
+  const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
+  const commentsSlideAnim = useRef(new Animated.Value(0)).current;
 
   // Fast permission check without blocking main thread on repeat taps
   const ensureMediaPermissions = async () => {
@@ -600,6 +617,381 @@ export default function CommunityScreen({
     };
   }, [currentUser?.id, isRtl]);
 
+  // Fetch comments for a specific post from Supabase
+  const fetchPostComments = async (postId) => {
+    if (!postId) return;
+    setIsLoadingComments(true);
+    try {
+      const { data, error } = await supabase
+        .from('community_post_comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Error fetching comments:', error.message);
+        setIsLoadingComments(false);
+        return;
+      }
+
+      const commentMap = new Map();
+      const topLevelList = [];
+
+      (data || []).forEach((row) => {
+        const item = {
+          id: row.id,
+          author: row.author_name || (isRtl ? 'مستخدم' : 'User'),
+          handle: row.author_handle || '@user',
+          avatar: row.author_avatar ? { uri: row.author_avatar } : null,
+          time: formatTimeAgo(row.created_at, isRtl),
+          content: row.content,
+          likes: 0,
+          liked: false,
+          replies: [],
+          parentId: row.parent_id || null,
+        };
+        commentMap.set(row.id, item);
+        if (!row.parent_id) {
+          topLevelList.push(item);
+        }
+      });
+
+      (data || []).forEach((row) => {
+        if (row.parent_id && commentMap.has(row.parent_id)) {
+          const parent = commentMap.get(row.parent_id);
+          const reply = commentMap.get(row.id);
+          if (parent && reply && !parent.replies.some((r) => r.id === reply.id)) {
+            parent.replies.push(reply);
+          }
+        }
+      });
+
+      setActiveCommentsPost((prev) => {
+        if (!prev || prev.id !== postId) return prev;
+        return {
+          ...prev,
+          commentsList: topLevelList,
+          comments: (data || []).length,
+        };
+      });
+
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id === postId) {
+            return {
+              ...p,
+              commentsList: topLevelList,
+              comments: (data || []).length,
+            };
+          }
+          return p;
+        })
+      );
+    } catch (err) {
+      console.warn('fetchPostComments exception:', err);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
+  // Realtime subscription for comments on the active post
+  useEffect(() => {
+    if (activeCommentsPost?.id) {
+      isCommentsExpandedRef.current = false;
+      commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
+      fetchPostComments(activeCommentsPost.id);
+
+      const commentsChannel = supabase
+        .channel(`comments_${activeCommentsPost.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'community_post_comments',
+            filter: `post_id=eq.${activeCommentsPost.id}`,
+          },
+          (payload) => {
+            if (payload.new) {
+              fetchPostComments(activeCommentsPost.id);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(commentsChannel);
+      };
+    }
+  }, [activeCommentsPost?.id]);
+
+  // Drag-to-expand / drag-to-dismiss gesture for comments bottom sheet
+  const commentsPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 4,
+      onPanResponderGrant: () => {
+        commentsHeightAnim.stopAnimation();
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const baseHeight = isCommentsExpandedRef.current ? EXPANDED_COMMENTS_HEIGHT : DEFAULT_COMMENTS_HEIGHT;
+        const targetHeight = baseHeight - gestureState.dy;
+        const clampedHeight = Math.max(140, Math.min(EXPANDED_COMMENTS_HEIGHT, targetHeight));
+        commentsHeightAnim.setValue(clampedHeight);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (Math.abs(gestureState.dy) < 5 && Math.abs(gestureState.dx) < 5) {
+          const nextExpanded = !isCommentsExpandedRef.current;
+          isCommentsExpandedRef.current = nextExpanded;
+          Animated.spring(commentsHeightAnim, {
+            toValue: nextExpanded ? EXPANDED_COMMENTS_HEIGHT : DEFAULT_COMMENTS_HEIGHT,
+            useNativeDriver: false,
+            friction: 8,
+            tension: 50,
+          }).start();
+          return;
+        }
+
+        const isExpanded = isCommentsExpandedRef.current;
+        if (!isExpanded) {
+          if (gestureState.dy < -45 || gestureState.vy < -0.35) {
+            isCommentsExpandedRef.current = true;
+            Animated.spring(commentsHeightAnim, {
+              toValue: EXPANDED_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+              tension: 50,
+            }).start();
+          } else if (gestureState.dy > 80 || gestureState.vy > 0.6) {
+            Animated.timing(commentsHeightAnim, {
+              toValue: 0,
+              duration: 180,
+              useNativeDriver: false,
+            }).start(() => setActiveCommentsPost(null));
+          } else {
+            Animated.spring(commentsHeightAnim, {
+              toValue: DEFAULT_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+            }).start();
+          }
+        } else {
+          if (gestureState.dy > 50 || gestureState.vy > 0.35) {
+            isCommentsExpandedRef.current = false;
+            Animated.spring(commentsHeightAnim, {
+              toValue: DEFAULT_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+              tension: 50,
+            }).start();
+          } else {
+            Animated.spring(commentsHeightAnim, {
+              toValue: EXPANDED_COMMENTS_HEIGHT,
+              useNativeDriver: false,
+              friction: 8,
+            }).start();
+          }
+        }
+      },
+    })
+  ).current;
+
+  const handleOpenComments = (post) => {
+    const freshPost = posts.find(p => p.id === post.id) || post;
+    commentsSlideAnim.setValue(500);
+    isCommentsExpandedRef.current = false;
+    commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
+    setActiveCommentsPost(freshPost);
+    setCommentInputText('');
+    setReplyingTo(null);
+    Animated.spring(commentsSlideAnim, {
+      toValue: 0,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 50,
+    }).start();
+    fetchPostComments(freshPost.id);
+  };
+
+  const handleStartReply = (comment, specificAuthor) => {
+    const authorToReply = specificAuthor || comment.author;
+    setReplyingTo({
+      commentId: comment.id,
+      author: authorToReply,
+    });
+    setTimeout(() => {
+      if (commentInputRef.current) {
+        commentInputRef.current.focus();
+      }
+    }, 100);
+  };
+
+  const handleSubmitComment = async () => {
+    if (!requireAuth()) return;
+    if (!commentInputText.trim() || !activeCommentsPost) return;
+
+    const currentAuthorName = currentUser?.fullName || (isRtl ? 'مستخدم' : 'Guest User');
+    const currentHandle = currentUser?.fullName
+      ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}`
+      : '@guest';
+    const commentContent = commentInputText.trim();
+    const postId = activeCommentsPost.id;
+    const parentCommentId = replyingTo ? replyingTo.commentId : null;
+
+    setCommentInputText('');
+    setReplyingTo(null);
+
+    const tempId = `temp_${Date.now()}`;
+    const newCommentItem = {
+      id: tempId,
+      author: currentAuthorName,
+      handle: currentHandle,
+      avatar: currentUser?.avatarUrl ? { uri: currentUser.avatarUrl } : null,
+      time: isRtl ? 'الآن' : 'Just now',
+      content: commentContent,
+      likes: 0,
+      liked: false,
+      replies: [],
+      parentId: parentCommentId,
+    };
+
+    const updatePostState = (p) => {
+      if (p.id !== postId) return p;
+      let updatedComments = [...(p.commentsList || [])];
+
+      if (parentCommentId) {
+        updatedComments = updatedComments.map((c) => {
+          if (c.id === parentCommentId) {
+            return {
+              ...c,
+              replies: [...(c.replies || []), newCommentItem],
+            };
+          }
+          return c;
+        });
+      } else {
+        updatedComments.push(newCommentItem);
+      }
+
+      const totalCount = (p.comments || 0) + 1;
+      return {
+        ...p,
+        commentsList: updatedComments,
+        comments: totalCount,
+      };
+    };
+
+    setPosts((prev) => prev.map(updatePostState));
+    setActiveCommentsPost((prev) => (prev ? updatePostState(prev) : null));
+
+    setTimeout(() => {
+      if (commentsScrollRef.current) {
+        commentsScrollRef.current.scrollToEnd({ animated: true });
+      }
+    }, 120);
+
+    if (currentUser?.id) {
+      try {
+        const payload = {
+          post_id: postId,
+          user_id: currentUser.id,
+          author_name: currentAuthorName,
+          author_handle: currentHandle,
+          author_avatar: currentUser.avatarUrl || null,
+          content: commentContent,
+        };
+        if (parentCommentId) {
+          payload.parent_id = parentCommentId;
+        }
+
+        const { data: insertedComment, error: insertErr } = await supabase
+          .from('community_post_comments')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (!insertErr && insertedComment) {
+          const replaceTempId = (p) => {
+            if (p.id !== postId) return p;
+            const updatedComments = (p.commentsList || []).map((c) => {
+              if (c.id === tempId) {
+                return { ...c, id: insertedComment.id };
+              }
+              if (c.replies && c.replies.length > 0) {
+                const updatedReplies = c.replies.map((r) =>
+                  r.id === tempId ? { ...r, id: insertedComment.id } : r
+                );
+                return { ...c, replies: updatedReplies };
+              }
+              return c;
+            });
+            return { ...p, commentsList: updatedComments };
+          };
+
+          setPosts((prev) => prev.map(replaceTempId));
+          setActiveCommentsPost((prev) => (prev ? replaceTempId(prev) : null));
+
+          await supabase
+            .from('community_posts')
+            .update({ comments_count: (activeCommentsPost.comments || 0) + 1 })
+            .eq('id', postId);
+        } else if (insertErr) {
+          console.warn('Error saving comment to Supabase:', insertErr.message);
+        }
+      } catch (err) {
+        console.warn('handleSubmitComment exception:', err);
+      }
+    }
+  };
+
+  const handleToggleCommentLike = (postId, commentId) => {
+    const updatePostComments = (p) => {
+      if (p.id !== postId) return p;
+      const updatedList = (p.commentsList || []).map((c) => {
+        if (c.id === commentId) {
+          const isLiked = !c.liked;
+          return {
+            ...c,
+            liked: isLiked,
+            likes: isLiked ? (c.likes || 0) + 1 : Math.max(0, (c.likes || 1) - 1),
+          };
+        }
+        return c;
+      });
+      return { ...p, commentsList: updatedList };
+    };
+
+    setPosts((prev) => prev.map(updatePostComments));
+    setActiveCommentsPost((prev) => (prev ? updatePostComments(prev) : null));
+  };
+
+  const handleToggleReplyLike = (postId, commentId, replyId) => {
+    const updatePost = (p) => {
+      if (p.id !== postId) return p;
+      const updatedComments = (p.commentsList || []).map((c) => {
+        if (c.id === commentId) {
+          const updatedReplies = (c.replies || []).map((r) => {
+            if (r.id === replyId) {
+              const isLiked = !r.liked;
+              return {
+                ...r,
+                liked: isLiked,
+                likes: isLiked ? (r.likes || 0) + 1 : Math.max(0, (r.likes || 1) - 1),
+              };
+            }
+            return r;
+          });
+          return { ...c, replies: updatedReplies };
+        }
+        return c;
+      });
+      return { ...p, commentsList: updatedComments };
+    };
+
+    setPosts((prev) => prev.map(updatePost));
+    setActiveCommentsPost((prev) => (prev ? updatePost(prev) : null));
+  };
+
   const handleToggleLike = async (postId) => {
     if (!currentUser?.id) {
       Alert.alert(
@@ -1049,9 +1441,10 @@ export default function CommunityScreen({
               isRtl && styles.engagementItemRtl,
             ]}
             activeOpacity={0.7}
+            onPress={() => handleOpenComments(post)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="chatbubble-outline" size={19} color="#8A959E" />
+            <Ionicons name="chatbubble-outline" size={19} color={colors.secondaryText} />
             <Text style={[
               styles.engagementCount,
               isRtl ? { marginRight: 6 } : { marginLeft: 6 }
@@ -1808,6 +2201,284 @@ export default function CommunityScreen({
               )}
             </TouchableOpacity>
           </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Interactive Comments Bottom Sheet Modal */}
+      <Modal
+        visible={Boolean(activeCommentsPost)}
+        animationType="none"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setActiveCommentsPost(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.commentsBackdrop}
+        >
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill} 
+            activeOpacity={1} 
+            onPress={() => setActiveCommentsPost(null)}
+          />
+
+          <Animated.View 
+            style={[
+              styles.commentsSheetContainer, 
+              { 
+                height: commentsHeightAnim,
+                transform: [{ translateY: commentsSlideAnim }]
+              }
+            ]}
+          >
+            {/* Draggable Handle Bar Area */}
+            <View 
+              style={styles.commentsHandleArea}
+              {...commentsPanResponder.panHandlers}
+            >
+              <View style={styles.commentsHandleBar} />
+            </View>
+
+            {/* Header */}
+            <View style={[styles.commentsHeader, isRtl && styles.commentsHeaderRtl]}>
+              <View style={[styles.commentsHeaderTitleGroup, isRtl && styles.commentsHeaderTitleGroupRtl]}>
+                <Text style={styles.commentsHeaderTitle}>
+                  {isRtl ? 'التعليقات' : 'Comments'}
+                </Text>
+                <View style={[styles.commentsCountBadge, isRtl && styles.commentsCountBadgeRtl]}>
+                  <Text style={styles.commentsCountBadgeText}>
+                    {(activeCommentsPost?.commentsList || []).length}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={styles.commentsCloseBtn} 
+                onPress={() => setActiveCommentsPost(null)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={18} color={colors.primaryText} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Comments List Scroll */}
+            <ScrollView 
+              ref={commentsScrollRef}
+              style={styles.commentsListScroll}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {isLoadingComments && (activeCommentsPost?.commentsList || []).length === 0 ? (
+                <View style={styles.emptyCommentsBox}>
+                  <ActivityIndicator size="small" color={colors.activeHighlight} />
+                  <Text style={[styles.emptyCommentsSubtitle, { marginTop: 12 }]}>
+                    {isRtl ? 'جاري تحميل التعليقات...' : 'Loading comments...'}
+                  </Text>
+                </View>
+              ) : (activeCommentsPost?.commentsList || []).length === 0 ? (
+                <View style={styles.emptyCommentsBox}>
+                  <Ionicons name="chatbubbles-outline" size={44} color={colors.mutedDecor} />
+                  <Text style={styles.emptyCommentsTitle}>
+                    {isRtl ? 'لا توجد تعليقات بعد' : 'No comments yet'}
+                  </Text>
+                  <Text style={styles.emptyCommentsSubtitle}>
+                    {isRtl ? 'كن أول من يشارك برأيه حول هذا المنشور!' : 'Be the first to share your thoughts on this post!'}
+                  </Text>
+                </View>
+              ) : (
+                (activeCommentsPost?.commentsList || []).map((c) => (
+                  <View key={c.id} style={[styles.commentItemRow, isRtl && styles.commentItemRowRtl]}>
+                    {/* Comment Avatar */}
+                    {c.avatar ? (
+                      <Image source={c.avatar} style={styles.commentAvatar} />
+                    ) : (
+                      <View style={styles.commentAvatarIcon}>
+                        <Ionicons name="person" size={15} color="#FFFFFF" />
+                      </View>
+                    )}
+
+                    {/* Comment Bubble & Meta */}
+                    <View style={[styles.commentBubbleContainer, isRtl ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
+                      <View style={styles.commentBubble}>
+                        <Text style={[styles.commentAuthorName, isRtl && { textAlign: 'right' }]}>
+                          {c.author}
+                        </Text>
+                        <Text style={[styles.commentBodyText, isRtl && { textAlign: 'right' }]}>
+                          {c.content}
+                        </Text>
+                      </View>
+
+                      {/* Time, Reply & Like */}
+                      <View style={[styles.commentMetaRow, isRtl && styles.commentMetaRowRtl]}>
+                        <Text style={styles.commentTimeText}>{c.time}</Text>
+                        <TouchableOpacity
+                          style={styles.commentReplyBtn}
+                          activeOpacity={0.7}
+                          onPress={() => handleStartReply(c)}
+                        >
+                          <Text style={styles.commentReplyBtnText}>
+                            {isRtl ? 'رد' : 'Reply'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.commentLikeBtn, isRtl && styles.commentLikeBtnRtl]}
+                          activeOpacity={0.7}
+                          onPress={() => handleToggleCommentLike(activeCommentsPost.id, c.id)}
+                        >
+                          <Ionicons
+                            name={c.liked ? "heart" : "heart-outline"}
+                            size={13}
+                            color={c.liked ? '#E0245E' : colors.mutedDecor}
+                          />
+                          {(c.likes > 0) && (
+                            <Text style={[styles.commentLikeCount, c.liked && { color: '#E0245E' }]}>
+                              {c.likes}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Nested Replies */}
+                      {c.replies && c.replies.length > 0 && (
+                        <View style={[
+                          styles.repliesListContainer, 
+                          isRtl && styles.repliesListContainerRtl
+                        ]}>
+                          {c.replies.map((reply) => (
+                            <View key={reply.id} style={[styles.replyItemRow, isRtl && styles.replyItemRowRtl]}>
+                              {reply.avatar ? (
+                                <Image source={reply.avatar} style={styles.replyAvatar} />
+                              ) : (
+                                <View style={styles.replyAvatarIcon}>
+                                  <Ionicons name="person" size={12} color="#FFFFFF" />
+                                </View>
+                              )}
+
+                              <View style={[styles.replyBubbleContainer, isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
+                                <View style={styles.replyBubble}>
+                                  <Text style={[styles.replyAuthorName, isRtl && { textAlign: 'right' }]}>
+                                    {reply.author}
+                                  </Text>
+                                  <Text style={[styles.replyBodyText, isRtl && { textAlign: 'right' }]}>
+                                    {reply.content}
+                                  </Text>
+                                </View>
+
+                                <View style={[styles.commentMetaRow, isRtl && styles.commentMetaRowRtl]}>
+                                  <Text style={styles.commentTimeText}>{reply.time}</Text>
+                                  <TouchableOpacity
+                                    style={styles.commentReplyBtn}
+                                    activeOpacity={0.7}
+                                    onPress={() => handleStartReply(c, reply.author)}
+                                  >
+                                    <Text style={styles.commentReplyBtnText}>
+                                      {isRtl ? 'رد' : 'Reply'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={[styles.commentLikeBtn, isRtl && styles.commentLikeBtnRtl]}
+                                    activeOpacity={0.7}
+                                    onPress={() => handleToggleReplyLike(activeCommentsPost.id, c.id, reply.id)}
+                                  >
+                                    <Ionicons
+                                      name={reply.liked ? "heart" : "heart-outline"}
+                                      size={12}
+                                      color={reply.liked ? '#E0245E' : colors.mutedDecor}
+                                    />
+                                    {(reply.likes > 0) && (
+                                      <Text style={[styles.commentLikeCount, reply.liked && { color: '#E0245E' }]}>
+                                        {reply.likes}
+                                      </Text>
+                                    )}
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Replying To Banner */}
+            {replyingTo && (
+              <View style={[styles.replyingToBanner, isRtl && styles.replyingToBannerRtl]}>
+                <View style={[styles.replyingToLeft, isRtl && styles.replyingToLeftRtl]}>
+                  <Ionicons 
+                    name="arrow-undo-outline" 
+                    size={14} 
+                    color={colors.activeHighlight} 
+                    style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
+                  />
+                  <Text style={styles.replyingToText}>
+                    {isRtl ? `الرد على ${replyingTo.author}` : `Replying to ${replyingTo.author}`}
+                  </Text>
+                </View>
+                <TouchableOpacity 
+                  onPress={() => setReplyingTo(null)} 
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.cancelReplyBtn}
+                >
+                  <Ionicons name="close-circle" size={17} color={colors.secondaryText} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Comment Input Footer */}
+            <View style={[
+              styles.commentInputContainer, 
+              { paddingBottom: Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 16 : 10) },
+              isRtl && styles.commentInputContainerRtl
+            ]}>
+              {/* Current User Avatar */}
+              {currentUser?.avatarUrl ? (
+                <Image source={{ uri: currentUser.avatarUrl }} style={styles.commentInputUserAvatarImage} />
+              ) : (
+                <View style={styles.commentInputUserAvatar}>
+                  <Ionicons name="person" size={14} color="#FFFFFF" />
+                </View>
+              )}
+
+              <View style={[styles.commentInputWrapper, isRtl && styles.commentInputWrapperRtl]}>
+                <TextInput
+                  ref={commentInputRef}
+                  style={[styles.commentTextInput, isRtl && { textAlign: 'right' }]}
+                  placeholder={
+                    replyingTo 
+                      ? (isRtl ? `رد على ${replyingTo.author}...` : `Reply to ${replyingTo.author}...`)
+                      : (isRtl ? 'اكتب تعليقاً...' : 'Add a comment...')
+                  }
+                  placeholderTextColor={colors.secondaryText}
+                  value={commentInputText}
+                  onChangeText={setCommentInputText}
+                  multiline={true}
+                  maxLength={400}
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.commentSendBtn,
+                    !commentInputText.trim() && styles.commentSendBtnDisabled,
+                    isRtl && { marginLeft: 0, marginRight: 6 }
+                  ]}
+                  disabled={!commentInputText.trim()}
+                  activeOpacity={0.8}
+                  onPress={handleSubmitComment}
+                >
+                  <Ionicons
+                    name="send"
+                    size={14}
+                    color={commentInputText.trim() ? '#FFFFFF' : colors.mutedDecor}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -3070,5 +3741,356 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  /* ── Interactive Comments Bottom Sheet Styles ── */
+  commentsBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  commentsSheetContainer: {
+    width: '100%',
+    backgroundColor: colors.elevatedBg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.cardBorder,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: isDarkMode ? 0.35 : 0.12,
+    shadowRadius: 14,
+    elevation: 20,
+    overflow: 'hidden',
+  },
+  commentsHandleArea: {
+    width: '100%',
+    paddingTop: 12,
+    paddingBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentsHandleBar: {
+    width: 44,
+    height: 4.5,
+    borderRadius: 2.5,
+    backgroundColor: colors.cardBorder,
+  },
+  commentsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+  },
+  commentsHeaderRtl: {
+    flexDirection: 'row-reverse',
+  },
+  commentsHeaderTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commentsHeaderTitleGroupRtl: {
+    flexDirection: 'row-reverse',
+  },
+  commentsHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primaryText,
+  },
+  commentsCountBadge: {
+    backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.35)' : 'rgba(55, 99, 59, 0.10)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  commentsCountBadgeRtl: {
+    marginLeft: 0,
+    marginRight: 8,
+  },
+  commentsCountBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.activeHighlight,
+  },
+  commentsCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentsListScroll: {
+    flex: 1,
+  },
+  emptyCommentsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyCommentsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.primaryText,
+    marginTop: 14,
+  },
+  emptyCommentsSubtitle: {
+    fontSize: 12.5,
+    color: colors.secondaryText,
+    textAlign: 'center',
+    marginTop: 5,
+    maxWidth: 240,
+    lineHeight: 18,
+  },
+  commentItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 14,
+  },
+  commentItemRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  commentAvatarIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentBubbleContainer: {
+    flex: 1,
+  },
+  commentBubble: {
+    backgroundColor: colors.cardBg,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: '95%',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  commentAuthorName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: colors.primaryText,
+    marginBottom: 3,
+  },
+  commentBodyText: {
+    fontSize: 13,
+    color: colors.primaryText,
+    lineHeight: 18,
+  },
+  commentMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+    paddingHorizontal: 6,
+    gap: 14,
+  },
+  commentMetaRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  commentTimeText: {
+    fontSize: 11,
+    color: colors.secondaryText,
+  },
+  commentLikeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  commentLikeBtnRtl: {
+    flexDirection: 'row-reverse',
+  },
+  commentLikeCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.secondaryText,
+  },
+  commentReplyBtn: {
+    paddingVertical: 1,
+    paddingHorizontal: 2,
+  },
+  commentReplyBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.activeHighlight,
+  },
+  repliesListContainer: {
+    marginTop: 10,
+    marginLeft: 8,
+    paddingLeft: 12,
+    borderLeftWidth: 1.5,
+    borderLeftColor: colors.cardBorder,
+  },
+  repliesListContainerRtl: {
+    borderLeftWidth: 0,
+    borderRightWidth: 1.5,
+    paddingLeft: 0,
+    paddingRight: 12,
+    marginLeft: 0,
+    marginRight: 8,
+  },
+  replyItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 10,
+  },
+  replyItemRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  replyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  replyAvatarIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replyBubbleContainer: {
+    flex: 1,
+  },
+  replyBubble: {
+    backgroundColor: isDarkMode ? '#171E1A' : '#E8ECE9',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: '96%',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  replyAuthorName: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.primaryText,
+    marginBottom: 2,
+  },
+  replyBodyText: {
+    fontSize: 12.5,
+    color: colors.primaryText,
+    lineHeight: 17,
+  },
+  replyingToBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.25)' : 'rgba(55, 99, 59, 0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+  },
+  replyingToBannerRtl: {
+    flexDirection: 'row-reverse',
+  },
+  replyingToLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  replyingToLeftRtl: {
+    flexDirection: 'row-reverse',
+  },
+  replyingToText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.activeHighlight,
+  },
+  cancelReplyBtn: {
+    padding: 3,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+    backgroundColor: colors.elevatedBg,
+  },
+  commentInputContainerRtl: {
+    flexDirection: 'row-reverse',
+  },
+  commentInputUserAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentInputUserAvatarImage: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  commentInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardBg,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    marginLeft: 10,
+  },
+  commentInputWrapperRtl: {
+    flexDirection: 'row-reverse',
+    marginLeft: 0,
+    marginRight: 10,
+  },
+  commentTextInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: colors.primaryText,
+    maxHeight: 80,
+    paddingVertical: 2,
+  },
+  commentSendBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.forestGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  commentSendBtnDisabled: {
+    backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.35)' : 'rgba(55, 99, 59, 0.20)',
   },
 });
