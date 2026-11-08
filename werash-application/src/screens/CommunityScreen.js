@@ -225,9 +225,6 @@ export default function CommunityScreen({
   });
   const userPostsCount = userPosts.length;
 
-  // "Back to top" floating pill button state & animations
-  const [showBackToTop, setShowBackToTop] = useState(false);
-  const backToTopAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
   const lastOffsetY = useRef(0);
 
@@ -312,29 +309,6 @@ export default function CommunityScreen({
       }
     }
 
-    // Show "Back to top" button when user is down (> 320px) and scrolls UP (diff < -8)
-    if (currentY > 320 && diff < -8) {
-      if (!showBackToTop) {
-        setShowBackToTop(true);
-        Animated.spring(backToTopAnim, {
-          toValue: 1,
-          friction: 8,
-          tension: 60,
-          useNativeDriver: true,
-        }).start();
-      }
-    } else if (currentY <= 120 || diff > 15) {
-      // Hide button if near top or scrolling down actively
-      if (showBackToTop) {
-        setShowBackToTop(false);
-        Animated.timing(backToTopAnim, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }).start();
-      }
-    }
-
     lastOffsetY.current = currentY;
   };
 
@@ -351,13 +325,6 @@ export default function CommunityScreen({
       isNavHidden.current = false;
       onToggleNavBar(false);
     }
-
-    setShowBackToTop(false);
-    Animated.timing(backToTopAnim, {
-      toValue: 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
 
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
@@ -1194,10 +1161,6 @@ export default function CommunityScreen({
     if (onToggleNavBar && isNavHidden.current) {
       isNavHidden.current = false;
       onToggleNavBar(false);
-    }
-    if (showBackToTop) {
-      setShowBackToTop(false);
-      backToTopAnim.setValue(0);
     }
   };
 
@@ -2047,43 +2010,6 @@ export default function CommunityScreen({
             );
           })}
         </View>
-      </Animated.View>
-
-      {/* Floating "Back to top" Pill Button */}
-      <Animated.View
-        pointerEvents={showBackToTop ? 'auto' : 'none'}
-        style={[
-          styles.backToTopContainer,
-          {
-            top: headerHeight + 10,
-            opacity: backToTopAnim,
-            transform: [
-              {
-                translateY: backToTopAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-18, 0],
-                }),
-              },
-              {
-                scale: backToTopAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.88, 1],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.backToTopButton}
-          activeOpacity={0.88}
-          onPress={handleScrollToTop}
-        >
-          <Ionicons name="arrow-up" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={[styles.backToTopText, isRtl && styles.backToTopTextRtl]}>
-            {isRtl ? 'العودة للأعلى' : 'Back to top'}
-          </Text>
-        </TouchableOpacity>
       </Animated.View>
 
       {/* Chats Drawer Modal */}
@@ -3208,45 +3134,6 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   emptySubtitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  backToTopContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 99,
-  },
-  backToTopButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.forestGreen,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.18,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  backToTopText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: -0.1,
-  },
-  backToTopTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
   // Profile Summary Card Styles
