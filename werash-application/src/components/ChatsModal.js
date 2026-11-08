@@ -1841,59 +1841,53 @@ export default function ChatsModal({
 
                   {/* Smooth Holding Overlay placed directly on top without unmounting TextInput */}
                   {isRecording && !isRecordingLocked && (
-                    <Animated.View 
+                    <View 
                       style={[
                         styles.holdingOverlay, 
-                        isRTL ? { flexDirection: 'row-reverse', paddingLeft: 28, paddingRight: 14 } : { paddingLeft: 14, paddingRight: 28 },
-                        {
-                          opacity: voiceDragX.interpolate({
-                            inputRange: isRTL ? [0, 20] : [-20, 0],
-                            outputRange: isRTL ? [0, 1] : [1, 0],
-                            extrapolate: 'clamp',
-                          })
-                        }
+                        isRTL ? { flexDirection: 'row-reverse', paddingLeft: 28, paddingRight: 14 } : { paddingLeft: 14, paddingRight: 28 }
                       ]} 
                       pointerEvents="none"
                     >
-                      <View style={[styles.holdingTimerRow, isRTL && { flexDirection: 'row-reverse' }]}>
-                        <Animated.View style={[styles.recordingDot, { opacity: pulseAnim }]} />
-                        <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
+                      <View style={[styles.holdingContentRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                        {/* Same clean time display as when locked (no red dot) */}
+                        <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0, marginRight: 6, marginLeft: 0 }]}>
                           {formatRecordTime(recordTime)}
                         </Text>
-                      </View>
 
-                      <Animated.View 
-                        style={[
-                          styles.slideToCancelRow, 
-                          isRTL ? { flexDirection: 'row-reverse', marginRight: 0, marginLeft: 20 } : { marginRight: 20 },
-                          {
-                            opacity: voiceDragX.interpolate({
-                              inputRange: isRTL ? [0, 20] : [-20, 0],
-                              outputRange: isRTL ? [0, 1] : [1, 0],
-                              extrapolate: 'clamp',
-                            }),
-                            transform: [
-                              {
-                                translateX: voiceDragX.interpolate({
-                                  inputRange: isRTL ? [0, 60] : [-60, 0],
-                                  outputRange: isRTL ? [20, 0] : [-20, 0],
-                                  extrapolate: 'clamp',
-                                })
-                              }
-                            ]
-                          }
-                        ]}
-                      >
-                        <Ionicons
-                          name={isRTL ? "chevron-forward" : "chevron-back"}
-                          size={16}
-                          color={colors.forestGreen}
-                        />
-                        <Text style={[styles.slideToCancelText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0 }]}>
-                          {isRTL ? "اسحب للإلغاء" : "Slide to cancel"}
-                        </Text>
-                      </Animated.View>
-                    </Animated.View>
+                        {/* Slide to cancel directly next to time */}
+                        <Animated.View 
+                          style={[
+                            styles.slideToCancelGroup, 
+                            isRTL && { flexDirection: 'row-reverse' },
+                            {
+                              opacity: voiceDragX.interpolate({
+                                inputRange: isRTL ? [0, 20] : [-20, 0],
+                                outputRange: isRTL ? [0, 1] : [1, 0],
+                                extrapolate: 'clamp',
+                              }),
+                              transform: [
+                                {
+                                  translateX: voiceDragX.interpolate({
+                                    inputRange: isRTL ? [0, 60] : [-60, 0],
+                                    outputRange: isRTL ? [16, 0] : [-16, 0],
+                                    extrapolate: 'clamp',
+                                  })
+                                }
+                              ]
+                            }
+                          ]}
+                        >
+                          <Ionicons
+                            name={isRTL ? "chevron-forward" : "chevron-back"}
+                            size={16}
+                            color={colors.forestGreen}
+                          />
+                          <Text style={[styles.slideToCancelText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0 }]}>
+                            {isRTL ? "اسحب للإلغاء" : "Slide to cancel"}
+                          </Text>
+                        </Animated.View>
+                      </View>
+                    </View>
                   )}
                 </View>
                 
@@ -2751,7 +2745,6 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingLeft: 14,
     paddingRight: 28,
     backgroundColor: isDarkMode ? colors.cardBg : '#F2F5F3',
@@ -2760,23 +2753,14 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderColor: isDarkMode ? colors.cardBorder : 'rgba(0, 53, 20, 0.1)',
     zIndex: 2,
   },
-  holdingTimerRow: {
+  holdingContentRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E53935',
-    marginRight: 6,
-  },
-  slideToCancelRow: {
-    flex: 1,
+  slideToCancelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
   },
   slideToCancelText: {
     fontSize: 12.5,
