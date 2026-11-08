@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView, Platform, Alert, Animated,
   Dimensions, PanResponder
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
@@ -61,8 +62,10 @@ export default function ChatsModal({
   onClose,
   selectedLanguage
 }) {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 24);
   const isRTL = selectedLanguage === 'Arabic';
 
   const [chats, setChats] = useState(initialChats);
@@ -348,7 +351,7 @@ export default function ChatsModal({
       }}
     >
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.bgCreamy} />
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={colors.screenBg} />
 
         {activeChatId ? (
           // CONVERSATION VIEW (Detail)
@@ -361,13 +364,13 @@ export default function ChatsModal({
               style={{ flex: 1 }}
             >
             {/* Conversation Header */}
-            <View style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]}>
+            <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity 
                 style={styles.backBtnRound} 
                 onPress={() => setActiveChatId(null)}
                 activeOpacity={0.7}
               >
-                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color={colors.textDark} />
+                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color={colors.primaryText} />
               </TouchableOpacity>
 
               <View style={[styles.headerContactInfo, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -391,7 +394,7 @@ export default function ChatsModal({
                   onPress={() => handleMockCall(isRTL ? activeChat.nameAr : activeChat.name)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="call" size={18} color={colors.bgBrand} />
+                  <Ionicons name="call" size={18} color={colors.forestGreen} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -401,7 +404,7 @@ export default function ChatsModal({
               ref={scrollViewRef}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.messagesScrollContent}
-              style={{ backgroundColor: colors.bgCreamy }}
+              style={{ backgroundColor: colors.screenBg }}
             >
               {activeChat.messages.map((msg, index) => {
                 const isUser = msg.sender === 'user';
@@ -443,7 +446,7 @@ export default function ChatsModal({
                             <Ionicons 
                               name={playingVoiceId === msg.id ? "pause" : "play"} 
                               size={16} 
-                              color={isUser ? colors.bgBrand : colors.white} 
+                              color={isUser ? colors.forestGreen : '#FFFFFF'} 
                             />
                           </TouchableOpacity>
 
@@ -460,8 +463,8 @@ export default function ChatsModal({
                                       styles.waveformBar,
                                       { height: 8 + (Math.sin(i * 0.8) * 12) },
                                       isUser 
-                                        ? { backgroundColor: isPassed ? colors.textCream : 'rgba(247, 245, 240, 0.35)' }
-                                        : { backgroundColor: isPassed ? colors.bgBrand : 'rgba(77, 110, 79, 0.2)' }
+                                        ? { backgroundColor: isPassed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.35)' }
+                                        : { backgroundColor: isPassed ? colors.forestGreen : (isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 53, 20, 0.18)') }
                                     ]}
                                   />
                                 );
@@ -537,7 +540,7 @@ export default function ChatsModal({
                   onPress={handleSendVoice}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="checkmark" size={18} color={colors.textCream} />
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -548,13 +551,13 @@ export default function ChatsModal({
                   onPress={() => setAttachmentMenuVisible(true)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="add" size={24} color={colors.bgBrand} />
+                  <Ionicons name="add" size={24} color={colors.primaryText} />
                 </TouchableOpacity>
                 
                 <TextInput
                   style={[styles.inputField, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}
                   placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'}
-                  placeholderTextColor={colors.textMuted + '60'}
+                  placeholderTextColor={colors.secondaryText}
                   value={newMessageText}
                   onChangeText={setNewMessageText}
                   multiline={true}
@@ -566,7 +569,7 @@ export default function ChatsModal({
                     onPress={handleSendMessage}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="send" size={16} color={colors.textCream} style={isRTL && { transform: [{ rotate: '180deg' }] }} />
+                    <Ionicons name="send" size={16} color="#FFFFFF" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity 
@@ -574,7 +577,7 @@ export default function ChatsModal({
                     onPress={startVoiceRecording}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="mic" size={18} color={colors.textCream} />
+                    <Ionicons name="mic" size={18} color="#FFFFFF" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -585,13 +588,13 @@ export default function ChatsModal({
           // CHAT THREADS LIST VIEW (Inbox)
           <View style={{ flex: 1 }}>
             {/* Header bar */}
-            <View style={[styles.header, isRTL && { flexDirection: 'row-reverse' }]}>
+            <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity 
                 style={styles.backBtnRound} 
                 onPress={onClose}
                 activeOpacity={0.7}
               >
-                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color={colors.textDark} />
+                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color={colors.primaryText} />
               </TouchableOpacity>
               
               <Text style={[styles.headerTitle, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 18.0 }]}>
@@ -604,17 +607,17 @@ export default function ChatsModal({
             {/* Search Box */}
             <View style={styles.searchContainer}>
               <View style={[styles.searchEntity, isRTL && { flexDirection: 'row-reverse' }]}>
-                <Ionicons name="search" size={18} color={colors.bgBrand} style={isRTL ? { marginLeft: 8 } : { marginRight: 8 }} />
+                <Ionicons name="search" size={18} color={colors.secondaryText} style={isRTL ? { marginLeft: 8 } : { marginRight: 8 }} />
                 <TextInput
                   style={[styles.searchInput, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}
                   placeholder={isRTL ? 'ابحث في المحادثات...' : 'Search messages...'}
-                  placeholderTextColor={colors.textMuted + '60'}
+                  placeholderTextColor={colors.secondaryText}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery.trim().length > 0 && (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                    <Ionicons name="close-circle" size={18} color={colors.secondaryText} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -628,7 +631,7 @@ export default function ChatsModal({
               {filteredChats.length === 0 ? (
                 <View style={styles.emptyInbox}>
                   <View style={styles.emptyBadgeContainer}>
-                    <Ionicons name="chatbubbles-outline" size={48} color={colors.bgBrand} />
+                    <Ionicons name="chatbubbles-outline" size={48} color={colors.forestGreen} />
                   </View>
                   <Text style={[styles.emptyInboxText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
                     {isRTL ? 'لا توجد محادثات تطابق بحثك.' : 'No conversations found.'}
@@ -651,7 +654,10 @@ export default function ChatsModal({
                       style={[
                         styles.chatCard, 
                         isRTL && { flexDirection: 'row-reverse' },
-                        chat.unread && { backgroundColor: colors.bgBrandLight, borderColor: colors.bgBrand + '30' }
+                        chat.unread && { 
+                          backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.16)' : '#F0F6F1', 
+                          borderColor: isDarkMode ? '#305734' : 'rgba(0, 53, 20, 0.22)' 
+                        }
                       ]}
                       activeOpacity={0.8}
                       onPress={() => handleOpenConversation(chat.id)}
@@ -727,8 +733,8 @@ export default function ChatsModal({
                   onPress={handlePickImage}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.sheetIconCircle, { backgroundColor: '#E8F5E9' }]}>
-                    <Ionicons name="image" size={24} color={colors.bgBrand} />
+                  <View style={[styles.sheetIconCircle, { backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.25)' : '#E8F5E9' }]}>
+                    <Ionicons name="image" size={24} color={colors.forestGreen} />
                   </View>
                   <Text style={[styles.sheetOptionText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.5 }]}>
                     {isRTL ? 'معرض الصور' : 'Photo Gallery'}
@@ -741,7 +747,7 @@ export default function ChatsModal({
                   onPress={startVoiceRecording}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.sheetIconCircle, { backgroundColor: '#FFEBEE' }]}>
+                  <View style={[styles.sheetIconCircle, { backgroundColor: isDarkMode ? 'rgba(211, 47, 47, 0.2)' : '#FFEBEE' }]}>
                     <Ionicons name="mic" size={24} color="#D32F2F" />
                   </View>
                   <Text style={[styles.sheetOptionText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.5 }]}>
@@ -767,34 +773,35 @@ export default function ChatsModal({
   );
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgCreamy,
+    backgroundColor: colors.screenBg,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 54,
-    paddingBottom: 16,
+    paddingBottom: 14,
     paddingHorizontal: 16,
-    borderBottomWidth: 1.2,
-    borderBottomColor: colors.borderGreen,
-    backgroundColor: colors.bgCreamy,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? colors.cardBorder : '#EDF0F2',
+    backgroundColor: colors.screenBg,
   },
   backBtnRound: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgBrandLight,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
+    borderWidth: 1,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 16.5,
     fontWeight: '800',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   headerContactInfo: {
     flexDirection: 'row',
@@ -806,11 +813,11 @@ const createStyles = (colors) => StyleSheet.create({
     position: 'relative',
   },
   headerContactAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1.5,
-    borderColor: colors.bgBrand,
+    borderColor: colors.forestGreen,
   },
   onlineDotMini: {
     position: 'absolute',
@@ -821,7 +828,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#4CAF50',
     borderWidth: 1.5,
-    borderColor: colors.bgCreamy,
+    borderColor: colors.screenBg,
   },
   headerContactDetails: {
     justifyContent: 'center',
@@ -829,11 +836,11 @@ const createStyles = (colors) => StyleSheet.create({
   headerContactName: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   headerStatusText: {
     fontSize: 10.5,
-    color: colors.bgBrand,
+    color: colors.forestGreen,
     fontWeight: '700',
     marginTop: 1,
   },
@@ -842,64 +849,74 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   actionIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgBrandLight,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
+    borderWidth: 1,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 8,
+    backgroundColor: colors.screenBg,
   },
   searchEntity: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     paddingHorizontal: 14,
     height: 44,
   },
   searchInput: {
     flex: 1,
     height: '100%',
-    color: colors.textDark,
+    color: colors.primaryText,
     fontSize: 13.5,
     fontWeight: '600',
   },
   scrollListContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: 40,
+    backgroundColor: colors.screenBg,
   },
   chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderColor: colors.borderGreen + '20',
-    borderWidth: 1.5,
-    borderRadius: 20,
+    backgroundColor: isDarkMode ? colors.elevatedBg : '#FFFFFF',
+    borderColor: isDarkMode ? colors.cardBorder : '#ECEEF0',
+    borderWidth: 1,
+    borderRadius: 18,
     padding: 14,
-    marginBottom: 12,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1.5,
+    marginBottom: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDarkMode ? 0.25 : 0.04,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 1.5,
+      },
+    }),
   },
   avatarWrapper: {
     position: 'relative',
   },
   chatAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
   },
   onlineDot: {
     position: 'absolute',
@@ -910,7 +927,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#4CAF50',
     borderWidth: 2,
-    borderColor: colors.white,
+    borderColor: isDarkMode ? colors.elevatedBg : '#FFFFFF',
   },
   chatDetails: {
     flex: 1,
@@ -925,11 +942,11 @@ const createStyles = (colors) => StyleSheet.create({
   chatName: {
     fontSize: 14.5,
     fontWeight: '700',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   chatTime: {
     fontSize: 11,
-    color: colors.textMuted,
+    color: colors.secondaryText,
     fontWeight: '600',
   },
   snippetContainer: {
@@ -941,19 +958,19 @@ const createStyles = (colors) => StyleSheet.create({
   chatSnippet: {
     flex: 1,
     fontSize: 12.5,
-    color: colors.textMuted,
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   unreadSnippetText: {
-    color: colors.textDark,
+    color: colors.primaryText,
     fontWeight: '700',
   },
   unreadText: {
     fontWeight: '800',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   unreadBadgePill: {
-    backgroundColor: colors.bgBrand,
+    backgroundColor: colors.forestGreen,
     borderRadius: 9,
     minWidth: 18,
     height: 18,
@@ -963,7 +980,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 6,
   },
   unreadBadgeText: {
-    color: colors.textCream,
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
   },
@@ -976,14 +993,14 @@ const createStyles = (colors) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   emptyInboxText: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: colors.secondaryText,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -991,6 +1008,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
+    backgroundColor: colors.screenBg,
   },
   msgBubbleRow: {
     flexDirection: 'row',
@@ -1002,7 +1020,7 @@ const createStyles = (colors) => StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     marginBottom: 2,
   },
   msgBubble: {
@@ -1010,11 +1028,17 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 11,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: isDarkMode ? 0.2 : 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   imageMsgBubble: {
     paddingHorizontal: 5,
@@ -1022,34 +1046,41 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   contactMsgBubble: {
-    backgroundColor: colors.white,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
     borderWidth: 1,
-    borderColor: colors.borderGreen + '30',
+    borderColor: isDarkMode ? colors.cardBorder : '#E5E8EB',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     borderBottomRightRadius: 18,
     borderBottomLeftRadius: 4,
   },
   userMsgBubble: {
-    backgroundColor: colors.bgBrand,
+    backgroundColor: colors.forestGreen,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 4,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.forestGreen,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   msgText: {
     fontSize: 13.5,
     lineHeight: 19,
   },
   contactMsgText: {
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   userMsgText: {
-    color: colors.textCream,
+    color: '#FFFFFF',
   },
   msgTime: {
     fontSize: 9,
@@ -1057,17 +1088,17 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '600',
   },
   contactMsgTime: {
-    color: colors.textMuted,
+    color: colors.secondaryText,
   },
   userMsgTime: {
-    color: 'rgba(247, 245, 240, 0.7)',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   imageMsgTime: {
     position: 'absolute',
     bottom: 8,
     right: 8,
-    color: colors.white,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -1097,10 +1128,10 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   userVoicePlayBtn: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
   },
   contactVoicePlayBtn: {
-    backgroundColor: colors.bgBrand,
+    backgroundColor: colors.forestGreen,
   },
   voiceProgressWrapper: {
     flex: 1,
@@ -1124,40 +1155,42 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
   },
   userVoiceTime: {
-    color: 'rgba(247, 245, 240, 0.85)',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   contactVoiceTime: {
-    color: colors.textMuted,
+    color: colors.secondaryText,
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 1.2,
-    borderTopColor: colors.borderGreen,
-    backgroundColor: colors.bgCreamy,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? colors.cardBorder : '#EDF0F2',
+    backgroundColor: colors.screenBg,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
   },
   attachBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgBrandLight,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
+    borderWidth: 1,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   inputField: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F7F8F9',
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: 8,
     fontSize: 14,
-    color: colors.textDark,
+    color: colors.primaryText,
     maxHeight: 100,
     fontWeight: '600',
   },
@@ -1165,21 +1198,27 @@ const createStyles = (colors) => StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.bgBrand,
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 10,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.forestGreen,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   trashBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#FFEBEE',
+    backgroundColor: isDarkMode ? 'rgba(211, 47, 47, 0.2)' : '#FFEBEE',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -1188,9 +1227,9 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: isDarkMode ? '#281719' : '#FFF5F5',
     borderWidth: 1,
-    borderColor: 'rgba(211, 47, 47, 0.2)',
+    borderColor: isDarkMode ? '#4D2428' : 'rgba(211, 47, 47, 0.2)',
     borderRadius: 22,
     paddingHorizontal: 14,
     height: 40,
@@ -1216,15 +1255,21 @@ const createStyles = (colors) => StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#2E7D32',
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 10,
-    shadowColor: '#2E7D32',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.forestGreen,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   alertOverlay: {
     position: 'absolute',
@@ -1237,11 +1282,11 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheetCard: {
-    backgroundColor: colors.bgCreamy,
+    backgroundColor: colors.screenBg,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    borderWidth: 1.5,
-    borderColor: colors.borderGreen,
+    borderWidth: 1,
+    borderColor: isDarkMode ? colors.cardBorder : '#EDF0F2',
     borderBottomWidth: 0,
     paddingHorizontal: 24,
     paddingTop: 12,
@@ -1255,13 +1300,13 @@ const createStyles = (colors) => StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: colors.textMuted + '30',
+    backgroundColor: colors.secondaryText + '40',
     marginBottom: 12,
   },
   bottomSheetTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   bottomSheetContent: {
     flexDirection: 'row',
@@ -1279,28 +1324,25 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
   },
   sheetOptionText: {
     fontSize: 12.5,
-    color: colors.textDark,
+    color: colors.primaryText,
     fontWeight: '700',
   },
   sheetCancelBtn: {
     height: 48,
     borderRadius: 14,
-    backgroundColor: colors.bgBrandLight,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   sheetCancelText: {
-    color: colors.textMuted,
+    color: colors.secondaryText,
     fontSize: 14,
     fontWeight: '700',
   }
