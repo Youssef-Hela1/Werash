@@ -1766,7 +1766,6 @@ export default function ChatsModal({
               }))}
             </ScrollView>
 
-            {/* Input Send Bar / Voice Recording Bar */}
             {isRecording && isRecordingLocked ? (
               /* Hands-Free Voice Recording Controller Panel (Locked) */
               <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -1780,8 +1779,6 @@ export default function ChatsModal({
                 </TouchableOpacity>
 
                 <View style={[styles.recordingWaveformWrapper, isRTL && { flexDirection: 'row-reverse' }]}>
-                  <Animated.View style={[styles.recordingDot, { opacity: pulseAnim }]} />
-                  
                   <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
                     {formatRecordTime(recordTime)}
                   </Text>
@@ -1847,11 +1844,11 @@ export default function ChatsModal({
                     <Animated.View 
                       style={[
                         styles.holdingOverlay, 
-                        isRTL && { flexDirection: 'row-reverse' },
+                        isRTL ? { flexDirection: 'row-reverse', paddingLeft: 28, paddingRight: 14 } : { paddingLeft: 14, paddingRight: 28 },
                         {
                           opacity: voiceDragX.interpolate({
-                            inputRange: isRTL ? [0, 80] : [-80, 0],
-                            outputRange: isRTL ? [1, 0.15] : [0.15, 1],
+                            inputRange: isRTL ? [0, 20] : [-20, 0],
+                            outputRange: isRTL ? [0, 1] : [1, 0],
                             extrapolate: 'clamp',
                           })
                         }
@@ -1865,7 +1862,28 @@ export default function ChatsModal({
                         </Text>
                       </View>
 
-                      <View style={[styles.slideToCancelRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                      <Animated.View 
+                        style={[
+                          styles.slideToCancelRow, 
+                          isRTL ? { flexDirection: 'row-reverse', marginRight: 0, marginLeft: 20 } : { marginRight: 20 },
+                          {
+                            opacity: voiceDragX.interpolate({
+                              inputRange: isRTL ? [0, 20] : [-20, 0],
+                              outputRange: isRTL ? [0, 1] : [1, 0],
+                              extrapolate: 'clamp',
+                            }),
+                            transform: [
+                              {
+                                translateX: voiceDragX.interpolate({
+                                  inputRange: isRTL ? [0, 60] : [-60, 0],
+                                  outputRange: isRTL ? [20, 0] : [-20, 0],
+                                  extrapolate: 'clamp',
+                                })
+                              }
+                            ]
+                          }
+                        ]}
+                      >
                         <Ionicons
                           name={isRTL ? "chevron-forward" : "chevron-back"}
                           size={16}
@@ -1874,7 +1892,7 @@ export default function ChatsModal({
                         <Text style={[styles.slideToCancelText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0 }]}>
                           {isRTL ? "اسحب للإلغاء" : "Slide to cancel"}
                         </Text>
-                      </View>
+                      </Animated.View>
                     </Animated.View>
                   )}
                 </View>
@@ -1888,7 +1906,7 @@ export default function ChatsModal({
                     <Ionicons name="send" size={16} color="#FFFFFF" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
                   </TouchableOpacity>
                 ) : (
-                  <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', marginLeft: isRTL ? 0 : 12, marginRight: isRTL ? 12 : 0 }}>
                     {/* Floating Lock indicator: ONLY VISIBLE WHILE ACTIVELY HOLDING */}
                     {isRecording && !isRecordingLocked && (
                       <Animated.View
@@ -2734,7 +2752,8 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingLeft: 14,
+    paddingRight: 28,
     backgroundColor: isDarkMode ? colors.cardBg : '#F2F5F3',
     borderRadius: 22,
     borderWidth: 1,
@@ -2757,7 +2776,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   slideToCancelText: {
     fontSize: 12.5,
