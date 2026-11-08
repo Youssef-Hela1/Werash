@@ -214,6 +214,26 @@ export default function ChatsModal({
     loadPersistedDeletedIds();
   }, [activeUser?.id]);
 
+  const [isRecordingLocked, setIsRecordingLocked] = useState(false);
+  const isRecordingRef = useRef(false);
+  isRecordingRef.current = isRecording;
+  const isRecordingLockedRef = useRef(false);
+  isRecordingLockedRef.current = isRecordingLocked;
+  const pressStartTimeRef = useRef(0);
+  const voiceDragY = useRef(new Animated.Value(0)).current;
+  const voiceDragX = useRef(new Animated.Value(0)).current;
+  const micScaleAnim = useRef(new Animated.Value(1)).current;
+  const isRTLRef = useRef(isRTL);
+  isRTLRef.current = isRTL;
+  const handleSendVoiceRef = useRef(null);
+  const cancelVoiceRecordingRef = useRef(null);
+  const startVoiceRecordingRef = useRef(null);
+
+  // Pre-request recording permissions on mount for instant mic readiness
+  useEffect(() => {
+    requestRecordingPermissionsAsync().catch(() => {});
+  }, []);
+
   const scrollViewRef = useRef(null);
   const recordingInterval = useRef(null);
   const recordStartTimeRef = useRef(0);
@@ -963,6 +983,8 @@ export default function ChatsModal({
           isRTL ? 'مطلوب إذن الميكروفون' : 'Microphone Permission Required',
           isRTL ? 'يرجى تفعيل إذن الميكروفون لتسجيل وإرسال الرسائل الصوتية.' : 'Please allow microphone access to record and send voice messages.'
         );
+        isRecordingRef.current = false;
+        setIsRecording(false);
         return;
       }
       await setAudioModeAsync({
@@ -975,13 +997,18 @@ export default function ChatsModal({
     } catch (err) {
       console.warn('startVoiceRecording error:', err);
     }
-    setIsRecording(true);
   };
 
   const cancelVoiceRecording = async () => {
+    isRecordingRef.current = false;
+    isRecordingLockedRef.current = false;
     setIsRecording(false);
+    setIsRecordingLocked(false);
     setRecordTime(0);
     recordStartTimeRef.current = 0;
+    voiceDragY.setValue(0);
+    Animated.spring(voiceDragX, { toValue: 0, friction: 5, useNativeDriver: true }).start();
+    Animated.spring(micScaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
     try {
       if (recorder?.isRecording) {
         await recorder.stop();
@@ -995,6 +1022,16 @@ export default function ChatsModal({
     const durationSec = Math.max(1, Math.round(elapsedMs / 1000));
     const durationStr = sanitizeDuration(formatRecordTime(durationSec)) || '0:03';
 
+    isRecordingRef.current = false;
+    isRecordingLockedRef.current = false;
+    setIsRecording(false);
+    setIsRecordingLocked(false);
+    setRecordTime(0);
+    recordStartTimeRef.current = 0;
+    voiceDragY.setValue(0);
+    voiceDragX.setValue(0);
+    Animated.spring(micScaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+
     let recordedUri = null;
     try {
       if (recorder?.isRecording) {
@@ -1005,7 +1042,7 @@ export default function ChatsModal({
       console.warn('recorder.stop error:', err);
     }
 
-    cancelVoiceRecording();
+    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
 
     const targetChat = chats.find(c => c.id === activeChatId);
     const tempId = `m_${Date.now()}`;
@@ -1031,9 +1068,6 @@ export default function ChatsModal({
       }
       return c;
     }));
-
-    // Reset audio mode for clean speaker output
-    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
 
     if (activeUser?.id && activeChatId) {
       try {
@@ -1104,6 +1138,137 @@ export default function ChatsModal({
       }
     }
   };
+
+  handleSendVoiceRef.current = handleSendVoice;
+  cancelVoiceRecordingRef.current = cancelVoiceRecording;
+  startVoiceRecordingRef.current = startVoiceRecording;
+
+  const voicePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        if (isRecordingRef.current && isRecordingLockedRef.current) return;
+
+        pressStartTimeRef.current = Date.now();
+        isRecordingRef.current = true;
+        isRecordingLockedRef.current = false;
+        setIsRecording(true);
+        setIsRecordingLocked(false);
+        setRecordTime(0);
+
+        if (startVoiceRecordingRef.current) {
+          startVoiceRecordingRef.current();
+        }
+
+        Animated.spring(micScaleAnim, {
+          toValue: 1.7,
+          friction: 4,
+          tension: 50,
+          useNativeDriver: true,
+        }).start();
+
+        voiceDragY.setValue(0);
+        voiceDragX.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (!isRecordingRef.current || isRecordingLockedRef.current) return;
+
+        // 1. Drag up to lock: dy < -45
+        if (gestureState.dy < -45) {
+          isRecordingLockedRef.current = true;
+          setIsRecordingLocked(true);
+          Animated.spring(voiceDragY, {
+            toValue: -60,
+            useNativeDriver: true,
+          }).start();
+          Animated.spring(voiceDragX, {
+            toValue: 0,
+            friction: 5,
+            useNativeDriver: true,
+          }).start();
+          Animated.spring(micScaleAnim, {
+            toValue: 1,
+            friction: 5,
+            useNativeDriver: true,
+          }).start();
+          return;
+        }
+
+        // Live visual drag toward lock bubble
+        if (gestureState.dy < 0 && gestureState.dy >= -45) {
+          voiceDragY.setValue(gestureState.dy);
+        } else if (gestureState.dy >= 0) {
+          voiceDragY.setValue(0);
+        }
+
+        // 2. Drag mic horizontally to cancel
+        const rtlActive = isRTLRef.current;
+        const slideDistance = rtlActive ? gestureState.dx : -gestureState.dx;
+
+        if (rtlActive) {
+          voiceDragX.setValue(Math.max(0, Math.min(gestureState.dx, 150)));
+        } else {
+          voiceDragX.setValue(Math.min(0, Math.max(gestureState.dx, -150)));
+        }
+
+        if (slideDistance > 115) {
+          if (cancelVoiceRecordingRef.current) {
+            cancelVoiceRecordingRef.current();
+          }
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (!isRecordingRef.current) return;
+
+        // If locked hands-free, releasing finger should NOT stop or send
+        if (isRecordingLockedRef.current) {
+          return;
+        }
+
+        // If released while dragged into cancel zone (> 65px), cancel
+        const rtlActive = isRTLRef.current;
+        const slideDistance = rtlActive ? gestureState.dx : -gestureState.dx;
+        if (slideDistance > 65) {
+          if (cancelVoiceRecordingRef.current) {
+            cancelVoiceRecordingRef.current();
+          }
+          return;
+        }
+
+        // Quick click / tap (< 350ms): lock into hands-free mode so user can speak and click send/trash
+        const pressDuration = Date.now() - pressStartTimeRef.current;
+        if (pressDuration < 350) {
+          isRecordingLockedRef.current = true;
+          setIsRecordingLocked(true);
+          Animated.spring(micScaleAnim, {
+            toValue: 1,
+            friction: 5,
+            useNativeDriver: true,
+          }).start();
+          voiceDragY.setValue(0);
+          voiceDragX.setValue(0);
+          return;
+        }
+
+        // Release after holding sends voice note automatically!
+        if (handleSendVoiceRef.current) {
+          handleSendVoiceRef.current();
+        }
+      },
+      onPanResponderTerminate: () => {
+        if (!isRecordingRef.current) return;
+        if (!isRecordingLockedRef.current) {
+          if (handleSendVoiceRef.current) {
+            handleSendVoiceRef.current();
+          }
+        }
+      },
+    })
+  ).current;
 
   const handleSeek = (msgId, durationStr, localX, audioUri) => {
     const w = trackWidthsRef.current[msgId] || 180;
@@ -1570,8 +1735,8 @@ export default function ChatsModal({
             </ScrollView>
 
             {/* Input Send Bar / Voice Recording Bar */}
-            {isRecording ? (
-              /* Voice Recording Controller Panel */
+            {isRecording && isRecordingLocked ? (
+              /* Hands-Free Voice Recording Controller Panel (Locked) */
               <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
                 <TouchableOpacity 
                   style={styles.trashBtn} 
@@ -1592,15 +1757,12 @@ export default function ChatsModal({
 
                   {/* Pulsing Visual Waveform Animation */}
                   <View style={[styles.waveformContainerMini, isRTL && { flexDirection: 'row-reverse' }]}>
-                    {[...Array(6)].map((_, i) => {
-                      const waveHeight = 4 + (Math.random() * 12);
-                      return (
-                        <View 
-                          key={i} 
-                          style={[styles.waveformBarMini, { height: waveHeight }]} 
-                        />
-                      );
-                    })}
+                    {[10, 16, 22, 14, 20, 24, 13, 19].map((h, idx) => (
+                      <View 
+                        key={idx} 
+                        style={[styles.waveformBarMini, { height: recordTime % 2 === 0 ? h : (26 - h / 2) }]} 
+                      />
+                    ))}
                   </View>
                 </View>
 
@@ -1613,24 +1775,49 @@ export default function ChatsModal({
                 </TouchableOpacity>
               </View>
             ) : (
-              /* Standard Input Bar */
+              /* Standard Input Bar with Hold-to-Record & Slide-to-Cancel Overlay */
               <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
-                <TouchableOpacity 
-                  style={styles.attachBtn} 
-                  onPress={() => setAttachmentMenuVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="add" size={24} color={colors.primaryText} />
-                </TouchableOpacity>
-                
-                <TextInput
-                  style={[styles.inputField, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}
-                  placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'}
-                  placeholderTextColor={colors.secondaryText}
-                  value={newMessageText}
-                  onChangeText={setNewMessageText}
-                  multiline={true}
-                />
+                {isRecording && !isRecordingLocked ? (
+                  /* Holding Overlay: Red dot, timer, and slide to cancel indicator */
+                  <View style={[styles.holdingOverlay, isRTL && { flexDirection: 'row-reverse' }]} pointerEvents="none">
+                    <View style={[styles.holdingTimerRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                      <View style={styles.recordingDot} />
+                      <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
+                        {formatRecordTime(recordTime)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.slideToCancelRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons
+                        name={isRTL ? "chevron-forward" : "chevron-back"}
+                        size={16}
+                        color={colors.secondaryText}
+                      />
+                      <Text style={[styles.slideToCancelText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0 }]}>
+                        {isRTL ? "اسحب للإلغاء" : "Slide to cancel"}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.attachBtn} 
+                      onPress={() => setAttachmentMenuVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="add" size={24} color={colors.primaryText} />
+                    </TouchableOpacity>
+                    
+                    <TextInput
+                      style={[styles.inputField, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}
+                      placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'}
+                      placeholderTextColor={colors.secondaryText}
+                      value={newMessageText}
+                      onChangeText={setNewMessageText}
+                      multiline={true}
+                    />
+                  </>
+                )}
                 
                 {newMessageText.trim().length > 0 ? (
                   <TouchableOpacity 
@@ -1641,13 +1828,44 @@ export default function ChatsModal({
                     <Ionicons name="send" size={16} color="#FFFFFF" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity 
-                    style={styles.sendBtn}
-                    onPress={startVoiceRecording}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="mic" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
+                  <View style={{ position: 'relative', alignItems: 'center' }}>
+                    {/* Floating Lock indicator: ONLY VISIBLE WHILE ACTIVELY HOLDING */}
+                    {isRecording && !isRecordingLocked && (
+                      <Animated.View
+                        style={[
+                          styles.lockIndicatorContainer,
+                          { transform: [{ translateY: voiceDragY }] }
+                        ]}
+                        pointerEvents="none"
+                      >
+                        <View style={styles.lockBubble}>
+                          <Ionicons name="lock-closed" size={16} color="#25D366" />
+                          <Ionicons name="chevron-up" size={13} color="#888888" style={{ marginTop: 2 }} />
+                        </View>
+                      </Animated.View>
+                    )}
+
+                    {/* Mic Button with panHandlers for Hold-to-Record, Release-to-Send, and Tap-to-Lock */}
+                    <Animated.View
+                      {...voicePanResponder.panHandlers}
+                      style={[
+                        styles.sendBtn,
+                        isRecording && styles.micBtnActive,
+                        {
+                          transform: [
+                            { scale: micScaleAnim },
+                            { translateX: voiceDragX },
+                          ]
+                        }
+                      ]}
+                    >
+                      <Ionicons
+                        name="mic"
+                        size={isRecording ? 20 : 18}
+                        color="#FFFFFF"
+                      />
+                    </Animated.View>
+                  </View>
                 )}
               </View>
             )}
@@ -1829,7 +2047,16 @@ export default function ChatsModal({
                 {/* Voice Note Option */}
                 <TouchableOpacity
                   style={styles.sheetOptionBtn}
-                  onPress={startVoiceRecording}
+                  onPress={() => {
+                    setAttachmentMenuVisible(false);
+                    isRecordingRef.current = true;
+                    isRecordingLockedRef.current = true;
+                    setIsRecording(true);
+                    setIsRecordingLocked(true);
+                    if (startVoiceRecordingRef.current) {
+                      startVoiceRecordingRef.current();
+                    }
+                  }}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.sheetIconCircle, { backgroundColor: isDarkMode ? 'rgba(211, 47, 47, 0.2)' : '#FFEBEE' }]}>
@@ -2436,6 +2663,68 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
         elevation: 3,
       },
     }),
+  },
+  holdingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F7F8F9',
+    borderRadius: 22,
+    zIndex: 2,
+  },
+  holdingTimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#D32F2F',
+    marginRight: 6,
+  },
+  slideToCancelRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  slideToCancelText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.secondaryText,
+    marginHorizontal: 3,
+  },
+  lockIndicatorContainer: {
+    position: 'absolute',
+    bottom: 48,
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  lockBubble: {
+    backgroundColor: isDarkMode ? colors.cardBg : '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 7,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 6,
+    width: 34,
+  },
+  micBtnActive: {
+    backgroundColor: colors.forestGreen,
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 6,
   },
   alertOverlay: {
     position: 'absolute',
