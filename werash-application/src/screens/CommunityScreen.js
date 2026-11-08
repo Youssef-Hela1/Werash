@@ -37,6 +37,14 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
 const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
 
+const REPORT_REASONS = [
+  { id: 'offensive', en: 'Inappropriate or offensive content', ar: 'محتوى غير لائق أو مسيء' },
+  { id: 'spam', en: 'Spam, scam, or misleading information', ar: 'احتيال أو رسائل غير مرغوب فيها' },
+  { id: 'harassment', en: 'Harassment or hate speech', ar: 'مضايقة أو خطاب كراهية' },
+  { id: 'false_info', en: 'False car/parts description or pricing', ar: 'وصف أو سعر غير صحيح لسيارة/قطع غيار' },
+  { id: 'other', en: 'Other community guideline violation', ar: 'مخالفة أخرى لإرشادات المجتمع' },
+];
+
 const formatTimeAgo = (dateString, isRtl) => {
   if (!dateString) return isRtl ? 'الآن' : 'Just now';
   const parsed = new Date(dateString);
@@ -108,6 +116,29 @@ export default function CommunityScreen({
   const isCommentsExpandedRef = useRef(false);
   const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
   const commentsSlideAnim = useRef(new Animated.Value(0)).current;
+
+  // 3-Dots Post Menu & Report State
+  const [activeMenuPost, setActiveMenuPost] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 120, isAbove: true });
+  const [reportModalPost, setReportModalPost] = useState(null);
+  const [selectedReportReason, setSelectedReportReason] = useState(null);
+  const [reportDetailText, setReportDetailText] = useState('');
+  const [reportedPostIds, setReportedPostIds] = useState([]);
+  const [notInterestedPostIds, setNotInterestedPostIds] = useState([]);
+
+  useEffect(() => {
+    const storageKey = currentUser?.id ? `@werash_not_interested_${currentUser.id}` : '@werash_not_interested_guest';
+    AsyncStorage.getItem(storageKey).then((raw) => {
+      if (raw) {
+        try {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            setNotInterestedPostIds(list);
+          }
+        } catch (_) {}
+      }
+    }).catch(() => {});
+  }, [currentUser?.id]);
 
   // Fast permission check without blocking main thread on repeat taps
   const ensureMediaPermissions = async () => {
@@ -183,6 +214,7 @@ export default function CommunityScreen({
 
   // Filter user posts for profile tab and scroll lock check
   const userPosts = posts.filter(p => {
+    if (reportedPostIds.includes(p.id) || notInterestedPostIds.includes(p.id)) return false;
     if (currentUser?.id) {
       return p.userId === currentUser.id;
     }
@@ -992,6 +1024,111 @@ export default function CommunityScreen({
     setActiveCommentsPost((prev) => (prev ? updatePost(prev) : null));
   };
 
+  const handleOpenPostMenu = (post, e) => {
+    const isMine = Boolean(
+      (currentUser?.id && (post.userId === currentUser.id || post.user_id === currentUser.id)) ||
+      (currentUser?.fullName && post.author === currentUser.fullName)
+    );
+    const bubbleHeight = isMine ? 135 : 92;
+
+    const pageY = e?.nativeEvent?.pageY || 250;
+    let isAbove = true;
+    let top = pageY - bubbleHeight - 10;
+    if (top < 70) {
+      top = pageY + 16;
+      isAbove = false;
+    }
+
+    setMenuPosition({
+      top,
+      isAbove,
+    });
+    setActiveMenuPost(post);
+  };
+
+  const handleDeletePost = (post) => {
+    setActiveMenuPost(null);
+    if (!post) return;
+    Alert.alert(
+      isRtl ? 'حذف المنشور' : 'Delete Post',
+      isRtl ? 'هل أنت متأكد من رغبتك في حذف هذا المنشور نهائياً؟' : 'Are you sure you want to permanently delete this post?',
+      [
+        { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRtl ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Optimistically remove from state
+            setPosts((prev) => prev.filter((p) => p.id !== post.id));
+
+            try {
+              const { error } = await supabase
+                .from('community_posts')
+                .delete()
+                .eq('id', post.id);
+
+              if (error) {
+                console.warn('Error deleting post from Supabase:', error);
+              }
+            } catch (err) {
+              console.warn('Error deleting post from Supabase:', err);
+            }
+
+            Alert.alert(
+              isRtl ? 'تم الحذف' : 'Deleted',
+              isRtl ? 'تم حذف المنشور بنجاح.' : 'Your post has been deleted.'
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleNotInterested = (post) => {
+    setActiveMenuPost(null);
+    if (!post) return;
+    const postId = post.id;
+    setNotInterestedPostIds((prev) => [...prev, postId]);
+
+    try {
+      const storageKey = currentUser?.id ? `@werash_not_interested_${currentUser.id}` : '@werash_not_interested_guest';
+      AsyncStorage.getItem(storageKey).then((raw) => {
+        const list = raw ? JSON.parse(raw) : [];
+        if (!list.includes(postId)) {
+          list.push(postId);
+          AsyncStorage.setItem(storageKey, JSON.stringify(list));
+        }
+      }).catch(() => {});
+    } catch (_) {}
+
+    Alert.alert(
+      isRtl ? 'تم الإخفاء' : 'Post Hidden',
+      isRtl ? 'تم إخفاء هذا المنشور من خلاصتك.' : 'This post has been hidden from your feed.'
+    );
+  };
+
+  const handleOpenReportModal = (post) => {
+    setReportModalPost(post);
+    setSelectedReportReason(null);
+    setReportDetailText('');
+  };
+
+  const handleSubmitReport = () => {
+    if (!reportModalPost || !selectedReportReason) return;
+    const reportedId = reportModalPost.id;
+    setReportedPostIds((prev) => [...prev, reportedId]);
+    setReportModalPost(null);
+    setSelectedReportReason(null);
+    setReportDetailText('');
+
+    Alert.alert(
+      isRtl ? 'تم إرسال البلاغ' : 'Report Submitted',
+      isRtl
+        ? 'شكراً لإبلاغنا. سيقوم فريق الإشراف بمراجعة هذا المنشور، وتم إخفاؤه من خلاصتك.'
+        : 'Thank you for letting us know. Our moderation team will review this post, and it has been hidden from your feed.'
+    );
+  };
+
   const handleToggleLike = async (postId) => {
     if (!currentUser?.id) {
       Alert.alert(
@@ -1063,6 +1200,9 @@ export default function CommunityScreen({
 
   // Filter posts based on active tab
   const displayedPosts = posts.filter(post => {
+    if (reportedPostIds.includes(post.id) || notInterestedPostIds.includes(post.id)) {
+      return false;
+    }
     if (activeTab === 'souq') {
       return post.isMarketplace;
     }
@@ -1354,9 +1494,10 @@ export default function CommunityScreen({
           <TouchableOpacity
             style={styles.moreOptionsButton}
             activeOpacity={0.7}
+            onPress={(e) => handleOpenPostMenu(post, e)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="ellipsis-horizontal" size={20} color="#8A959E" />
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.secondaryText} />
           </TouchableOpacity>
         </View>
 
@@ -2479,6 +2620,220 @@ export default function CommunityScreen({
               </View>
             </View>
           </Animated.View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Post Options Menu Bubble Popover */}
+      <Modal
+        visible={Boolean(activeMenuPost)}
+        transparent={true}
+        animationType="none"
+        statusBarTranslucent={true}
+        onRequestClose={() => setActiveMenuPost(null)}
+      >
+        <TouchableOpacity
+          style={styles.postMenuOverlay}
+          activeOpacity={1}
+          onPress={() => setActiveMenuPost(null)}
+        >
+          <View
+            style={[
+              styles.postMenuBubble,
+              {
+                top: menuPosition.top,
+                [isRtl ? 'left' : 'right']: 20,
+              },
+            ]}
+          >
+            {/* Pointer Arrow */}
+            <View
+              style={[
+                menuPosition.isAbove ? styles.postMenuArrowDown : styles.postMenuArrowUp,
+                isRtl ? { left: 16 } : { right: 16 },
+              ]}
+            />
+
+            {/* Option 1: Delete (Only if own post) */}
+            {Boolean(
+              activeMenuPost &&
+              ((currentUser?.id && (activeMenuPost.userId === currentUser.id || activeMenuPost.user_id === currentUser.id)) ||
+               (currentUser?.fullName && activeMenuPost.author === currentUser.fullName))
+            ) && (
+              <>
+                <TouchableOpacity
+                  style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+                  onPress={() => handleDeletePost(activeMenuPost)}
+                  activeOpacity={0.65}
+                >
+                  <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                    <Ionicons name="trash-outline" size={17} color="#E53935" />
+                  </View>
+                  <Text style={[styles.postMenuItemText, styles.postMenuDeleteText, isRtl && styles.arabicBoldText]}>
+                    {isRtl ? 'حذف المنشور' : 'Delete'}
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.postMenuDivider} />
+              </>
+            )}
+
+            {/* Option 2: Not Interested */}
+            <TouchableOpacity
+              style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+              onPress={() => handleNotInterested(activeMenuPost)}
+              activeOpacity={0.65}
+            >
+              <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                <Ionicons name="eye-off-outline" size={17} color={colors.primaryText} />
+              </View>
+              <Text style={[styles.postMenuItemText, isRtl && styles.arabicBoldText]}>
+                {isRtl ? 'غير مهتم' : 'Not interested'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.postMenuDivider} />
+
+            {/* Option 3: Report */}
+            <TouchableOpacity
+              style={[styles.postMenuItem, isRtl && { flexDirection: 'row-reverse' }]}
+              onPress={() => {
+                const post = activeMenuPost;
+                setActiveMenuPost(null);
+                handleOpenReportModal(post);
+              }}
+              activeOpacity={0.65}
+            >
+              <View style={[styles.postMenuIconWrap, isRtl ? { marginLeft: 8, marginRight: 0 } : { marginRight: 8, marginLeft: 0 }]}>
+                <Ionicons name="flag-outline" size={17} color="#D97706" />
+              </View>
+              <Text style={[styles.postMenuItemText, styles.postMenuReportText, isRtl && styles.arabicBoldText]}>
+                {isRtl ? 'إبلاغ عن المنشور' : 'Report'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Report Post Modal */}
+      <Modal
+        visible={Boolean(reportModalPost)}
+        animationType="slide"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setReportModalPost(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.reportModalBackdrop}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setReportModalPost(null)}
+          />
+
+          <View style={[styles.reportModalContainer, isRtl && { alignItems: 'flex-end' }]}>
+            {/* Header */}
+            <View style={[styles.reportModalHeader, isRtl && { flexDirection: 'row-reverse' }]}>
+              <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
+                <View style={styles.reportIconCircle}>
+                  <Ionicons name="warning" size={16} color="#E53935" />
+                </View>
+                <Text style={[styles.reportModalTitle, isRtl ? { marginRight: 8 } : { marginLeft: 8 }, isRtl && styles.arabicBoldText]}>
+                  {isRtl ? 'إبلاغ عن المنشور' : 'Report Post'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setReportModalPost(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={20} color={colors.primaryText} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.reportModalSubtitle, isRtl && { textAlign: 'right' }]}>
+              {isRtl
+                ? 'يرجى تحديد سبب الإبلاغ لمساعدتنا في الحفاظ على مجتمع آمن وموثوق.'
+                : 'Please select a reason for reporting to help us keep the community safe and trustworthy.'}
+            </Text>
+
+            {/* Reasons List */}
+            <ScrollView style={styles.reportReasonsList} showsVerticalScrollIndicator={false}>
+              {REPORT_REASONS.map((reason) => {
+                const isSelected = selectedReportReason === reason.id;
+                return (
+                  <TouchableOpacity
+                    key={reason.id}
+                    style={[
+                      styles.reportReasonItem,
+                      isSelected && styles.reportReasonItemSelected,
+                      isRtl && { flexDirection: 'row-reverse' },
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedReportReason(reason.id)}
+                  >
+                    <View style={[
+                      styles.reportRadioCircle,
+                      isSelected && styles.reportRadioCircleSelected,
+                      isRtl ? { marginLeft: 12 } : { marginRight: 12 }
+                    ]}>
+                      {isSelected && <View style={styles.reportRadioDot} />}
+                    </View>
+                    <Text style={[
+                      styles.reportReasonText,
+                      isSelected && styles.reportReasonTextSelected,
+                      isRtl && { textAlign: 'right' },
+                      isRtl && styles.arabicBoldText,
+                    ]}>
+                      {isRtl ? reason.ar : reason.en}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Optional Details Input */}
+              <TextInput
+                style={[styles.reportDetailInput, isRtl && { textAlign: 'right' }]}
+                placeholder={
+                  isRtl
+                    ? 'تفاصيل إضافية (اختياري)...'
+                    : 'Additional details (optional)...'
+                }
+                placeholderTextColor={colors.secondaryText}
+                value={reportDetailText}
+                onChangeText={setReportDetailText}
+                multiline={true}
+                maxLength={300}
+              />
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={[styles.reportActionsRow, isRtl && { flexDirection: 'row-reverse' }]}>
+              <TouchableOpacity
+                style={styles.reportCancelButton}
+                onPress={() => setReportModalPost(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.reportCancelButtonText}>
+                  {isRtl ? 'إلغاء' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.reportSubmitButton,
+                  !selectedReportReason && styles.reportSubmitButtonDisabled,
+                ]}
+                disabled={!selectedReportReason}
+                onPress={handleSubmitReport}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="shield-checkmark" size={15} color="#FFFFFF" style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }} />
+                <Text style={styles.reportSubmitButtonText}>
+                  {isRtl ? 'إرسال البلاغ' : 'Submit Report'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -4093,5 +4448,230 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   commentSendBtnDisabled: {
     backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.35)' : 'rgba(55, 99, 59, 0.20)',
+  },
+
+  /* ── Post Options Menu Bubble Styles ── */
+  postMenuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    zIndex: 9999,
+  },
+  postMenuBubble: {
+    position: 'absolute',
+    width: 185,
+    backgroundColor: colors.elevatedBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: isDarkMode ? 0.45 : 0.15,
+    shadowRadius: 14,
+    elevation: 20,
+    paddingVertical: 4,
+    zIndex: 10000,
+  },
+  postMenuArrowDown: {
+    position: 'absolute',
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.elevatedBg,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.cardBorder,
+    transform: [{ rotate: '45deg' }],
+  },
+  postMenuArrowUp: {
+    position: 'absolute',
+    top: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.elevatedBg,
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    borderColor: colors.cardBorder,
+    transform: [{ rotate: '45deg' }],
+  },
+  postMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+  },
+  postMenuIconWrap: {
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postMenuItemText: {
+    fontSize: 13,
+    color: colors.primaryText,
+    fontWeight: '600',
+  },
+  postMenuDeleteText: {
+    color: '#E53935',
+  },
+  postMenuReportText: {
+    color: '#D97706',
+  },
+  postMenuDivider: {
+    height: 1,
+    backgroundColor: colors.cardBorder,
+    marginHorizontal: 10,
+  },
+
+  /* ── Report Modal Styles ── */
+  reportModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  reportModalContainer: {
+    width: '100%',
+    maxHeight: '78%',
+    backgroundColor: colors.elevatedBg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 22,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: isDarkMode ? 0.35 : 0.15,
+    shadowRadius: 14,
+    elevation: 20,
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  reportIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(229, 57, 53, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primaryText,
+  },
+  reportModalSubtitle: {
+    fontSize: 12.5,
+    color: colors.secondaryText,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  reportReasonsList: {
+    maxHeight: 300,
+  },
+  reportReasonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardBg,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  reportReasonItemSelected: {
+    borderColor: colors.activeHighlight,
+    backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.25)' : 'rgba(55, 99, 59, 0.08)',
+  },
+  reportRadioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.secondaryText,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportRadioCircleSelected: {
+    borderColor: colors.activeHighlight,
+  },
+  reportRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.activeHighlight,
+  },
+  reportReasonText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.primaryText,
+  },
+  reportReasonTextSelected: {
+    fontWeight: '700',
+    color: colors.activeHighlight,
+  },
+  reportDetailInput: {
+    backgroundColor: colors.cardBg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: colors.primaryText,
+    minHeight: 55,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  reportActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  reportCancelButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportCancelButtonText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.primaryText,
+  },
+  reportSubmitButton: {
+    flex: 1.5,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#E53935',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#E53935',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  reportSubmitButtonDisabled: {
+    backgroundColor: 'rgba(229, 57, 53, 0.35)',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  reportSubmitButtonText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
