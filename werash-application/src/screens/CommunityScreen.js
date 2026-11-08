@@ -251,6 +251,26 @@ export default function CommunityScreen({
     return !post.isMarketplace;
   });
 
+  // User stats for profile card
+  const userPosts = posts.filter(p => {
+    if (currentUser?.id) {
+      return p.userId === currentUser.id;
+    }
+    if (currentUser?.fullName) {
+      return p.author === currentUser.fullName;
+    }
+    return false;
+  });
+  const userPostsCount = userPosts.length;
+  const userLikesCount = userPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
+
+  const profileName = currentUser?.fullName || (isRtl ? 'حساب زائر' : 'Guest User');
+  const profileHandle = currentUser?.email
+    ? `@${currentUser.email.split('@')[0]}`
+    : (currentUser?.fullName ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}` : '@werash_driver');
+  const profileAvatar = currentUser?.avatarUrl || currentUser?.avatar || null;
+  const profileBanner = currentUser?.bannerUrl || null;
+
   return (
     <View style={styles.container}>
       {/* Scrollable Feed List with Non-Fixed Header & Tabs */}
@@ -512,6 +532,77 @@ export default function CommunityScreen({
           ))}
         </View>
         </>
+        )}
+
+        {/* Profile Tab Content */}
+        {activeTab === 'profile' && (
+          <View style={styles.profileWrapper}>
+            {/* Profile Summary Card (Signature Premium Card Style) */}
+            <View style={styles.profileCardShadow}>
+              <View style={styles.profileCardSurface}>
+                {/* Banner Wallpaper behind avatar */}
+                <View style={styles.profileBannerContainer}>
+                  <Image
+                    source={
+                      profileBanner
+                        ? (typeof profileBanner === 'string' ? { uri: profileBanner } : profileBanner)
+                        : require('../../assets/Banner wallpaper.png')
+                    }
+                    style={styles.profileBannerImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.profileBannerOverlay} />
+                </View>
+
+                {/* Overlapping Profile Picture */}
+                <View style={styles.profileAvatarWrapper}>
+                  {profileAvatar ? (
+                    <Image
+                      source={typeof profileAvatar === 'string' ? { uri: profileAvatar } : profileAvatar}
+                      style={styles.profileAvatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.profileAvatarPlaceholder}>
+                      <Ionicons name="person" size={40} color="#FFFFFF" />
+                    </View>
+                  )}
+                </View>
+
+                {/* Profile Name & Handle */}
+                <View style={styles.profileMetaContainer}>
+                  <Text style={[styles.profileName, isRtl && styles.profileNameRtl]}>
+                    {profileName}
+                  </Text>
+                  <Text style={[styles.profileHandle, isRtl && styles.profileHandleRtl]}>
+                    {profileHandle}
+                  </Text>
+                </View>
+
+                {/* Stats Row: Posts & Likes */}
+                <View style={[styles.profileStatsCard, isRtl && styles.profileStatsCardRtl]}>
+                  {/* Number of Posts */}
+                  <View style={styles.profileStatItem}>
+                    <Text style={styles.profileStatNumber}>{userPostsCount}</Text>
+                    <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
+                      {isRtl ? 'منشورات' : 'POSTS'}
+                    </Text>
+                  </View>
+
+                  {/* Vertical Divider */}
+                  <View style={styles.profileStatDivider} />
+
+                  {/* Number of Likes */}
+                  <View style={styles.profileStatItem}>
+                    <Text style={styles.profileStatNumber}>{userLikesCount}</Text>
+                    <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
+                      {isRtl ? 'إعجابات' : 'LIKES'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
         )}
       </ScrollView>
 
@@ -934,5 +1025,150 @@ const styles = StyleSheet.create({
   },
   backToTopTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
+  },
+  // Profile Summary Card Styles
+  profileWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  profileCardShadow: {
+    width: '100%',
+    borderRadius: 22,
+    backgroundColor: '#F2F4F5',
+    marginBottom: 16,
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2.5 },
+        shadowOpacity: 0.08,
+        shadowRadius: 5.5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  profileCardSurface: {
+    backgroundColor: '#F2F4F5',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  profileBannerContainer: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#003514',
+    position: 'relative',
+  },
+  profileBannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileBannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+  },
+  profileAvatarWrapper: {
+    alignSelf: 'center',
+    marginTop: -40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3.5,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#003514',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  profileAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileAvatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#003514',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileMetaContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 16,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#003514',
+    textAlign: 'center',
+  },
+  profileNameRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  profileHandle: {
+    fontSize: 12.5,
+    color: '#7E8B93',
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  profileHandleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  profileStatsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#EEF0F2',
+  },
+  profileStatsCardRtl: {
+    flexDirection: 'row-reverse',
+  },
+  profileStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileStatNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#003514',
+  },
+  profileStatLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#8A959E',
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  profileStatLabelRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 11.5,
+  },
+  profileStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E5E9EB',
   },
 });
