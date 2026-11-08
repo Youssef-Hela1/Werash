@@ -71,17 +71,14 @@ export default function CommunityScreen({
   const [myAvatarUrl, setMyAvatarUrl] = useState(currentUser?.avatarUrl || currentUser?.avatar || null);
   const [myBannerUrl, setMyBannerUrl] = useState(currentUser?.bannerUrl || null);
 
-  // Full-page search state
+  // Blank white search page state
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const searchInputRef = useRef(null);
 
-  // Hardware back button dismisses search
+  // Hardware back button dismisses blank search page
   useEffect(() => {
     if (!isSearchActive) return;
     const backAction = () => {
       setIsSearchActive(false);
-      setSearchQuery('');
       return true;
     };
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
@@ -596,17 +593,6 @@ export default function CommunityScreen({
   const resolvedAvatar = myAvatarUrl || currentUser?.avatarUrl || currentUser?.avatar || null;
   const resolvedBanner = myBannerUrl || currentUser?.bannerUrl || null;
 
-  // Filter posts for search results
-  const filteredSearchResults = posts.filter((post) => {
-    if (post.isMarketplace) return false;
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return false;
-    const content = (post.content || '').toLowerCase();
-    const author = (post.author || '').toLowerCase();
-    const handle = (post.handle || '').toLowerCase();
-    const vehicle = (post.vehicle || '').toLowerCase();
-    return content.includes(q) || author.includes(q) || handle.includes(q) || vehicle.includes(q);
-  });
 
   // Render single post card matching signature premium aesthetic
   const renderPostCard = (post) => (
@@ -1225,100 +1211,23 @@ export default function CommunityScreen({
         selectedLanguage={selectedLanguage}
       />
 
-      {/* Full-Page White Search Screen */}
+      {/* Blank White Page on Search Icon Click */}
       {isSearchActive && (
         <View style={styles.searchFullScreen}>
-          {/* Search Header Bar */}
-          <View style={[styles.searchHeader, { paddingTop: topInset + 6 }, isRtl && styles.searchHeaderRtl]}>
-            <View style={[styles.searchInputWrapper, isRtl && styles.searchInputWrapperRtl]}>
-              <Ionicons
-                name="search"
-                size={20}
-                color="#8A959E"
-                style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }}
-              />
-              <TextInput
-                ref={searchInputRef}
-                style={[styles.searchInput, isRtl && styles.searchInputRtl]}
-                placeholder={isRtl ? 'ابحث في منشورات المجتمع...' : 'Search community posts...'}
-                placeholderTextColor="#8A959E"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus={true}
-                returnKeyType="search"
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setSearchQuery('')}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="close-circle" size={18} color="#8A959E" />
-                </TouchableOpacity>
-              )}
-            </View>
+          <View style={[styles.blankPageHeader, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRtl]}>
             <TouchableOpacity
-              onPress={() => {
-                setIsSearchActive(false);
-                setSearchQuery('');
-                Keyboard.dismiss();
-              }}
-              style={[styles.searchCancelButton, isRtl ? { marginRight: 12 } : { marginLeft: 12 }]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={() => setIsSearchActive(false)}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.7}
+              style={styles.blankPageBackButton}
             >
-              <Text style={[styles.searchCancelText, isRtl && styles.searchCancelTextRtl]}>
-                {isRtl ? 'إلغاء' : 'Cancel'}
-              </Text>
+              <Ionicons
+                name={isRtl ? 'arrow-forward' : 'arrow-back'}
+                size={26}
+                color="#003514"
+              />
             </TouchableOpacity>
           </View>
-
-          {/* Body: Full White Page Waiting or Results */}
-          {searchQuery.trim().length === 0 ? (
-            <View style={styles.searchWaitingContainer}>
-              <View style={styles.searchWaitingIconCircle}>
-                <Ionicons name="search" size={38} color="#003514" />
-              </View>
-              <Text style={[styles.searchWaitingTitle, isRtl && styles.searchWaitingTitleRtl]}>
-                {isRtl ? 'في انتظار بحثك...' : 'Waiting for your search result...'}
-              </Text>
-              <Text style={[styles.searchWaitingSubtitle, isRtl && styles.searchWaitingSubtitleRtl]}>
-                {isRtl
-                  ? 'اكتب ما تبحث عنه لمشاهدة منشورات المجتمع والأعضاء هنا فوراً'
-                  : 'Type keywords, topics, or members to find community posts instantly'}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.searchResultsContent}
-              keyboardDismissMode="on-drag"
-              keyboardShouldPersistTaps="handled"
-            >
-              {filteredSearchResults.length > 0 ? (
-                <>
-                  <View style={[styles.searchResultsMetaRow, isRtl && styles.searchResultsMetaRowRtl]}>
-                    <Text style={[styles.searchResultsCountText, isRtl && styles.searchResultsCountTextRtl]}>
-                      {isRtl
-                        ? `${filteredSearchResults.length} من النتائج`
-                        : `${filteredSearchResults.length} ${filteredSearchResults.length === 1 ? 'result' : 'results'} found`}
-                    </Text>
-                  </View>
-                  {filteredSearchResults.map((post) => renderPostCard(post))}
-                </>
-              ) : (
-                <View style={styles.searchEmptyContainer}>
-                  <Ionicons name="alert-circle-outline" size={44} color="#8A959E" />
-                  <Text style={[styles.searchEmptyTitle, isRtl && styles.searchEmptyTitleRtl]}>
-                    {isRtl ? `لم يتم العثور على نتائج لـ "${searchQuery}"` : `No results found for "${searchQuery}"`}
-                  </Text>
-                  <Text style={[styles.searchEmptySubtitle, isRtl && styles.searchEmptySubtitleRtl]}>
-                    {isRtl
-                      ? 'جرّب البحث بكلمات مختلفة أو تحقق من صحة الكلمات'
-                      : 'Try searching with different terms or check for typos'}
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
-          )}
         </View>
       )}
     </View>
@@ -2160,131 +2069,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     zIndex: 9999,
   },
-  searchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  blankPageHeader: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E2E6E9',
-  },
-  searchHeaderRtl: {
-    flexDirection: 'row-reverse',
-  },
-  searchInputWrapper: {
-    flex: 1,
-    height: 42,
-    backgroundColor: '#F2F4F5',
-    borderRadius: 14,
+    paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
   },
-  searchInputWrapperRtl: {
+  blankPageHeaderRtl: {
     flexDirection: 'row-reverse',
   },
-  searchInput: {
-    flex: 1,
-    height: '100%',
-    fontSize: 15,
-    color: '#1A211B',
-    paddingVertical: 0,
-  },
-  searchInputRtl: {
-    textAlign: 'right',
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  searchCancelButton: {
-    paddingVertical: 8,
-  },
-  searchCancelText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#003514',
-  },
-  searchCancelTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  searchWaitingContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  blankPageBackButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 36,
-    paddingBottom: 60,
-  },
-  searchWaitingIconCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: 'rgba(0, 53, 20, 0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  searchWaitingTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A211B',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  searchWaitingTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  searchWaitingSubtitle: {
-    fontSize: 14,
-    color: '#8A959E',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  searchWaitingSubtitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  searchResultsContent: {
-    paddingTop: 14,
-    paddingBottom: 40,
-  },
-  searchResultsMetaRow: {
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  searchResultsMetaRowRtl: {
-    alignItems: 'flex-end',
-  },
-  searchResultsCountText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#8A959E',
-  },
-  searchResultsCountTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  searchEmptyContainer: {
-    paddingTop: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 36,
-  },
-  searchEmptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A211B',
-    marginTop: 14,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  searchEmptyTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
-  },
-  searchEmptySubtitle: {
-    fontSize: 13.5,
-    color: '#8A959E',
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-  searchEmptySubtitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
   },
 });
