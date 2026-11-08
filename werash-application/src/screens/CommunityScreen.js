@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Platform, ActivityIndicator, Alert, RefreshControl, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChatsModal from '../components/ChatsModal';
 import { supabase } from '../services/supabase';
 
@@ -37,6 +39,7 @@ export default function CommunityScreen({
   currentUser,
   selectedLanguage,
   onOpenSignIn,
+  onUpdateCurrentUser,
 }) {
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
@@ -46,6 +49,25 @@ export default function CommunityScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isRtl = selectedLanguage === 'Arabic';
+
+  // Profile avatar & banner upload state
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [myAvatarUrl, setMyAvatarUrl] = useState(currentUser?.avatarUrl || currentUser?.avatar || null);
+  const [myBannerUrl, setMyBannerUrl] = useState(currentUser?.bannerUrl || null);
+
+  useEffect(() => {
+    if (currentUser?.avatarUrl || currentUser?.avatar) {
+      setMyAvatarUrl(currentUser.avatarUrl || currentUser.avatar);
+    }
+    if (currentUser?.bannerUrl) {
+      setMyBannerUrl(currentUser.bannerUrl);
+    } else if (currentUser?.id) {
+      AsyncStorage.getItem(`@werash_user_banner_${currentUser.id}`).then((val) => {
+        if (val) setMyBannerUrl(val);
+      }).catch(() => {});
+    }
+  }, [currentUser?.id, currentUser?.avatarUrl, currentUser?.avatar, currentUser?.bannerUrl]);
 
   // Filter user posts for profile tab and scroll lock check
   const userPosts = posts.filter(p => {
@@ -161,6 +183,211 @@ export default function CommunityScreen({
     }).start();
 
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const requireAuth = () => {
+    if (!currentUser?.id) {
+      if (typeof onOpenSignIn === 'function') {
+        onOpenSignIn();
+      } else {
+        Alert.alert(
+          isRtl ? 'تسجيل الدخول مطلوب' : 'Sign In Required',
+          isRtl ? 'يرجى تسجيل الدخول لتحديث ملفك الشخصي.' : 'Please sign in to customize your profile.'
+        );
+      }
+      return false;
+    }
+    return true;
+  };
+
+  // Upload Avatar
+  const handlePickAndUploadAvatar = async () => {
+    if (!requireAuth()) return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+          isRtl ? 'نحتاج إلى إذن للوصول إلى معرض الصور لتحديث صورتك الشخصية.' : 'We need permission to access your gallery to update your profile photo.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const localUri = result.assets[0].uri;
+        setIsUploadingAvatar(true);
+
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadErr) throw uploadErr;
+
+        const { data: publicData } = supabase.storage
+          .from('community-media')
+          .getPublicUrl(fileName);
+        const publicUrl = publicData?.publicUrl;
+
+        if (publicUrl) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ avatar_url: publicUrl })
+              .eq('id', currentUser.id);
+          } catch (e) {
+            console.warn('Error updating profile avatar_url:', e);
+          }
+
+          try {
+            await supabase.auth.updateUser({
+              data: { avatar_url: publicUrl }
+            });
+          } catch (e) {
+            console.warn('Error updating auth metadata avatar_url:', e);
+          }
+
+          if (typeof onUpdateCurrentUser === 'function') {
+            onUpdateCurrentUser({
+              ...currentUser,
+              avatar: publicUrl,
+              avatarUrl: publicUrl,
+            });
+          }
+
+          setMyAvatarUrl(publicUrl);
+
+          setPosts(prev => prev.map(p => {
+            if (p.userId === currentUser.id || p.author === currentUser.fullName) {
+              return { ...p, avatar: { uri: publicUrl } };
+            }
+            return p;
+          }));
+
+          Alert.alert(
+            isRtl ? 'تم بنجاح' : 'Success',
+            isRtl ? 'تم تحديث الصورة الشخصية بنجاح.' : 'Profile picture updated successfully.'
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('handlePickAndUploadAvatar error:', err);
+      Alert.alert(
+        isRtl ? 'خطأ' : 'Error',
+        isRtl ? 'تعذر رفع الصورة الشخصية. يرجى المحاولة مرة أخرى.' : 'Failed to upload profile picture. Please try again.'
+      );
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Upload Banner
+  const handlePickAndUploadBanner = async () => {
+    if (!requireAuth()) return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+          isRtl ? 'نحتاج إلى إذن للوصول إلى الصور لتحديث صورة الغلاف.' : 'We need permission to access your gallery to update your banner.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const localUri = result.assets[0].uri;
+        setIsUploadingBanner(true);
+
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${currentUser.id}/banner_${Date.now()}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadErr) throw uploadErr;
+
+        const { data: publicData } = supabase.storage
+          .from('community-media')
+          .getPublicUrl(fileName);
+        const publicUrl = publicData?.publicUrl;
+
+        if (publicUrl) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ banner_url: publicUrl })
+              .eq('id', currentUser.id);
+          } catch (e) {
+            console.warn('Error updating profile banner_url:', e);
+          }
+
+          try {
+            await supabase.auth.updateUser({
+              data: { banner_url: publicUrl }
+            });
+          } catch (e) {
+            console.warn('Error updating auth metadata banner_url:', e);
+          }
+
+          try {
+            await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+          } catch (e) {
+            console.warn('Error saving banner to storage:', e);
+          }
+
+          if (typeof onUpdateCurrentUser === 'function') {
+            onUpdateCurrentUser({
+              ...currentUser,
+              bannerUrl: publicUrl,
+            });
+          }
+
+          setMyBannerUrl(publicUrl);
+
+          Alert.alert(
+            isRtl ? 'تم بنجاح' : 'Success',
+            isRtl ? 'تم تحديث صورة الغلاف بنجاح.' : 'Banner updated successfully.'
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('handlePickAndUploadBanner error:', err);
+      Alert.alert(
+        isRtl ? 'خطأ' : 'Error',
+        isRtl ? 'تعذر رفع صورة الغلاف. يرجى المحاولة مرة أخرى.' : 'Failed to upload banner. Please try again.'
+      );
+    } finally {
+      setIsUploadingBanner(false);
+    }
   };
 
   // Fetch live posts from Supabase cloud
@@ -334,8 +561,8 @@ export default function CommunityScreen({
   const profileHandle = currentUser?.email
     ? `@${currentUser.email.split('@')[0]}`
     : (currentUser?.fullName ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}` : '@werash_driver');
-  const profileAvatar = currentUser?.avatarUrl || currentUser?.avatar || null;
-  const profileBanner = currentUser?.bannerUrl || null;
+  const resolvedAvatar = myAvatarUrl || currentUser?.avatarUrl || currentUser?.avatar || null;
+  const resolvedBanner = myBannerUrl || currentUser?.bannerUrl || null;
 
   // Render single post card matching signature premium aesthetic
   const renderPostCard = (post) => (
@@ -542,29 +769,79 @@ export default function CommunityScreen({
                 <View style={styles.profileBannerContainer}>
                   <Image
                     source={
-                      profileBanner
-                        ? (typeof profileBanner === 'string' ? { uri: profileBanner } : profileBanner)
+                      resolvedBanner
+                        ? (typeof resolvedBanner === 'string' ? { uri: resolvedBanner } : resolvedBanner)
                         : require('../../assets/Banner wallpaper.png')
                     }
                     style={styles.profileBannerImage}
                     resizeMode="cover"
                   />
                   <View style={styles.profileBannerOverlay} />
+
+                  {/* Edit Banner Button */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.editBannerButton,
+                      isRtl ? { left: 14 } : { right: 14 },
+                    ]}
+                    onPress={handlePickAndUploadBanner}
+                    disabled={isUploadingBanner}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit Banner"
+                  >
+                    {isUploadingBanner ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <View style={[styles.editBannerContent, isRtl && styles.editBannerContentRtl]}>
+                        <Ionicons
+                          name="camera"
+                          size={14}
+                          color="#FFFFFF"
+                          style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }}
+                        />
+                        <Text style={[styles.editBannerText, isRtl && styles.editBannerTextRtl]}>
+                          {isRtl ? 'تغيير الغلاف' : 'Edit Banner'}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                 </View>
 
-                {/* Overlapping Profile Picture */}
-                <View style={styles.profileAvatarWrapper}>
-                  {profileAvatar ? (
-                    <Image
-                      source={typeof profileAvatar === 'string' ? { uri: profileAvatar } : profileAvatar}
-                      style={styles.profileAvatarImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.profileAvatarPlaceholder}>
-                      <Ionicons name="person" size={40} color="#FFFFFF" />
-                    </View>
-                  )}
+                {/* Overlapping Profile Picture with Edit Badge */}
+                <View style={styles.profileAvatarOuter}>
+                  <View style={styles.profileAvatarCircle}>
+                    {resolvedAvatar ? (
+                      <Image
+                        source={typeof resolvedAvatar === 'string' ? { uri: resolvedAvatar } : resolvedAvatar}
+                        style={styles.profileAvatarImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.profileAvatarPlaceholder}>
+                        <Ionicons name="person" size={40} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Edit Avatar Circular Badge */}
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={[
+                      styles.editAvatarBadge,
+                      isRtl ? { left: 0 } : { right: 0 },
+                    ]}
+                    onPress={handlePickAndUploadAvatar}
+                    disabled={isUploadingAvatar}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit Profile Photo"
+                  >
+                    {isUploadingAvatar ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="camera" size={13} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
                 </View>
 
                 {/* Profile Name & Handle */}
@@ -1190,9 +1467,40 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.12)',
   },
-  profileAvatarWrapper: {
+  editBannerButton: {
+    position: 'absolute',
+    top: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    zIndex: 5,
+  },
+  editBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  editBannerContentRtl: {
+    flexDirection: 'row-reverse',
+  },
+  editBannerText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  editBannerTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  profileAvatarOuter: {
     alignSelf: 'center',
     marginTop: -40,
+    width: 80,
+    height: 80,
+    position: 'relative',
+  },
+  profileAvatarCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
@@ -1211,6 +1519,30 @@ const styles = StyleSheet.create({
       },
       android: {
         elevation: 4,
+      },
+    }),
+  },
+  editAvatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#003514',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1.5 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 5,
       },
     }),
   },
