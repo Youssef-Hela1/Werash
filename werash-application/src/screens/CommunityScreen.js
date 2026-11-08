@@ -1049,39 +1049,52 @@ export default function CommunityScreen({
           <>
             {/* Post Creator Bar (Premium Card Style) */}
         <View style={styles.postBarWrapper}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.postBarShadow}
-            onPress={() => {
-              setIsCreatePostActive(true);
-            }}
-          >
+          <View style={styles.postBarShadow}>
             <View style={[styles.postBarSurface, isRtl && styles.postBarSurfaceRtl]}>
-              {/* User Avatar */}
-              {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
-                <Image
-                  source={
-                    typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
-                      ? { uri: currentUser.avatarUrl || currentUser.avatar }
-                      : (currentUser.avatarUrl || currentUser.avatar)
-                  }
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={18} color="#FFFFFF" />
-                </View>
-              )}
+              {/* User Avatar - Tapping opens Profile section */}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => handleTabChange('profile')}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel="Go to Profile"
+              >
+                {resolvedAvatar ? (
+                  <Image
+                    source={
+                      typeof resolvedAvatar === 'string'
+                        ? { uri: resolvedAvatar }
+                        : resolvedAvatar
+                    }
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={18} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
 
-              {/* Vertical Divider */}
-              <View style={styles.postDivider} />
+              {/* Tappable Area to open Create Post Modal */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[styles.postBarContentTouch, isRtl && styles.postBarContentTouchRtl]}
+                onPress={() => {
+                  setIsCreatePostActive(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Share a car update"
+              >
+                {/* Vertical Divider */}
+                <View style={styles.postDivider} />
 
-              {/* Input Placeholder Text */}
-              <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
-                {isRtl ? 'شارك تحديثاً لسيارتك...' : 'Share a car update...'}
-              </Text>
+                {/* Input Placeholder Text */}
+                <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
+                  {isRtl ? 'شارك تحديثاً لسيارتك...' : 'Share a car update...'}
+                </Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         </View>
 
         {/* Loading Indicator */}
@@ -1904,6 +1917,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   postBarSurfaceRtl: {
+    flexDirection: 'row-reverse',
+  },
+  postBarContentTouch: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  postBarContentTouchRtl: {
     flexDirection: 'row-reverse',
   },
   avatarPlaceholder: {
