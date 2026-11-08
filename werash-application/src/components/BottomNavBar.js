@@ -43,7 +43,7 @@ function HomeFloatingButton({ isActive, onPress, colors, styles, centerLeft }) {
         <Ionicons 
           name={isActive ? 'home-sharp' : 'home-outline'} 
           size={23} 
-          color={isActive ? colors.white : colors.bgBrand} 
+          color="#FFFFFF" 
         />
       </Animated.View>
     </TouchableOpacity>
@@ -80,7 +80,7 @@ function NavItem({ tab, isActive, onPress, colors, styles, badgeCount = 0 }) {
         <Ionicons 
           name={isActive ? tab.activeIcon : tab.icon} 
           size={tab.size || 23} 
-          color={isActive ? colors.bgBrand : colors.textMuted} 
+          color={isActive ? colors.activeHighlight : colors.inactiveNav} 
         />
         {badgeCount > 0 && (
           <View style={styles.badgeContainer}>
@@ -161,8 +161,8 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress, unreadNot
       {/* 1. Concentric Dipped SVG Background Bar */}
       <View style={styles.svgBackground} pointerEvents="none">
         <Svg width={width} height={barHeight} viewBox={`0 0 ${width} ${barHeight}`}>
-          <Path d={fillPath} fill={colors.white} />
-          <Path d={borderPath} stroke={colors.borderGreen} strokeWidth={1.2} fill="none" />
+          <Path d={fillPath} fill={colors.elevatedBg} />
+          <Path d={borderPath} stroke={colors.cardBorder} strokeWidth={1} fill="none" />
         </Svg>
       </View>
 
@@ -222,10 +222,10 @@ const createStyles = (colors) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     elevation: 8,
   },
   navContainer: {
@@ -256,7 +256,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: '#C84B31',
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.elevatedBg,
   },
   centerSpacer: {
     flex: 1,
@@ -279,24 +279,25 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: BUTTON_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.forestGreen,
   },
   centerCircleActive: {
-    backgroundColor: colors.bgBrand, // Signature Reseda Sage Green
-    borderWidth: 2,
-    borderColor: colors.white,
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.32,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: colors.forestGreen,
+    borderWidth: 1.5,
+    borderColor: colors.cardBorder,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.30,
+    shadowRadius: 6,
+    elevation: 4,
   },
   centerCircleInactive: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.borderGreen,
-    shadowColor: colors.bgBrand,
+    backgroundColor: colors.forestGreen,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.18,
     shadowRadius: 4,
     elevation: 2,
   },

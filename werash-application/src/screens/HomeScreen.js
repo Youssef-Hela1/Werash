@@ -219,7 +219,7 @@ export default function HomeScreen({
                   <Ionicons 
                     name="car-sport-outline" 
                     size={12} 
-                    color={colors.bgBrand} 
+                    color={colors.activeHighlight} 
                     style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
                   />
                   <Text style={[styles.activeVehicleText, isRtl && styles.activeVehicleTextArabic]}>
@@ -324,7 +324,7 @@ export default function HomeScreen({
                     </Text>
                   </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
-                    <Ionicons name="construct-outline" size={86} color="#003514" />
+                    <Ionicons name="construct-outline" size={86} color={colors.mutedDecor} />
                   </View>
 
                   {/* Circular Arrow Button (Bottom Left) */}
@@ -332,7 +332,7 @@ export default function HomeScreen({
                     <Ionicons 
                       name={isRtl ? "arrow-back" : "arrow-forward"} 
                       size={13.5} 
-                      color="#37633B" 
+                      color={colors.activeHighlight} 
                     />
                   </View>
                 </View>
@@ -360,7 +360,7 @@ export default function HomeScreen({
                     </Text>
                   </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
-                    <Ionicons name="chatbubbles-outline" size={86} color="#003514" />
+                    <Ionicons name="chatbubbles-outline" size={86} color={colors.mutedDecor} />
                   </View>
 
                   {/* Circular Arrow Button (Bottom Left) */}
@@ -368,7 +368,7 @@ export default function HomeScreen({
                     <Ionicons 
                       name={isRtl ? "arrow-back" : "arrow-forward"} 
                       size={13.5} 
-                      color="#37633B" 
+                      color={colors.activeHighlight} 
                     />
                   </View>
                 </View>
@@ -400,7 +400,7 @@ export default function HomeScreen({
                     </Text>
                   </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
-                    <MaterialCommunityIcons name="tow-truck" size={86} color="#003514" />
+                    <MaterialCommunityIcons name="tow-truck" size={86} color={colors.mutedDecor} />
                   </View>
 
                   {/* 3 Crossing Minimalist Hazard Ribbons */}
@@ -463,7 +463,7 @@ export default function HomeScreen({
                     </Text>
                   </View>
                   <View style={[styles.miniCardIconWrapper, isRtl && styles.miniCardIconWrapperRtl]}>
-                    <Ionicons name="person-outline" size={86} color="#003514" />
+                    <Ionicons name="person-outline" size={86} color={colors.mutedDecor} />
                   </View>
 
                   {/* Circular Arrow Button (Bottom Left) */}
@@ -471,7 +471,7 @@ export default function HomeScreen({
                     <Ionicons 
                       name={isRtl ? "arrow-back" : "arrow-forward"} 
                       size={13.5} 
-                      color="#37633B" 
+                      color={colors.activeHighlight} 
                     />
                   </View>
                 </View>
@@ -543,7 +543,7 @@ export default function HomeScreen({
 const createStyles = (colors, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Pure White
+    backgroundColor: colors.screenBg,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -664,7 +664,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   activeVehicleText: {
     fontSize: 9.5,
     fontWeight: '800',
-    color: colors.bgBrand,
+    color: colors.activeHighlight,
     letterSpacing: 0.8,
   },
   activeVehicleTextArabic: {
@@ -694,7 +694,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   brandNameText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: colors.secondaryText,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
     textAlign: 'center',
@@ -710,7 +710,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   modelNameText: {
     fontSize: 21,
     fontWeight: '800',
-    color: '#37633B', // Same green as header
+    color: colors.primaryText,
     letterSpacing: -0.4,
     lineHeight: 25,
     textAlign: 'center',
@@ -728,7 +728,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   yearText: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: colors.secondaryText,
     letterSpacing: 1.4,
     textAlign: 'center',
     lineHeight: 12,
@@ -824,7 +824,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     top: 38,
     bottom: 38,
     width: 1.5,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.cardBorder,
     borderRadius: 1,
     zIndex: 5,
   },
@@ -842,66 +842,66 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardShadow: {
     flex: 1,
     borderRadius: 17,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.12,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
         shadowRadius: 3,
       },
       android: {
-        elevation: 2.8,
+        elevation: 2,
       },
     }),
   },
   miniCardSurface: {
     width: '100%',
     aspectRatio: 1.62,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   miniCardShadowTow: {
     flex: 1,
     borderRadius: 17,
-    backgroundColor: '#E5E8EA',
+    backgroundColor: colors.cardBg,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.12,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
         shadowRadius: 3,
       },
       android: {
-        elevation: 2.8,
+        elevation: 2,
       },
     }),
   },
   miniCardSurfaceTow: {
     width: '100%',
     aspectRatio: 1.62,
-    backgroundColor: '#E5E8EA',
+    backgroundColor: colors.cardBg,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   miniCardIconWrapper: {
     position: 'absolute',
     right: -12,
     bottom: -12,
-    opacity: 0.16,
+    opacity: 0.18,
     transform: [{ rotate: '-20deg' }],
   },
   miniCardIconWrapperRtl: {
     right: 'auto',
     left: -12,
-    opacity: 0.16,
+    opacity: 0.18,
     transform: [{ rotate: '20deg' }],
   },
   miniCardHeader: {
@@ -917,7 +917,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.primaryText,
     letterSpacing: -0.2,
   },
   miniCardTitleArabic: {
@@ -929,7 +929,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   miniCardSubtitle: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: 'rgba(55, 99, 59, 0.70)',
+    color: colors.secondaryText,
     letterSpacing: 0.1,
     marginTop: 2,
   },
@@ -947,15 +947,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.elevatedBg,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.12)',
+    borderColor: colors.cardBorder,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
     elevation: 2,
     zIndex: 3,
   },

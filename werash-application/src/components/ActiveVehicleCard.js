@@ -424,9 +424,9 @@ export default function ActiveVehicleCard({
 
 const createStyles = (colors) => StyleSheet.create({
   cardContainer: {
-    backgroundColor: colors.white === '#FFFFFF' ? 'rgba(226, 235, 224, 0.35)' : 'rgba(24, 30, 24, 0.45)',
-    borderWidth: 1.5,
-    borderColor: colors.white === '#FFFFFF' ? 'rgba(77, 110, 79, 0.18)' : 'rgba(93, 130, 96, 0.22)',
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     borderRadius: 20,
     marginHorizontal: 20,
     marginTop: 16,
@@ -434,11 +434,11 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'column',
     minHeight: 145,
     overflow: 'hidden',
-    shadowColor: colors.bgBrand,
-    shadowOffset: { width: 4, height: 16 },
-    shadowOpacity: colors.white === '#FFFFFF' ? 0.08 : 0.3,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2.5 },
+    shadowOpacity: 0.22,
+    shadowRadius: 3,
+    elevation: 3,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -467,36 +467,36 @@ const createStyles = (colors) => StyleSheet.create({
   headerLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: colors.bgBrand,
+    color: colors.activeHighlight || colors.bgBrand,
     letterSpacing: 0.8,
   },
   carName: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: colors.textDark,
+    color: colors.primaryText || colors.textDark,
     marginBottom: 3,
   },
   carModel: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: colors.secondaryText || colors.textMuted,
     fontWeight: '600',
   },
   noVehicleText: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: colors.textDark,
+    color: colors.primaryText || colors.textDark,
     marginBottom: 4,
     lineHeight: 20,
   },
   noVehicleSubtext: {
     fontSize: 11.5,
-    color: colors.textMuted,
+    color: colors.secondaryText || colors.textMuted,
     fontWeight: '600',
   },
   divider: {
     width: 1.5,
     height: '75%', // clean vertical separator within card bounds
-    backgroundColor: colors.borderGreen,
+    backgroundColor: colors.cardBorder || colors.borderGreen,
     marginHorizontal: 12,
   },
   imageSection: {

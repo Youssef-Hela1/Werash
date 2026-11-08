@@ -6,15 +6,14 @@ import { LIGHT_COLORS, DARK_COLORS } from './theme';
 const STORAGE_KEY_DARK_MODE = '@werash_dark_mode';
 
 export const ThemeContext = createContext({
-  isDarkMode: false,
+  isDarkMode: true,
   toggleDarkMode: () => {},
   setDarkMode: () => {},
-  colors: LIGHT_COLORS,
+  colors: DARK_COLORS,
 });
 
 export function ThemeProvider({ children }) {
-  const systemScheme = useColorScheme();
-  const [isDarkMode, setIsDarkMode] = useState(systemScheme === 'dark');
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
