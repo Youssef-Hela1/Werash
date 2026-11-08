@@ -2155,21 +2155,8 @@ export default function CommunityScreen({
                 {viewingOtherUser.author}
               </Text>
 
-              <TouchableOpacity
-                onPress={() => {
-                  setViewingOtherUser(null);
-                  setChatsVisible(true);
-                }}
-                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                activeOpacity={0.75}
-                style={styles.otherProfileHeaderActionBtn}
-              >
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={20}
-                  color={colors.primaryText}
-                />
-              </TouchableOpacity>
+              {/* Balance spacer to keep title centered */}
+              <View style={styles.otherProfileHeaderSpacer} />
             </View>
 
             {/* Scrollable Profile Details & Feed */}
@@ -2219,21 +2206,6 @@ export default function CommunityScreen({
                     <Text style={[styles.profileHandle, isRtl && styles.profileHandleRtl]}>
                       {viewingOtherUser.handle}
                     </Text>
-
-                    {/* Vehicle Badge if available */}
-                    {Boolean(viewingOtherUser.vehicle) && (
-                      <View style={[styles.otherProfileVehicleBadge, isRtl && styles.otherProfileVehicleBadgeRtl]}>
-                        <Ionicons
-                          name="car-sport"
-                          size={14}
-                          color={colors.activeHighlight}
-                          style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }}
-                        />
-                        <Text style={[styles.otherProfileVehicleText, isRtl && styles.otherProfileVehicleTextRtl]}>
-                          {viewingOtherUser.vehicle}
-                        </Text>
-                      </View>
-                    )}
 
                     {/* Direct Message Button */}
                     <TouchableOpacity
@@ -4935,15 +4907,9 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   otherProfileHeaderTitleRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
-  otherProfileHeaderActionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.cardBg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+  otherProfileHeaderSpacer: {
+    width: 40,
+    height: 40,
   },
   otherProfileScrollContent: {
     paddingHorizontal: 16,
