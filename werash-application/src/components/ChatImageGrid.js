@@ -42,7 +42,7 @@ export default function ChatImageGrid({
           resizeMode="cover"
         />
         {isMoreOverlay && (
-          <View style={styles.moreOverlay}>
+          <View style={styles.moreOverlay} pointerEvents="none">
             <Text style={styles.moreText}>
               {`+${moreCount}`}
             </Text>
@@ -175,18 +175,20 @@ const styles = StyleSheet.create({
   },
   moreOverlay: {
     ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+    backgroundColor: 'rgba(0, 0, 0, 0.44)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    zIndex: 5,
   },
   moreText: {
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 4,
+    includeFontPadding: false,
   },
   statusOverlay: {
     ...StyleSheet.absoluteFillObject,
