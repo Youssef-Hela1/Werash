@@ -233,13 +233,19 @@ export default function CommunityScreen({
     }
   };
 
+  // Tab switching handler
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    if (showBackToTop) {
+      setShowBackToTop(false);
+      backToTopAnim.setValue(0);
+    }
+  };
+
   // Filter posts based on active tab
   const displayedPosts = posts.filter(post => {
     if (activeTab === 'souq') {
       return post.isMarketplace;
-    }
-    if (activeTab === 'profile') {
-      return currentUser?.id ? post.userId === currentUser.id : false;
     }
     // Default 'feed' shows general community posts
     return !post.isMarketplace;
@@ -320,7 +326,7 @@ export default function CommunityScreen({
                 key={tab.id}
                 style={styles.tabItem}
                 activeOpacity={0.7}
-                onPress={() => setActiveTab(tab.id)}
+                onPress={() => handleTabChange(tab.id)}
               >
                 <Text style={[
                   styles.tabText,
@@ -338,7 +344,10 @@ export default function CommunityScreen({
           })}
         </View>
 
-        {/* Post Creator Bar (Premium Card Style) */}
+        {/* Feed Tab Content */}
+        {activeTab === 'feed' && (
+          <>
+            {/* Post Creator Bar (Premium Card Style) */}
         <View style={styles.postBarWrapper}>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -502,6 +511,8 @@ export default function CommunityScreen({
             </View>
           ))}
         </View>
+        </>
+        )}
       </ScrollView>
 
       {/* Floating "Back to top" Pill Button */}
