@@ -650,8 +650,6 @@ export default function CommunityScreen({
     return searchKeywords.some((kw) => content.includes(kw) || vehicle.includes(kw) || author.includes(kw) || location.includes(kw));
   });
 
-  const matchingMarketplace = matchingPosts.filter((p) => p.isMarketplace);
-  const matchingFeedPosts = matchingPosts.filter((p) => !p.isMarketplace);
 
   // Render full-width listed marketplace item card matching Souq design (larger footprint)
   const renderSearchMarketplaceCard = (post) => {
@@ -1444,23 +1442,14 @@ export default function CommunityScreen({
                 </View>
               )}
 
-              {/* Listed Marketplace Items (Same design as Souq card, but bigger to fit post footprint) */}
-              {matchingMarketplace.length > 0 && (
+              {/* Matching Posts and Listed Items appear together */}
+              {matchingPosts.length > 0 && (
                 <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
-                    {isRtl ? 'معروضات للبيع في السوق' : 'Listed in Souq'}
-                  </Text>
-                  {matchingMarketplace.map((post) => renderSearchMarketplaceCard(post))}
-                </View>
-              )}
-
-              {/* Relevant Community Posts */}
-              {matchingFeedPosts.length > 0 && (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
-                    {isRtl ? 'المنشورات' : 'Posts'}
-                  </Text>
-                  {matchingFeedPosts.map((post) => renderPostCard(post))}
+                  {matchingPosts.map((post) =>
+                    post.isMarketplace
+                      ? renderSearchMarketplaceCard(post)
+                      : renderPostCard(post)
+                  )}
                 </View>
               )}
 
