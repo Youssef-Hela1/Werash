@@ -1351,7 +1351,7 @@ export default function CommunityScreen({
                           isRtl ? styles.personCardShadowRtl : styles.personCardShadowLtr,
                         ]}
                       >
-                        <View style={[styles.personCardSurface, isRtl && styles.personCardSurfaceRtl]}>
+                        <View style={styles.personCardSurface}>
                           {person.avatar ? (
                             <Image
                               source={typeof person.avatar === 'string' ? { uri: person.avatar } : person.avatar}
@@ -1359,19 +1359,17 @@ export default function CommunityScreen({
                             />
                           ) : (
                             <View style={styles.personAvatarPlaceholder}>
-                              <Ionicons name="person" size={18} color="#FFFFFF" />
+                              <Ionicons name="person" size={20} color="#FFFFFF" />
                             </View>
                           )}
-                          <View style={[styles.personInfo, isRtl && styles.personInfoRtl]}>
-                            <Text style={[styles.personName, isRtl && styles.personNameRtl]} numberOfLines={1}>
-                              {person.name}
+                          <Text style={[styles.personName, isRtl && styles.personNameRtl]} numberOfLines={1}>
+                            {person.name}
+                          </Text>
+                          {Boolean(person.handle) && (
+                            <Text style={[styles.personHandle, isRtl && styles.personHandleRtl]} numberOfLines={1}>
+                              {person.handle}
                             </Text>
-                            {Boolean(person.handle) && (
-                              <Text style={[styles.personHandle, isRtl && styles.personHandleRtl]} numberOfLines={1}>
-                                {person.handle}
-                              </Text>
-                            )}
-                          </View>
+                          )}
                         </View>
                       </View>
                     ))}
@@ -2343,8 +2341,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   personCardShadow: {
-    width: 175,
-    borderRadius: 18,
+    width: 114,
+    borderRadius: 20,
     backgroundColor: '#F2F4F5',
     ...Platform.select({
       ios: {
@@ -2366,58 +2364,51 @@ const styles = StyleSheet.create({
   },
   personCardSurface: {
     backgroundColor: '#F2F4F5',
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#FFFFFF',
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    height: 58,
-  },
-  personCardSurfaceRtl: {
-    flexDirection: 'row-reverse',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    width: 114,
+    minHeight: 118,
   },
   personAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#E0E5E8',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
   personAvatarPlaceholder: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#003514',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
-  personInfo: {
-    marginLeft: 10,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  personInfoRtl: {
-    marginLeft: 0,
-    marginRight: 10,
-    alignItems: 'flex-end',
-  },
   personName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#1A211B',
+    marginTop: 8,
+    textAlign: 'center',
+    width: '100%',
   },
   personNameRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
   personHandle: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#8A959E',
     marginTop: 2,
+    textAlign: 'center',
+    width: '100%',
   },
   personHandleRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
