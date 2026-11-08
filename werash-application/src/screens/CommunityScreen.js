@@ -982,8 +982,34 @@ export default function CommunityScreen({
               </View>
             )}
 
-            {/* Marketplace Items Feed */}
-            {!isLoading && displayedPosts.map(renderPostCard)}
+            {/* 2-Card Grid for Souq Items (Just the Image, Social Media Aspect Ratio) */}
+            {!isLoading && displayedPosts.length > 0 && (
+              <View style={[styles.souqGridContainer, isRtl && styles.souqGridContainerRtl]}>
+                {displayedPosts.map((post) => {
+                  const itemImage = post.postImage
+                    ? (typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage)
+                    : require('../../assets/modern_workshop_banner.png');
+                  return (
+                    <TouchableOpacity
+                      key={post.id}
+                      activeOpacity={0.88}
+                      style={styles.souqGridCardShadow}
+                      onPress={() => {
+                        // Open item details if needed
+                      }}
+                    >
+                      <View style={styles.souqGridCardSurface}>
+                        <Image
+                          source={itemImage}
+                          style={styles.souqGridImage}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -1601,6 +1627,46 @@ const styles = StyleSheet.create({
   },
   marketLocationTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
+  },
+  // Souq 2-Card Grid Styles
+  souqGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+  },
+  souqGridContainerRtl: {
+    flexDirection: 'row-reverse',
+  },
+  souqGridCardShadow: {
+    width: '48.2%',
+    borderRadius: 18,
+    backgroundColor: '#F2F4F5',
+    marginBottom: 14,
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4.5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  souqGridCardSurface: {
+    backgroundColor: '#F2F4F5',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  souqGridImage: {
+    width: '100%',
+    aspectRatio: 1.33, // 4:3 social media feed aspect ratio
+    backgroundColor: '#E5E8EA',
   },
   profileCardShadow: {
     width: '100%',
