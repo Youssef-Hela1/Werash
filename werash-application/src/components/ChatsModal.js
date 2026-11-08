@@ -8,6 +8,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { 
+  createAudioPlayer, 
+  useAudioRecorder, 
+  RecordingPresets, 
+  requestRecordingPermissionsAsync, 
+  setAudioModeAsync 
+} from 'expo-audio';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
@@ -84,12 +91,28 @@ export default function ChatsModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
 
+  // Real audio recording and playback via expo-audio
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const activePlayerRef = useRef(null);
+  const activePlayerMsgIdRef = useRef(null);
+
+  const stopCurrentPlayer = () => {
+    if (activePlayerRef.current) {
+      try {
+        activePlayerRef.current.pause();
+        activePlayerRef.current.remove?.();
+      } catch (_) {}
+      activePlayerRef.current = null;
+      activePlayerMsgIdRef.current = null;
+    }
+  };
+
   // Menus and simulation states
   const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
   
-  // Voice playback simulation states
+  // Voice playback states
   const [playingVoiceId, setPlayingVoiceId] = useState(null);
   const [voiceProgress, setVoiceProgress] = useState({});
 
@@ -99,12 +122,18 @@ export default function ChatsModal({
   const trackWidthsRef = useRef({});
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Cleanup voice playback intervals on unmount
+  // Cleanup voice playback and recording on unmount
   useEffect(() => {
     return () => {
+      stopCurrentPlayer();
       Object.values(voicePlayIntervals.current).forEach(interval => {
         if (interval) clearInterval(interval);
       });
+      try {
+        if (recorder?.isRecording) {
+          recorder.stop().catch(() => {});
+        }
+      } catch (_) {}
     };
   }, []);
 
@@ -208,6 +237,7 @@ export default function ChatsModal({
           textAr: m.text || '',
           image: m.media_type === 'image' ? m.media_url : null,
           voiceDuration: m.media_type === 'audio' ? (m.voice_duration || '0:05') : null,
+          audioUri: m.media_type === 'audio' ? m.media_url : null,
           time: formatTimeAgo(m.created_at, isRTL),
           created_at: m.created_at,
         };
@@ -280,6 +310,7 @@ export default function ChatsModal({
               textAr: m.text || '',
               image: m.media_type === 'image' ? m.media_url : null,
               voiceDuration: m.media_type === 'audio' ? (m.voice_duration || '0:05') : null,
+              audioUri: m.media_type === 'audio' ? m.media_url : null,
               time: formatTimeAgo(m.created_at, isRTL),
               created_at: m.created_at,
             };
@@ -627,18 +658,54 @@ export default function ChatsModal({
     }
   };
 
-  const startVoiceRecording = () => {
+  const startVoiceRecording = async () => {
     setAttachmentMenuVisible(false);
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        Alert.alert(
+          isRTL ? 'مطلوب إذن الميكروفون' : 'Microphone Permission Required',
+          isRTL ? 'يرجى تفعيل إذن الميكروفون لتسجيل وإرسال الرسائل الصوتية.' : 'Please allow microphone access to record and send voice messages.'
+        );
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch (err) {
+      console.warn('startVoiceRecording error:', err);
+    }
     setIsRecording(true);
   };
 
-  const cancelVoiceRecording = () => {
+  const cancelVoiceRecording = async () => {
     setIsRecording(false);
     setRecordTime(0);
+    try {
+      if (recorder?.isRecording) {
+        await recorder.stop();
+      }
+    } catch (_) {}
+    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
   };
 
   const handleSendVoice = async () => {
-    const durationStr = formatRecordTime(recordTime === 0 ? 3 : recordTime);
+    const durationSec = recordTime === 0 ? 3 : recordTime;
+    const durationStr = formatRecordTime(durationSec);
+
+    let recordedUri = null;
+    try {
+      if (recorder?.isRecording) {
+        await recorder.stop();
+        recordedUri = recorder.uri;
+      }
+    } catch (err) {
+      console.warn('recorder.stop error:', err);
+    }
+
     cancelVoiceRecording();
 
     const targetChat = chats.find(c => c.id === activeChatId);
@@ -646,8 +713,10 @@ export default function ChatsModal({
     const newMsg = {
       id: tempId,
       sender: 'user',
+      audioUri: recordedUri,
       voiceDuration: durationStr,
-      time: isRTL ? 'الآن' : 'Just now'
+      time: isRTL ? 'الآن' : 'Just now',
+      created_at: new Date().toISOString(),
     };
 
     setChats(prev => prev.map(c => {
@@ -662,8 +731,35 @@ export default function ChatsModal({
       return c;
     }));
 
+    // Reset audio mode for clean speaker output
+    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+
     if (activeUser?.id && activeChatId) {
       try {
+        let publicAudioUrl = recordedUri;
+        if (recordedUri) {
+          try {
+            const response = await fetch(recordedUri);
+            const blob = await response.blob();
+            const fileName = `voice/${activeChatId}/${activeUser.id}_${Date.now()}.m4a`;
+            const { data: uploadData, error: uploadErr } = await supabase.storage
+              .from('community-media')
+              .upload(fileName, blob, {
+                contentType: 'audio/m4a',
+                upsert: true,
+              });
+
+            if (!uploadErr && uploadData) {
+              const { data: publicData } = supabase.storage
+                .from('community-media')
+                .getPublicUrl(fileName);
+              publicAudioUrl = publicData?.publicUrl || recordedUri;
+            }
+          } catch (uploadEx) {
+            console.warn('Audio upload exception:', uploadEx);
+          }
+        }
+
         const { data: insertedMsg } = await supabase
           .from('direct_messages')
           .insert([{
@@ -671,6 +767,7 @@ export default function ChatsModal({
             sender_id: activeUser.id,
             receiver_id: targetChat?.otherUserId,
             text: null,
+            media_url: publicAudioUrl,
             media_type: 'audio',
             voice_duration: durationStr,
           }])
@@ -682,7 +779,7 @@ export default function ChatsModal({
             if (c.id === activeChatId) {
               return {
                 ...c,
-                messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id } : m)
+                messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id, audioUri: publicAudioUrl || recordedUri } : m)
               };
             }
             return c;
@@ -703,17 +800,25 @@ export default function ChatsModal({
     }
   };
 
-  const handleSeek = (msgId, durationStr, localX) => {
+  const handleSeek = (msgId, durationStr, localX, audioUri) => {
     const w = trackWidthsRef.current[msgId] || 180;
     const clampedX = Math.max(0, Math.min(localX, w));
     const newProgress = clampedX / w;
     setVoiceProgress(prev => ({ ...prev, [msgId]: newProgress }));
 
+    const totalSecs = parseDurationSeconds(durationStr || '0:10');
+    const seekSecs = newProgress * totalSecs;
+
+    if (activePlayerRef.current && activePlayerMsgIdRef.current === msgId) {
+      try {
+        activePlayerRef.current.seekTo(seekSecs);
+      } catch (_) {}
+    }
+
     if (playingVoiceId === msgId) {
       if (voicePlayIntervals.current[msgId]) {
         clearInterval(voicePlayIntervals.current[msgId]);
       }
-      const totalSecs = parseDurationSeconds(durationStr || '0:10');
       const stepIntervalMs = 100;
       const stepProgress = stepIntervalMs / (totalSecs * 1000);
       let tempProgress = newProgress;
@@ -723,6 +828,7 @@ export default function ChatsModal({
         if (tempProgress >= 1.0) {
           tempProgress = 1.0;
           clearInterval(voicePlayIntervals.current[msgId]);
+          stopCurrentPlayer();
           setPlayingVoiceId(null);
         }
         setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
@@ -730,13 +836,16 @@ export default function ChatsModal({
     }
   };
 
-  const handleTogglePlayVoice = (msgId, durationStr) => {
+  const handleTogglePlayVoice = async (msgId, durationStr, audioUri) => {
     if (playingVoiceId === msgId) {
       setPlayingVoiceId(null);
+      stopCurrentPlayer();
       if (voicePlayIntervals.current[msgId]) {
         clearInterval(voicePlayIntervals.current[msgId]);
       }
     } else {
+      // Stop previous audio playback
+      stopCurrentPlayer();
       if (playingVoiceId && voicePlayIntervals.current[playingVoiceId]) {
         clearInterval(voicePlayIntervals.current[playingVoiceId]);
       }
@@ -747,14 +856,35 @@ export default function ChatsModal({
       const stepProgress = stepIntervalMs / (totalSecs * 1000);
 
       const currentProgress = voiceProgress[msgId] || 0;
-      let tempProgress = currentProgress >= 1 ? 0 : currentProgress;
+      let tempProgress = currentProgress >= 1.0 ? 0 : currentProgress;
       setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
+
+      // Resolve audio source (real recorded audio file, cloud audio URL, or embedded sample sound)
+      const audioSource = audioUri 
+        ? (typeof audioUri === 'string' ? { uri: audioUri } : audioUri) 
+        : require('../../assets/voice_sample.wav');
+
+      try {
+        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+        const player = createAudioPlayer(audioSource);
+        activePlayerRef.current = player;
+        activePlayerMsgIdRef.current = msgId;
+
+        const startSeconds = tempProgress * totalSecs;
+        if (startSeconds > 0) {
+          try { await player.seekTo(startSeconds); } catch (_) {}
+        }
+        player.play();
+      } catch (audioEx) {
+        console.warn('Audio playback error:', audioEx);
+      }
 
       voicePlayIntervals.current[msgId] = setInterval(() => {
         tempProgress += stepProgress;
         if (tempProgress >= 1.0) {
           tempProgress = 1.0;
           clearInterval(voicePlayIntervals.current[msgId]);
+          stopCurrentPlayer();
           setPlayingVoiceId(null);
         }
         setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
@@ -787,6 +917,7 @@ export default function ChatsModal({
       animationType="slide"
       statusBarTranslucent={true}
       onRequestClose={() => {
+        stopCurrentPlayer();
         if (activeChatId) {
           setActiveChatId(null);
         } else {
@@ -808,7 +939,10 @@ export default function ChatsModal({
             <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity 
                 style={styles.backBtn} 
-                onPress={() => setActiveChatId(null)}
+                onPress={() => {
+                  stopCurrentPlayer();
+                  setActiveChatId(null);
+                }}
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -896,7 +1030,7 @@ export default function ChatsModal({
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
                             style={[styles.voicePlayBtn, isUser ? styles.userVoicePlayBtn : styles.contactVoicePlayBtn]}
-                            onPress={() => handleTogglePlayVoice(msg.id, msg.voiceDuration)}
+                            onPress={() => handleTogglePlayVoice(msg.id, msg.voiceDuration, msg.audioUri || msg.media_url)}
                             activeOpacity={0.8}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
@@ -919,9 +1053,9 @@ export default function ChatsModal({
                               }}
                               onStartShouldSetResponder={() => true}
                               onMoveShouldSetResponder={() => true}
-                              onResponderGrant={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX)}
-                              onResponderMove={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX)}
-                              onResponderRelease={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX)}
+                              onResponderGrant={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
+                              onResponderMove={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
+                              onResponderRelease={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
                             >
                               <View style={styles.waveformContainer}>
                                 {WAVEFORM_HEIGHTS.map((height, i) => {
@@ -1084,7 +1218,10 @@ export default function ChatsModal({
             <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity 
                 style={styles.backBtn} 
-                onPress={onClose}
+                onPress={() => {
+                  stopCurrentPlayer();
+                  onClose();
+                }}
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
