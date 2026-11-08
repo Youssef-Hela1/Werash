@@ -1138,12 +1138,9 @@ export default function ChatsModal({
                               />
                             </View>
 
-                            {/* Time counter: Current Second / Total Duration */}
+                            {/* Voice Duration */}
                             <View style={[styles.voiceTimeRow, isRTL && { flexDirection: 'row-reverse' }]}>
                               <Text style={[styles.voiceDurationText, isUser ? styles.userVoiceTime : styles.contactVoiceTime]}>
-                                {formatSecondsToTime((voiceProgress[msg.id] || 0) * parseDurationSeconds(effectiveVoiceDuration))}
-                              </Text>
-                              <Text style={[styles.voiceTotalDurationText, isUser ? styles.userVoiceTotalTime : styles.contactVoiceTotalTime]}>
                                 {effectiveVoiceDuration}
                               </Text>
                             </View>
@@ -1904,7 +1901,6 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   voiceTimeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 3,
   },
