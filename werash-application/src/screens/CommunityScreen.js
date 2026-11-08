@@ -898,6 +898,54 @@ export default function CommunityScreen({
             )}
           </View>
         )}
+
+        {/* Souq Tab Content */}
+        {activeTab === 'souq' && (
+          <View style={styles.souqWrapper}>
+            {/* List Item Bar (Signature Premium Card Style) */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.postBarShadow}
+              onPress={() => {
+                if (!requireAuth()) return;
+                // Open list item modal/screen
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="List an item"
+            >
+              <View style={[styles.postBarSurface, isRtl && styles.postBarSurfaceRtl]}>
+                {/* User Avatar */}
+                {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
+                  <Image
+                    source={
+                      typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
+                        ? { uri: currentUser.avatarUrl || currentUser.avatar }
+                        : (currentUser.avatarUrl || currentUser.avatar)
+                    }
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={18} color="#FFFFFF" />
+                  </View>
+                )}
+
+                {/* Vertical Divider */}
+                <View style={styles.postDivider} />
+
+                {/* Input Placeholder Text */}
+                <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
+                  {isRtl ? 'اعرض قطعة غيار أو سيارة للبيع...' : 'List an item for sale...'}
+                </Text>
+
+                {/* Plus Circular Button */}
+                <View style={styles.postPlusButton}>
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* Dockable / Collapsible Header at Top */}
@@ -1425,6 +1473,10 @@ const styles = StyleSheet.create({
   },
   // Profile Summary Card Styles
   profileWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  souqWrapper: {
     paddingHorizontal: 20,
     paddingTop: 12,
   },
