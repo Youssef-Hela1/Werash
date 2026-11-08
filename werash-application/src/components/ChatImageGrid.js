@@ -18,6 +18,7 @@ const RADIUS = 14;
 export default function ChatImageGrid({
   images = [],
   onImagePress,
+  onLongPress,
   isRTL = false,
   uploading = false,
   uploadProgress = 0,
@@ -34,6 +35,8 @@ export default function ChatImageGrid({
         key={`thumb_${index}`}
         activeOpacity={0.88}
         onPress={() => onImagePress && onImagePress(index)}
+        onLongPress={onLongPress}
+        delayLongPress={280}
         style={[styles.thumbTouchable, { width, height }]}
       >
         <Image

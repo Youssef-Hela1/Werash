@@ -1783,6 +1783,7 @@ export default function ChatsModal({
                               setViewerInitialIndex(tappedIndex);
                               setViewerVisible(true);
                             }}
+                            onLongPress={() => handleLongPressMessage(msg)}
                             isRTL={isRTL}
                             uploading={Boolean(msg.uploading)}
                             uploadProgress={msg.uploadProgress || 0}
