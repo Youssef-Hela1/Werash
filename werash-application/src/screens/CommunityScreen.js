@@ -982,13 +982,14 @@ export default function CommunityScreen({
               </View>
             )}
 
-            {/* 2-Card Grid for Souq Items (Just the Image, Social Media Aspect Ratio) */}
+            {/* 2-Card Grid for Souq Items */}
             {!isLoading && displayedPosts.length > 0 && (
               <View style={[styles.souqGridContainer, isRtl && styles.souqGridContainerRtl]}>
                 {displayedPosts.map((post) => {
-                  const itemImage = post.postImage
-                    ? (typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage)
-                    : require('../../assets/modern_workshop_banner.png');
+                  const itemTitle = post.content ? post.content.split('\n')[0].trim() : (post.vehicle || (isRtl ? 'منتج للبيع' : 'Item for sale'));
+                  const hasImage = Boolean(post.postImage);
+                  const imageSource = typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage;
+
                   return (
                     <TouchableOpacity
                       key={post.id}
@@ -999,11 +1000,49 @@ export default function CommunityScreen({
                       }}
                     >
                       <View style={styles.souqGridCardSurface}>
-                        <Image
-                          source={itemImage}
-                          style={styles.souqGridImage}
-                          resizeMode="cover"
-                        />
+                        {/* Cover Image Container */}
+                        <View style={styles.souqGridImageContainer}>
+                          {hasImage ? (
+                            <Image
+                              source={imageSource}
+                              style={styles.souqGridImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={styles.souqGridPlaceholderContainer}>
+                              <Image
+                                source={require('../../assets/car_side_profile.png')}
+                                style={styles.souqGridPlaceholderCar}
+                                resizeMode="contain"
+                              />
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Item Details (Price, Title, Location) - No likes or comments */}
+                        <View style={[styles.souqGridDetails, isRtl && styles.souqGridDetailsRtl]}>
+                          {Boolean(post.price) && (
+                            <Text style={[styles.souqGridPrice, isRtl && styles.souqGridPriceRtl]} numberOfLines={1}>
+                              {post.price}
+                            </Text>
+                          )}
+                          <Text style={[styles.souqGridTitle, isRtl && styles.souqGridTitleRtl]} numberOfLines={1}>
+                            {itemTitle}
+                          </Text>
+                          {Boolean(post.location) && (
+                            <View style={[styles.souqGridLocationRow, isRtl && styles.souqGridLocationRowRtl]}>
+                              <Ionicons
+                                name="location-sharp"
+                                size={11}
+                                color="#8A959E"
+                                style={isRtl ? { marginLeft: 2 } : { marginRight: 2 }}
+                              />
+                              <Text style={[styles.souqGridLocationText, isRtl && styles.souqGridLocationTextRtl]} numberOfLines={1}>
+                                {post.location}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </TouchableOpacity>
                   );
@@ -1640,16 +1679,16 @@ const styles = StyleSheet.create({
   },
   souqGridCardShadow: {
     width: '48.2%',
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: '#F2F4F5',
-    marginBottom: 14,
+    marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 2.5 },
         shadowOpacity: 0.08,
-        shadowRadius: 4.5,
+        shadowRadius: 5,
       },
       android: {
         elevation: 3,
@@ -1658,15 +1697,75 @@ const styles = StyleSheet.create({
   },
   souqGridCardSurface: {
     backgroundColor: '#F2F4F5',
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#FFFFFF',
     overflow: 'hidden',
   },
+  souqGridImageContainer: {
+    width: '100%',
+    height: 135,
+    backgroundColor: '#E2E6E9',
+    overflow: 'hidden',
+  },
   souqGridImage: {
     width: '100%',
-    aspectRatio: 1.33, // 4:3 social media feed aspect ratio
-    backgroundColor: '#E5E8EA',
+    height: '100%',
+  },
+  souqGridPlaceholderContainer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#EAEFF2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  souqGridPlaceholderCar: {
+    width: '88%',
+    height: '88%',
+    opacity: 0.7,
+  },
+  souqGridDetails: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 11,
+  },
+  souqGridDetailsRtl: {
+    alignItems: 'flex-end',
+  },
+  souqGridPrice: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#003514',
+    letterSpacing: -0.2,
+  },
+  souqGridPriceRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  souqGridTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1A211B',
+    marginTop: 2,
+  },
+  souqGridTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  souqGridLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  souqGridLocationRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  souqGridLocationText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#8A959E',
+  },
+  souqGridLocationTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
   },
   profileCardShadow: {
     width: '100%',
