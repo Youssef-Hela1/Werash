@@ -23,6 +23,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChatsModal from '../components/ChatsModal';
 import { supabase } from '../services/supabase';
+import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 
 const TABS = [
   { id: 'feed', label: 'Feed', labelAr: 'الرئيسية' },
@@ -58,6 +59,8 @@ export default function CommunityScreen({
   onOpenSignIn,
   onUpdateCurrentUser,
 }) {
+  const { colors, isDarkMode } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
   const [chatsVisible, setChatsVisible] = useState(false);
@@ -934,7 +937,7 @@ export default function CommunityScreen({
                 <Ionicons
                   name="pricetag"
                   size={13}
-                  color="#003514"
+                  color={colors.activeHighlight}
                   style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }}
                 />
                 <Text style={[styles.marketPriceText, isRtl && styles.marketPriceTextRtl]}>
@@ -947,7 +950,7 @@ export default function CommunityScreen({
                 <Ionicons
                   name="location-sharp"
                   size={13}
-                  color="#5C6A72"
+                  color={colors.secondaryText}
                   style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }}
                 />
                 <Text style={[styles.marketLocationText, isRtl && styles.marketLocationTextRtl]}>
@@ -1100,7 +1103,7 @@ export default function CommunityScreen({
         {/* Loading Indicator */}
         {isLoading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#003514" />
+            <ActivityIndicator size="small" color={colors.activeHighlight} />
           </View>
         )}
 
@@ -1248,7 +1251,7 @@ export default function CommunityScreen({
               <View style={styles.noPostsCardShadow}>
                 <View style={styles.noPostsCardSurface}>
                   <View style={styles.noPostsIconCircle}>
-                    <Ionicons name="document-text-outline" size={30} color="#003514" />
+                    <Ionicons name="document-text-outline" size={30} color={colors.activeHighlight} />
                   </View>
                   <Text style={[styles.noPostsCardTitle, isRtl && styles.noPostsCardTitleRtl]}>
                     {isRtl ? 'لا توجد منشورات' : 'No posts'}
@@ -1294,7 +1297,7 @@ export default function CommunityScreen({
             {/* Loading Indicator */}
             {isLoading && (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#003514" />
+                <ActivityIndicator size="small" color={colors.activeHighlight} />
               </View>
             )}
 
@@ -1303,7 +1306,7 @@ export default function CommunityScreen({
               <View style={styles.noPostsCardShadow}>
                 <View style={styles.noPostsCardSurface}>
                   <View style={styles.noPostsIconCircle}>
-                    <Ionicons name="pricetags-outline" size={30} color="#003514" />
+                    <Ionicons name="pricetags-outline" size={30} color={colors.activeHighlight} />
                   </View>
                   <Text style={[styles.noPostsCardTitle, isRtl && styles.noPostsCardTitleRtl]}>
                     {isRtl ? 'لا توجد معروضات حتى الآن' : 'No items listed yet'}
@@ -1428,7 +1431,7 @@ export default function CommunityScreen({
             accessibilityRole="button"
             accessibilityLabel="Search"
           >
-            <Ionicons name="search-outline" size={28} color="#003514" />
+            <Ionicons name="search-outline" size={28} color={colors.primaryText} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconButton, { marginLeft: 14 }]}
@@ -1438,7 +1441,7 @@ export default function CommunityScreen({
             accessibilityRole="button"
             accessibilityLabel="Messages"
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={28} color="#003514" />
+            <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.primaryText} />
           </TouchableOpacity>
         </View>
 
@@ -1537,7 +1540,7 @@ export default function CommunityScreen({
               <Ionicons
                 name={isRtl ? 'arrow-forward' : 'arrow-back'}
                 size={26}
-                color="#003514"
+                color={colors.primaryText}
               />
             </TouchableOpacity>
 
@@ -1683,7 +1686,7 @@ export default function CommunityScreen({
               <Ionicons
                 name={isRtl ? 'arrow-forward' : 'arrow-back'}
                 size={26}
-                color="#003514"
+                color={colors.primaryText}
               />
             </TouchableOpacity>
 
@@ -1760,9 +1763,9 @@ export default function CommunityScreen({
               accessibilityLabel="Add Image"
             >
               {isPickingPostImage ? (
-                <ActivityIndicator size="small" color="#003514" />
+                <ActivityIndicator size="small" color={colors.activeHighlight} />
               ) : (
-                <Ionicons name="images-outline" size={24} color="#003514" />
+                <Ionicons name="images-outline" size={24} color={colors.activeHighlight} />
               )}
             </TouchableOpacity>
           </View>
@@ -1772,23 +1775,25 @@ export default function CommunityScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.screenBg,
   },
   floatingHeader: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.screenBg,
     zIndex: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.15,
         shadowRadius: 3,
       },
       android: {
@@ -1821,13 +1826,13 @@ const styles = StyleSheet.create({
   wordmarkImage: {
     height: 28,
     width: 83,
-    tintColor: '#003514',
+    tintColor: colors.primaryText,
   },
   brandNameArabic: {
     fontFamily: 'ZafranArabic-Bold',
     fontSize: 38,
     letterSpacing: 0,
-    color: '#003514',
+    color: colors.primaryText,
     marginRight: 8,
   },
   spacer: {
@@ -1844,7 +1849,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#EDEDED',
+    borderBottomColor: colors.cardBorder,
   },
   tabsBarRtl: {
     flexDirection: 'row-reverse',
@@ -1858,11 +1863,11 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#8E9990',
+    color: colors.secondaryText,
     paddingBottom: 10,
   },
   tabTextActive: {
-    color: '#003514',
+    color: colors.activeHighlight,
     fontWeight: '800',
   },
   tabTextRtl: {
@@ -1875,7 +1880,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   tabIndicatorActive: {
-    backgroundColor: '#003514',
+    backgroundColor: colors.activeHighlight,
   },
   scrollListContent: {
     paddingBottom: 110,
@@ -1890,27 +1895,27 @@ const styles = StyleSheet.create({
   postBarShadow: {
     width: '100%',
     borderRadius: 20,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
-        shadowOpacity: 0.10,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
         shadowRadius: 3,
       },
       android: {
-        elevation: 2.8,
+        elevation: 2,
       },
     }),
   },
   postBarSurface: {
     width: '100%',
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
@@ -1932,7 +1937,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#37633B',
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1941,18 +1946,18 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
   },
   postDivider: {
     width: 1,
     height: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.cardBorder,
     marginHorizontal: 12,
   },
   postInputPlaceholder: {
     flex: 1,
     fontSize: 14,
-    color: '#8A959E',
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   postInputPlaceholderRtl: {
@@ -1963,7 +1968,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 10,
@@ -1971,27 +1976,27 @@ const styles = StyleSheet.create({
   postCardShadow: {
     width: '100%',
     borderRadius: 22,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
-        shadowOpacity: 0.10,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
         shadowRadius: 3,
       },
       android: {
-        elevation: 2.8,
+        elevation: 2,
       },
     }),
   },
   postCardSurface: {
     width: '100%',
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     paddingVertical: 16,
     overflow: 'hidden',
   },
@@ -2018,13 +2023,13 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
   },
   postAuthorAvatarPlaceholder: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#37633B',
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2040,7 +2045,7 @@ const styles = StyleSheet.create({
   postAuthorName: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1A211B',
+    color: colors.primaryText,
     letterSpacing: -0.2,
   },
   postAuthorNameRtl: {
@@ -2048,7 +2053,7 @@ const styles = StyleSheet.create({
   },
   postAuthorHandle: {
     fontSize: 12,
-    color: '#8A959E',
+    color: colors.secondaryText,
     marginTop: 2,
     fontWeight: '500',
   },
@@ -2064,7 +2069,7 @@ const styles = StyleSheet.create({
   postBodyText: {
     fontSize: 14.5,
     lineHeight: 21,
-    color: '#1E2D1F',
+    color: colors.primaryText,
     fontWeight: '600',
     marginBottom: 12,
     paddingHorizontal: 16,
@@ -2076,7 +2081,7 @@ const styles = StyleSheet.create({
   postImageContainer: {
     width: '100%',
     aspectRatio: 1.33, // 4:3 standard social media / Facebook feed aspect ratio
-    backgroundColor: '#E5E8EA',
+    backgroundColor: colors.elevatedBg,
     marginBottom: 14,
     borderRadius: 0, // Sharp square edges (no rounded corners)
     overflow: 'hidden',
@@ -2103,7 +2108,7 @@ const styles = StyleSheet.create({
   },
   engagementCount: {
     fontSize: 13,
-    color: '#8A959E',
+    color: colors.secondaryText,
     fontWeight: '600',
   },
   loadingContainer: {
@@ -2119,7 +2124,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#4B5563',
+    color: colors.primaryText,
     marginTop: 12,
   },
   emptyTitleRtl: {
@@ -2127,7 +2132,7 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 13,
-    color: '#8A959E',
+    color: colors.secondaryText,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -2146,12 +2151,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: colors.cardBorder,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
@@ -2184,7 +2189,7 @@ const styles = StyleSheet.create({
   },
   listItemButton: {
     width: '100%',
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     borderRadius: 18,
     paddingVertical: 13,
     alignItems: 'center',
@@ -2192,7 +2197,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     ...Platform.select({
       ios: {
-        shadowColor: '#003514',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.22,
         shadowRadius: 5,
@@ -2233,16 +2238,18 @@ const styles = StyleSheet.create({
   marketPriceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 53, 20, 0.08)',
+    backgroundColor: colors.elevatedBg,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   marketPriceText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#003514',
+    color: colors.activeHighlight,
     letterSpacing: -0.2,
   },
   marketPriceTextRtl: {
@@ -2251,15 +2258,17 @@ const styles = StyleSheet.create({
   marketLocationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EAEFF2',
+    backgroundColor: colors.elevatedBg,
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   marketLocationText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#5C6A72',
+    color: colors.secondaryText,
   },
   marketLocationTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
@@ -2277,32 +2286,32 @@ const styles = StyleSheet.create({
   souqGridCardShadow: {
     width: '48.2%',
     borderRadius: 20,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
-        shadowOpacity: 0.08,
-        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
   souqGridCardSurface: {
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   souqGridImageContainer: {
     width: '100%',
     height: 135,
-    backgroundColor: '#E2E6E9',
+    backgroundColor: colors.elevatedBg,
     overflow: 'hidden',
   },
   souqGridImage: {
@@ -2312,7 +2321,7 @@ const styles = StyleSheet.create({
   souqGridPlaceholderContainer: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#EAEFF2',
+    backgroundColor: colors.elevatedBg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
@@ -2333,7 +2342,7 @@ const styles = StyleSheet.create({
   souqGridPrice: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: '#003514',
+    color: colors.activeHighlight,
     letterSpacing: -0.2,
   },
   souqGridPriceRtl: {
@@ -2342,7 +2351,7 @@ const styles = StyleSheet.create({
   souqGridTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1A211B',
+    color: colors.primaryText,
     marginTop: 2,
   },
   souqGridTitleRtl: {
@@ -2359,7 +2368,7 @@ const styles = StyleSheet.create({
   souqGridLocationText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#8A959E',
+    color: colors.secondaryText,
   },
   souqGridLocationTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
@@ -2367,32 +2376,32 @@ const styles = StyleSheet.create({
   profileCardShadow: {
     width: '100%',
     borderRadius: 22,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
-        shadowOpacity: 0.08,
-        shadowRadius: 5.5,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
   profileCardSurface: {
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   profileBannerContainer: {
     width: '100%',
     height: 120,
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     position: 'relative',
   },
   profileBannerImage: {
@@ -2401,17 +2410,17 @@ const styles = StyleSheet.create({
   },
   profileBannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
   },
   editBannerButton: {
     position: 'absolute',
     top: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     borderRadius: 14,
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderColor: colors.cardBorder,
     zIndex: 5,
   },
   editBannerContent: {
@@ -2440,9 +2449,9 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 3.5,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#003514',
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.cardBg,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2450,7 +2459,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.12,
+        shadowOpacity: 0.15,
         shadowRadius: 4,
       },
       android: {
@@ -2464,9 +2473,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#003514',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    backgroundColor: colors.forestGreen,
+    borderWidth: 1.5,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 6,
@@ -2489,7 +2498,7 @@ const styles = StyleSheet.create({
   profileAvatarPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2501,7 +2510,7 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#003514',
+    color: colors.primaryText,
     textAlign: 'center',
   },
   profileNameRtl: {
@@ -2509,7 +2518,7 @@ const styles = StyleSheet.create({
   },
   profileHandle: {
     fontSize: 12.5,
-    color: '#7E8B93',
+    color: colors.secondaryText,
     fontWeight: '600',
     marginTop: 2,
     textAlign: 'center',
@@ -2536,12 +2545,12 @@ const styles = StyleSheet.create({
   profileStatNumber: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#003514',
+    color: colors.primaryText,
   },
   profileStatLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#8A959E',
+    color: colors.secondaryText,
     marginTop: 2,
     letterSpacing: 0.3,
   },
@@ -2552,32 +2561,32 @@ const styles = StyleSheet.create({
   profileStatDivider: {
     width: 1,
     height: 22,
-    backgroundColor: '#D7DEE2',
+    backgroundColor: colors.cardBorder,
   },
   // "No Posts" Card Styles (Premium card design)
   noPostsCardShadow: {
     width: '100%',
     borderRadius: 22,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 20,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
-        shadowOpacity: 0.08,
-        shadowRadius: 5.5,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
   noPostsCardSurface: {
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 36,
@@ -2587,7 +2596,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(0, 53, 20, 0.08)',
+    backgroundColor: 'rgba(48, 87, 52, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -2595,7 +2604,7 @@ const styles = StyleSheet.create({
   noPostsCardTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#003514',
+    color: colors.primaryText,
     textAlign: 'center',
   },
   noPostsCardTitleRtl: {
@@ -2603,7 +2612,7 @@ const styles = StyleSheet.create({
   },
   noPostsCardSubtitle: {
     fontSize: 13,
-    color: '#7E8B93',
+    color: colors.secondaryText,
     fontWeight: '500',
     marginTop: 4,
     textAlign: 'center',
@@ -2613,7 +2622,7 @@ const styles = StyleSheet.create({
   },
   blankPageContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.screenBg,
   },
   blankPageHeaderRow: {
     paddingHorizontal: 16,
@@ -2633,24 +2642,24 @@ const styles = StyleSheet.create({
   searchCardShadow: {
     flex: 1,
     borderRadius: 20,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
+        shadowOpacity: 0.20,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 2.5,
+        elevation: 2,
       },
     }),
   },
   searchCardSurface: {
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -2664,7 +2673,7 @@ const styles = StyleSheet.create({
     height: '100%',
     fontSize: 15.5,
     fontWeight: '600',
-    color: '#1A211B',
+    color: colors.primaryText,
     paddingVertical: 0,
   },
   searchInputRtl: {
@@ -2674,7 +2683,7 @@ const styles = StyleSheet.create({
   blankPageTitle: {
     fontSize: 15.5,
     fontWeight: '700',
-    color: '#1A211B',
+    color: colors.primaryText,
   },
   blankPageTitleRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
@@ -2693,7 +2702,7 @@ const styles = StyleSheet.create({
   searchSectionHeading: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#8A959E',
+    color: colors.secondaryText,
     marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -2715,13 +2724,13 @@ const styles = StyleSheet.create({
   personCardShadow: {
     width: 114,
     borderRadius: 20,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.07,
-        shadowRadius: 3.5,
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
       },
       android: {
         elevation: 2,
@@ -2735,10 +2744,10 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   personCardSurface: {
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
@@ -2750,24 +2759,24 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#E0E5E8',
+    backgroundColor: colors.elevatedBg,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
   },
   personAvatarPlaceholder: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
   },
   personName: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1A211B',
+    color: colors.primaryText,
     marginTop: 8,
     textAlign: 'center',
     width: '100%',
@@ -2777,7 +2786,7 @@ const styles = StyleSheet.create({
   },
   personHandle: {
     fontSize: 11,
-    color: '#8A959E',
+    color: colors.secondaryText,
     marginTop: 2,
     textAlign: 'center',
     width: '100%',
@@ -2794,7 +2803,7 @@ const styles = StyleSheet.create({
   searchEmptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A211B',
+    color: colors.primaryText,
     marginTop: 14,
     marginBottom: 6,
     textAlign: 'center',
@@ -2804,7 +2813,7 @@ const styles = StyleSheet.create({
   },
   searchEmptySubtitle: {
     fontSize: 13.5,
-    color: '#8A959E',
+    color: colors.secondaryText,
     textAlign: 'center',
     lineHeight: 19,
   },
@@ -2814,31 +2823,31 @@ const styles = StyleSheet.create({
   searchMarketCardShadow: {
     width: '100%',
     borderRadius: 22,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 16,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3.5,
+        shadowOpacity: 0.20,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 2.8,
+        elevation: 2,
       },
     }),
   },
   searchMarketCardSurface: {
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   searchMarketImageContainer: {
     width: '100%',
     height: 190,
-    backgroundColor: '#E2E6E9',
+    backgroundColor: colors.elevatedBg,
     overflow: 'hidden',
   },
   searchMarketImage: {
@@ -2848,7 +2857,7 @@ const styles = StyleSheet.create({
   searchMarketPlaceholderContainer: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#EAEFF2',
+    backgroundColor: colors.elevatedBg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -2869,7 +2878,7 @@ const styles = StyleSheet.create({
   searchMarketPrice: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#003514',
+    color: colors.activeHighlight,
     letterSpacing: -0.2,
   },
   searchMarketPriceRtl: {
@@ -2878,7 +2887,7 @@ const styles = StyleSheet.create({
   searchMarketTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1A211B',
+    color: colors.primaryText,
     marginTop: 3,
   },
   searchMarketTitleRtl: {
@@ -2895,7 +2904,7 @@ const styles = StyleSheet.create({
   searchMarketLocationText: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: '#8A959E',
+    color: colors.secondaryText,
   },
   searchMarketLocationTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
@@ -2910,7 +2919,7 @@ const styles = StyleSheet.create({
   },
   createPostInput: {
     fontSize: 18,
-    color: '#1A211B',
+    color: colors.primaryText,
     lineHeight: 26,
     minHeight: 180,
     paddingTop: 0,
@@ -2923,7 +2932,7 @@ const styles = StyleSheet.create({
   },
   createPostPromptText: {
     fontSize: 18,
-    color: '#9EAAB2',
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   createPostPromptTextRtl: {
@@ -2941,7 +2950,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   createPostSubmitButton: {
-    backgroundColor: '#003514',
+    backgroundColor: colors.forestGreen,
     paddingVertical: 7,
     paddingHorizontal: 20,
     borderRadius: 20,
@@ -2974,8 +2983,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#EAEFF2',
-    backgroundColor: '#FFFFFF',
+    borderTopColor: colors.cardBorder,
+    backgroundColor: colors.elevatedBg,
   },
   createPostBottomBarRtl: {
     flexDirection: 'row-reverse',
@@ -2983,7 +2992,7 @@ const styles = StyleSheet.create({
   createPostBottomBarText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1A211B',
+    color: colors.primaryText,
   },
   createPostBottomBarTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
@@ -2992,7 +3001,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3003,7 +3014,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#E2E6E9',
+    backgroundColor: colors.elevatedBg,
   },
   createPostImagePreview: {
     width: '100%',

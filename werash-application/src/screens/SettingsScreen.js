@@ -74,7 +74,7 @@ export default function SettingsScreen({
         <Ionicons 
           name={icon} 
           size={20} 
-          color="#37633B" 
+          color={colors.activeHighlight} 
           style={[styles.menuIcon, isRtl && styles.menuIconRtl]} 
         />
         <Text style={[styles.menuLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14 }]}>
@@ -103,7 +103,7 @@ export default function SettingsScreen({
               onPress={onClose}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="close" size={24} color="#37633B" />
+              <Ionicons name="close" size={24} color={colors.primaryText} />
             </TouchableOpacity>
           )}
         </View>
@@ -173,9 +173,9 @@ export default function SettingsScreen({
               <Switch
                 value={notificationsEnabled}
                 onValueChange={setNotificationsEnabled}
-                trackColor={{ false: '#D9DDE0', true: '#37633B' }}
+                trackColor={{ false: colors.cardBorder, true: colors.forestGreen }}
                 thumbColor="#FFFFFF"
-                ios_backgroundColor="#D9DDE0"
+                ios_backgroundColor={colors.cardBorder}
               />,
               false
             )}
@@ -186,9 +186,9 @@ export default function SettingsScreen({
               <Switch
                 value={isDarkMode}
                 onValueChange={toggleDarkMode}
-                trackColor={{ false: '#D9DDE0', true: '#37633B' }}
+                trackColor={{ false: colors.cardBorder, true: colors.forestGreen }}
                 thumbColor="#FFFFFF"
-                ios_backgroundColor="#D9DDE0"
+                ios_backgroundColor={colors.cardBorder}
               />,
               true
             )}
@@ -374,7 +374,7 @@ export default function SettingsScreen({
 const createStyles = (colors) => StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.screenBg,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -396,14 +396,16 @@ const createStyles = (colors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.elevatedBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pageTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#37633B',
+    color: colors.primaryText,
     letterSpacing: -0.4,
   },
   pageTitleArabic: {
@@ -415,37 +417,37 @@ const createStyles = (colors) => StyleSheet.create({
   cardShadow: {
     width: '100%',
     borderRadius: 17,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     marginBottom: 16,
     overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 2.5 },
-        shadowOpacity: 0.10,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.20,
         shadowRadius: 3,
       },
       android: {
-        elevation: 2.8,
+        elevation: 2,
       },
     }),
   },
   cardSurface: {
     width: '100%',
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     paddingHorizontal: 16,
     paddingVertical: 2,
     overflow: 'hidden',
   },
   profileCardSurface: {
     width: '100%',
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.cardBg,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,7 +460,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#37633B',
+    backgroundColor: colors.forestGreen,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -467,7 +469,7 @@ const createStyles = (colors) => StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
   },
   profileDetails: {
     flex: 1,
@@ -481,19 +483,19 @@ const createStyles = (colors) => StyleSheet.create({
   profileName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#1E2D1F',
+    color: colors.primaryText,
     letterSpacing: -0.2,
   },
   profileEmail: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: colors.secondaryText,
     marginTop: 2,
     fontWeight: '600',
   },
   sectionHeader: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#8E8E93',
+    color: colors.secondaryText,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
     marginBottom: 8,
@@ -510,7 +512,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
+    borderBottomColor: colors.cardBorder,
   },
   menuItemRtl: {
     flexDirection: 'row-reverse',
@@ -533,7 +535,7 @@ const createStyles = (colors) => StyleSheet.create({
   menuLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1E2D1F',
+    color: colors.primaryText,
     letterSpacing: -0.1,
   },
   langValueBadge: {
@@ -546,7 +548,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   langValueText: {
     fontSize: 13,
-    color: '#37633B',
+    color: colors.activeHighlight,
     fontWeight: '700',
   },
   logoutButton: {
@@ -577,7 +579,7 @@ const createStyles = (colors) => StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 999,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -585,14 +587,14 @@ const createStyles = (colors) => StyleSheet.create({
   alertCard: {
     width: '100%',
     maxWidth: 325,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBg,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(55, 99, 59, 0.12)',
+    borderColor: colors.cardBorder,
     padding: 24,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 8,
     position: 'relative',
@@ -605,7 +607,9 @@ const createStyles = (colors) => StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.elevatedBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -617,7 +621,9 @@ const createStyles = (colors) => StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.elevatedBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -625,13 +631,13 @@ const createStyles = (colors) => StyleSheet.create({
   alertTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: colors.textDark,
+    color: colors.primaryText,
     textAlign: 'center',
     marginBottom: 4,
   },
   alertDesc: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: colors.secondaryText,
     textAlign: 'center',
     fontWeight: '600',
   },
@@ -644,17 +650,17 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F2F4F5',
+    backgroundColor: colors.elevatedBg,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.cardBorder,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 8,
   },
   langToggleRowActive: {
-    backgroundColor: 'rgba(55, 99, 59, 0.08)',
-    borderColor: '#37633B',
+    backgroundColor: 'rgba(48, 87, 52, 0.25)',
+    borderColor: colors.forestGreen,
   },
   langToggleLeft: {
     flexDirection: 'row',
@@ -666,20 +672,20 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 4,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: colors.borderGreen,
+    borderColor: colors.cardBorder,
   },
   langToggleLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   langToggleLabelArabic: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.textDark,
+    color: colors.primaryText,
   },
   langToggleLabelActive: {
-    color: colors.bgBrand,
+    color: colors.activeHighlight,
     fontWeight: '800',
   },
 });
