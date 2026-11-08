@@ -14,7 +14,7 @@ import { supabase } from '../services/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const WAVEFORM_HEIGHTS = [8, 14, 22, 16, 10, 18, 26, 20, 12, 16, 24, 28, 18, 12, 20, 24, 16, 10, 18, 24, 20, 14, 18, 12, 16, 8];
+const WAVEFORM_HEIGHTS = [6, 12, 18, 12, 8, 16, 20, 14, 10, 18, 22, 16, 10, 16, 12, 6];
 
 const parseDurationSeconds = (str) => {
   if (!str) return 10;
@@ -83,47 +83,6 @@ export default function ChatsModal({
   const [activeChatId, setActiveChatId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
-
-  // Keep a ref of activeChatId to prevent stale closure in PanResponder
-  const activeChatIdRef = useRef(activeChatId);
-  useEffect(() => {
-    activeChatIdRef.current = activeChatId;
-  }, [activeChatId]);
-
-  const chatPanX = useRef(new Animated.Value(0)).current;
-
-  const chatPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return activeChatIdRef.current !== null && gestureState.x0 < 50 && gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        if (gestureState.dx > 0) {
-          chatPanX.setValue(gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        if (gestureState.dx > 120 || gestureState.vx > 0.5) {
-          Animated.timing(chatPanX, {
-            toValue: SCREEN_WIDTH,
-            duration: 200,
-            useNativeDriver: true
-          }).start(() => {
-            setActiveChatId(null);
-            chatPanX.setValue(0);
-          });
-        } else {
-          Animated.spring(chatPanX, {
-            toValue: 0,
-            tension: 60,
-            friction: 8,
-            useNativeDriver: true
-          }).start();
-        }
-      }
-    })
-  ).current;
 
   // Menus and simulation states
   const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
@@ -840,10 +799,7 @@ export default function ChatsModal({
 
         {activeChatId ? (
           // CONVERSATION VIEW (Detail)
-          <Animated.View 
-            style={{ flex: 1, transform: [{ translateX: chatPanX }] }}
-            {...chatPanResponder.panHandlers}
-          >
+          <View style={{ flex: 1 }}>
             <KeyboardAvoidingView 
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={{ flex: 1 }}
@@ -946,7 +902,7 @@ export default function ChatsModal({
                           >
                             <Ionicons 
                               name={playingVoiceId === msg.id ? "pause" : "play"} 
-                              size={18} 
+                              size={16} 
                               color={isUser ? colors.forestGreen : '#FFFFFF'} 
                             />
                           </TouchableOpacity>
@@ -1120,7 +1076,7 @@ export default function ChatsModal({
               </View>
             )}
           </KeyboardAvoidingView>
-          </Animated.View>
+          </View>
         ) : (
           // CHAT THREADS LIST VIEW (Inbox)
           <View style={{ flex: 1 }}>
@@ -1608,11 +1564,11 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     overflow: 'hidden',
   },
   voiceMsgBubble: {
-    width: Math.min(SCREEN_WIDTH * 0.82, 320),
-    maxWidth: '88%',
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 8,
+    width: Math.min(SCREEN_WIDTH * 0.58, 220),
+    maxWidth: '72%',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
   contactMsgBubble: {
     backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
@@ -1690,17 +1646,17 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingVertical: 2,
   },
   voicePlayBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 1.5 },
-        shadowOpacity: 0.16,
-        shadowRadius: 2.5,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.14,
+        shadowRadius: 2,
       },
       android: {
         elevation: 2,
@@ -1715,13 +1671,13 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   voiceProgressWrapper: {
     flex: 1,
-    marginLeft: 12,
-    marginRight: 6,
+    marginLeft: 10,
+    marginRight: 4,
     justifyContent: 'center',
   },
   waveformTouchArea: {
     width: '100%',
-    paddingVertical: 6,
+    paddingVertical: 4,
     justifyContent: 'center',
     position: 'relative',
   },
@@ -1729,29 +1685,29 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 28,
+    height: 22,
   },
   waveformBar: {
-    width: 3,
-    borderRadius: 1.5,
+    width: 2.5,
+    borderRadius: 1.25,
   },
   scrubThumb: {
     position: 'absolute',
     top: '50%',
-    marginTop: -5,
-    marginLeft: -5,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    marginTop: -4,
+    marginLeft: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 1.5 },
-        shadowOpacity: 0.28,
-        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.25,
+        shadowRadius: 1.5,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
