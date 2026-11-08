@@ -915,11 +915,6 @@ export default function CommunityScreen({
               <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
                 {isRtl ? 'شارك تحديثاً لسيارتك...' : 'Share a car update...'}
               </Text>
-
-              {/* Plus Circular Button */}
-              <View style={styles.postPlusButton}>
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-              </View>
             </View>
           </TouchableOpacity>
         </View>
