@@ -1221,22 +1221,25 @@ export default function CommunityScreen({
         onRequestClose={() => setIsSearchActive(false)}
       >
         <View style={styles.blankPageContainer}>
-          <View style={[styles.blankPageHeaderWrapper, { paddingTop: topInset + 6 }]}>
+          <View style={[styles.blankPageHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRowRtl]}>
+            {/* Arrow outside the card */}
+            <TouchableOpacity
+              onPress={() => setIsSearchActive(false)}
+              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+              activeOpacity={0.7}
+              style={[styles.blankPageBackButton, isRtl ? { marginLeft: 10 } : { marginRight: 10 }]}
+            >
+              <Ionicons
+                name={isRtl ? 'arrow-forward' : 'arrow-back'}
+                size={26}
+                color="#003514"
+              />
+            </TouchableOpacity>
+
+            {/* Card containing Search Werash */}
             <View style={styles.searchCardShadow}>
               <View style={[styles.searchCardSurface, isRtl && styles.searchCardSurfaceRtl]}>
-                <TouchableOpacity
-                  onPress={() => setIsSearchActive(false)}
-                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                  activeOpacity={0.7}
-                  style={styles.blankPageBackButton}
-                >
-                  <Ionicons
-                    name={isRtl ? 'arrow-forward' : 'arrow-back'}
-                    size={24}
-                    color="#003514"
-                  />
-                </TouchableOpacity>
-                <Text style={[styles.blankPageTitle, isRtl ? { marginRight: 8 } : { marginLeft: 8 }, isRtl && styles.blankPageTitleRtl]}>
+                <Text style={[styles.blankPageTitle, isRtl && styles.blankPageTitleRtl]}>
                   {isRtl ? 'ابحث في وِرَش' : 'Search Werash'}
                 </Text>
               </View>
@@ -2082,12 +2085,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  blankPageHeaderWrapper: {
+  blankPageHeaderRow: {
     paddingHorizontal: 16,
     paddingBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  blankPageHeaderRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  blankPageBackButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchCardShadow: {
-    width: '100%',
+    flex: 1,
     borderRadius: 20,
     backgroundColor: '#F2F4F5',
     ...Platform.select({
@@ -2109,20 +2123,14 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    height: 52,
+    paddingHorizontal: 16,
+    height: 48,
   },
   searchCardSurfaceRtl: {
     flexDirection: 'row-reverse',
   },
-  blankPageBackButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   blankPageTitle: {
-    fontSize: 16.5,
+    fontSize: 15.5,
     fontWeight: '700',
     color: '#1A211B',
   },
