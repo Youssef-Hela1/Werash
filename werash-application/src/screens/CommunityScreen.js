@@ -1234,6 +1234,9 @@ export default function CommunityScreen({
                 color="#003514"
               />
             </TouchableOpacity>
+            <Text style={[styles.blankPageTitle, isRtl ? { marginRight: 10 } : { marginLeft: 10 }, isRtl && styles.blankPageTitleRtl]}>
+              {isRtl ? 'ابحث في وِرَش' : 'Search Werash'}
+            </Text>
           </View>
         </View>
       </Modal>
@@ -2089,5 +2092,13 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  blankPageTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A211B',
+  },
+  blankPageTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
   },
 });
