@@ -557,6 +557,28 @@ export default function CommunityScreen({
                     {profileHandle}
                   </Text>
                 </View>
+
+                {/* Profile Stats Row (Integrated seamlessly without a white box) */}
+                <View style={[styles.profileStatsSeamlessRow, isRtl && styles.profileStatsSeamlessRowRtl]}>
+                  {/* Number of Posts */}
+                  <View style={styles.profileStatItem}>
+                    <Text style={styles.profileStatNumber}>{userPostsCount}</Text>
+                    <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
+                      {isRtl ? 'منشورات' : 'Posts'}
+                    </Text>
+                  </View>
+
+                  {/* Vertical Divider */}
+                  <View style={styles.profileStatDivider} />
+
+                  {/* Number of Likes */}
+                  <View style={styles.profileStatItem}>
+                    <Text style={styles.profileStatNumber}>{userLikesCount}</Text>
+                    <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
+                      {isRtl ? 'إعجابات' : 'Likes'}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
           </View>
@@ -1169,7 +1191,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     paddingHorizontal: 16,
-    paddingBottom: 18,
   },
   profileName: {
     fontSize: 18,
@@ -1190,26 +1211,21 @@ const styles = StyleSheet.create({
   profileHandleRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
-  profileStatsCard: {
+  profileStatsSeamlessRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginHorizontal: 16,
+    justifyContent: 'center',
     marginTop: 14,
     marginBottom: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#EEF0F2',
+    paddingHorizontal: 20,
   },
-  profileStatsCardRtl: {
+  profileStatsSeamlessRowRtl: {
     flexDirection: 'row-reverse',
   },
   profileStatItem: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 24,
   },
   profileStatNumber: {
     fontSize: 18,
@@ -1217,19 +1233,19 @@ const styles = StyleSheet.create({
     color: '#003514',
   },
   profileStatLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#8A959E',
     marginTop: 2,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   profileStatLabelRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
-    fontSize: 11.5,
+    fontSize: 12,
   },
   profileStatDivider: {
     width: 1,
-    height: 24,
-    backgroundColor: '#E5E9EB',
+    height: 22,
+    backgroundColor: '#D7DEE2',
   },
 });
