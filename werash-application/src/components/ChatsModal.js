@@ -36,8 +36,17 @@ const parseDurationSeconds = (str) => {
   return isNaN(parsed) || parsed <= 0 ? 10 : parsed;
 };
 
+const sanitizeDuration = (dur) => {
+  if (!dur) return '0:03';
+  const str = String(dur).trim();
+  if (str === '0:00' || str === '00:00' || str === '0' || str === '0:0' || str === '00:0') {
+    return '0:03';
+  }
+  return str;
+};
+
 const formatSecondsToTime = (totalSecs) => {
-  const secs = Math.max(0, Math.floor(totalSecs));
+  const secs = Math.max(1, Math.round(totalSecs || 0));
   const mins = Math.floor(secs / 60);
   const remainingSecs = secs % 60;
   return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
@@ -161,6 +170,7 @@ export default function ChatsModal({
   const recordingInterval = useRef(null);
   const recordStartTimeRef = useRef(0);
   const voicePlayIntervals = useRef({});
+  const waveformPressTimer = useRef(null);
   const trackWidthsRef = useRef({});
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -168,6 +178,7 @@ export default function ChatsModal({
   useEffect(() => {
     return () => {
       stopCurrentPlayer();
+      if (waveformPressTimer.current) clearTimeout(waveformPressTimer.current);
       Object.values(voicePlayIntervals.current).forEach(interval => {
         if (interval) clearInterval(interval);
       });
@@ -273,26 +284,38 @@ export default function ChatsModal({
       const deletedIds = await loadPersistedDeletedIds();
 
       const formatted = (data || [])
-        .filter((m) => !deletedIds.has(m.id))
+        .filter((m) => {
+          if (deletedIds.has(m.id)) return false;
+          // Filter out any corrupted test message that literally says "voice message (0:00)"
+          const rawText = String(m.text || '').toLowerCase().trim();
+          if (rawText === 'voice message (0:00)' || rawText === 'voice message' || rawText === '🎙️ voice message') {
+            if (!m.media_url && m.media_type !== 'audio') return false;
+          }
+          return true;
+        })
         .map((m) => {
-        const isUser = activeUser?.id ? m.sender_id === activeUser.id : m.sender === 'user';
-        const isAudio = m.media_type === 'audio';
-        const audioDuration = isAudio 
-          ? (m.text && m.text.includes(':') ? m.text : (m.voice_duration || '0:03'))
-          : null;
+          const isUser = activeUser?.id ? m.sender_id === activeUser.id : m.sender === 'user';
+          const isAudio = m.media_type === 'audio' 
+            || (m.media_url && (m.media_url.includes('/voice/') || m.media_url.endsWith('.m4a') || m.media_url.endsWith('.wav')));
+          
+          let audioDuration = null;
+          if (isAudio) {
+            const rawDur = (m.text && m.text.includes(':')) ? m.text : (m.voice_duration || '0:03');
+            audioDuration = sanitizeDuration(rawDur);
+          }
 
-        return {
-          id: m.id,
-          sender: isUser ? 'user' : 'contact',
-          text: isAudio ? '' : (m.text || ''),
-          textAr: isAudio ? '' : (m.text || ''),
-          image: m.media_type === 'image' ? m.media_url : null,
-          voiceDuration: audioDuration,
-          audioUri: isAudio ? m.media_url : null,
-          time: formatTimeAgo(m.created_at, isRTL),
-          created_at: m.created_at,
-        };
-      });
+          return {
+            id: m.id,
+            sender: isUser ? 'user' : 'contact',
+            text: isAudio ? '' : (m.text || ''),
+            textAr: isAudio ? '' : (m.text || ''),
+            image: m.media_type === 'image' ? m.media_url : null,
+            voiceDuration: audioDuration,
+            audioUri: isAudio ? m.media_url : null,
+            time: formatTimeAgo(m.created_at, isRTL),
+            created_at: m.created_at,
+          };
+        });
 
       setChats(prev => prev.map(c => {
         if (c.id === convId) {
@@ -354,11 +377,20 @@ export default function ChatsModal({
           if (payload?.new) {
             const m = payload.new;
             if (deletedForMeIdsRef.current.has(m.id)) return;
+            const rawText = String(m.text || '').toLowerCase().trim();
+            if (rawText === 'voice message (0:00)' || rawText === 'voice message' || rawText === '🎙️ voice message') {
+              if (!m.media_url && m.media_type !== 'audio') return;
+            }
+
             const isUser = m.sender_id === activeUser.id;
-            const isAudio = m.media_type === 'audio';
-            const audioDuration = isAudio 
-              ? (m.text && m.text.includes(':') ? m.text : (m.voice_duration || '0:03'))
-              : null;
+            const isAudio = m.media_type === 'audio'
+              || (m.media_url && (m.media_url.includes('/voice/') || m.media_url.endsWith('.m4a') || m.media_url.endsWith('.wav')));
+            
+            let audioDuration = null;
+            if (isAudio) {
+              const rawDur = (m.text && m.text.includes(':')) ? m.text : (m.voice_duration || '0:03');
+              audioDuration = sanitizeDuration(rawDur);
+            }
 
             const newMsg = {
               id: m.id,
@@ -901,7 +933,7 @@ export default function ChatsModal({
   const handleSendVoice = async () => {
     const elapsedMs = recordStartTimeRef.current > 0 ? (Date.now() - recordStartTimeRef.current) : (recordTime * 1000);
     const durationSec = Math.max(1, Math.round(elapsedMs / 1000));
-    const durationStr = formatRecordTime(durationSec);
+    const durationStr = sanitizeDuration(formatRecordTime(durationSec)) || '0:03';
 
     let recordedUri = null;
     try {
@@ -1019,7 +1051,7 @@ export default function ChatsModal({
     const newProgress = clampedX / w;
     setVoiceProgress(prev => ({ ...prev, [msgId]: newProgress }));
 
-    const resolvedDurationStr = audioDurations[msgId] || durationStr || '0:03';
+    const resolvedDurationStr = sanitizeDuration(audioDurations[msgId] || durationStr) || '0:03';
     const totalSecs = parseDurationSeconds(resolvedDurationStr);
     const seekSecs = newProgress * totalSecs;
 
@@ -1068,7 +1100,7 @@ export default function ChatsModal({
       }
       setPlayingVoiceId(msgId);
 
-      const resolvedDurationStr = audioDurations[msgId] || durationStr || '0:03';
+      const resolvedDurationStr = sanitizeDuration(audioDurations[msgId] || durationStr) || '0:03';
       const totalSecs = parseDurationSeconds(resolvedDurationStr);
       const stepIntervalMs = 100;
 
@@ -1090,11 +1122,13 @@ export default function ChatsModal({
         if (player.addListener) {
           player.addListener('playbackStatusUpdate', (status) => {
             if (status && status.duration && status.duration > 0) {
-              const formatted = formatSecondsToTime(status.duration);
-              setAudioDurations(prev => {
-                if (prev[msgId] === formatted) return prev;
-                return { ...prev, [msgId]: formatted };
-              });
+              const formatted = sanitizeDuration(formatSecondsToTime(status.duration));
+              if (formatted) {
+                setAudioDurations(prev => {
+                  if (prev[msgId] === formatted) return prev;
+                  return { ...prev, [msgId]: formatted };
+                });
+              }
             }
           });
         }
@@ -1106,8 +1140,10 @@ export default function ChatsModal({
         player.play();
 
         if (player.duration && player.duration > 0) {
-          const formatted = formatSecondsToTime(player.duration);
-          setAudioDurations(prev => ({ ...prev, [msgId]: formatted }));
+          const formatted = sanitizeDuration(formatSecondsToTime(player.duration));
+          if (formatted) {
+            setAudioDurations(prev => ({ ...prev, [msgId]: formatted }));
+          }
         }
       } catch (audioEx) {
         console.warn('Audio playback error:', audioEx);
@@ -1272,7 +1308,7 @@ export default function ChatsModal({
                   if (!msg) return null;
                   const isUser = msg?.sender === 'user';
                   const msgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
-                  const effectiveVoiceDuration = audioDurations[msg?.id] || msg?.voiceDuration || '0:03';
+                  const effectiveVoiceDuration = sanitizeDuration(audioDurations[msg?.id] || msg?.voiceDuration) || '0:03';
                   const isSelected = Boolean(selectedMessages[msg?.id]);
 
                   return (
@@ -1337,6 +1373,8 @@ export default function ChatsModal({
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
                             style={[styles.voicePlayBtn, isUser ? styles.userVoicePlayBtn : styles.contactVoicePlayBtn]}
+                            delayLongPress={300}
+                            onLongPress={() => handleLongPressMessage(msg)}
                             onPress={() => {
                               if (isSelectionMode) {
                                 handleToggleSelectMessage(msg);
@@ -1364,20 +1402,32 @@ export default function ChatsModal({
                                   trackWidthsRef.current[msg.id] = w;
                                 }
                               }}
-                              onStartShouldSetResponder={() => true}
-                              onMoveShouldSetResponder={() => true}
+                              onStartShouldSetResponder={() => !isSelectionMode}
+                              onMoveShouldSetResponder={() => !isSelectionMode}
                               onResponderGrant={(e) => {
                                 if (isSelectionMode) {
                                   handleToggleSelectMessage(msg);
                                   return;
                                 }
+                                if (waveformPressTimer.current) clearTimeout(waveformPressTimer.current);
+                                waveformPressTimer.current = setTimeout(() => {
+                                  handleLongPressMessage(msg);
+                                }, 350);
                                 handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url);
                               }}
                               onResponderMove={(e) => {
+                                if (waveformPressTimer.current) {
+                                  clearTimeout(waveformPressTimer.current);
+                                  waveformPressTimer.current = null;
+                                }
                                 if (isSelectionMode) return;
                                 handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url);
                               }}
                               onResponderRelease={(e) => {
+                                if (waveformPressTimer.current) {
+                                  clearTimeout(waveformPressTimer.current);
+                                  waveformPressTimer.current = null;
+                                }
                                 if (isSelectionMode) return;
                                 handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url);
                               }}
