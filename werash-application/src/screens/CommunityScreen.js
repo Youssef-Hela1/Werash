@@ -557,28 +557,6 @@ export default function CommunityScreen({
                     {profileHandle}
                   </Text>
                 </View>
-
-                {/* Stats Row: Posts & Likes */}
-                <View style={[styles.profileStatsCard, isRtl && styles.profileStatsCardRtl]}>
-                  {/* Number of Posts */}
-                  <View style={styles.profileStatItem}>
-                    <Text style={styles.profileStatNumber}>{userPostsCount}</Text>
-                    <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
-                      {isRtl ? 'منشورات' : 'POSTS'}
-                    </Text>
-                  </View>
-
-                  {/* Vertical Divider */}
-                  <View style={styles.profileStatDivider} />
-
-                  {/* Number of Likes */}
-                  <View style={styles.profileStatItem}>
-                    <Text style={styles.profileStatNumber}>{userLikesCount}</Text>
-                    <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
-                      {isRtl ? 'إعجابات' : 'LIKES'}
-                    </Text>
-                  </View>
-                </View>
               </View>
             </View>
           </View>
@@ -1191,6 +1169,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     paddingHorizontal: 16,
+    paddingBottom: 18,
   },
   profileName: {
     fontSize: 18,
