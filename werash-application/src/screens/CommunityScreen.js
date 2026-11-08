@@ -650,6 +650,73 @@ export default function CommunityScreen({
     return searchKeywords.some((kw) => content.includes(kw) || vehicle.includes(kw) || author.includes(kw) || location.includes(kw));
   });
 
+  const matchingMarketplace = matchingPosts.filter((p) => p.isMarketplace);
+  const matchingFeedPosts = matchingPosts.filter((p) => !p.isMarketplace);
+
+  // Render full-width listed marketplace item card matching Souq design (larger footprint)
+  const renderSearchMarketplaceCard = (post) => {
+    const itemTitle = post.content ? post.content.split('\n')[0].trim() : (post.vehicle || (isRtl ? 'منتج للبيع' : 'Item for sale'));
+    const hasImage = Boolean(post.postImage);
+    const imageSource = typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage;
+
+    return (
+      <TouchableOpacity
+        key={post.id}
+        activeOpacity={0.88}
+        style={styles.searchMarketCardShadow}
+        onPress={() => {
+          // Open item details if needed
+        }}
+      >
+        <View style={styles.searchMarketCardSurface}>
+          {/* Cover Image Container (Expanded for full-width post footprint) */}
+          <View style={styles.searchMarketImageContainer}>
+            {hasImage ? (
+              <Image
+                source={imageSource}
+                style={styles.searchMarketImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.searchMarketPlaceholderContainer}>
+                <Image
+                  source={require('../../assets/car_side_profile.png')}
+                  style={styles.searchMarketPlaceholderCar}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Item Details (Price, Title, Location) - Same Souq design, no likes or comments */}
+          <View style={[styles.searchMarketDetails, isRtl && styles.searchMarketDetailsRtl]}>
+            {Boolean(post.price) && (
+              <Text style={[styles.searchMarketPrice, isRtl && styles.searchMarketPriceRtl]} numberOfLines={1}>
+                {post.price}
+              </Text>
+            )}
+            <Text style={[styles.searchMarketTitle, isRtl && styles.searchMarketTitleRtl]} numberOfLines={1}>
+              {itemTitle}
+            </Text>
+            {Boolean(post.location) && (
+              <View style={[styles.searchMarketLocationRow, isRtl && styles.searchMarketLocationRowRtl]}>
+                <Ionicons
+                  name="location-sharp"
+                  size={12}
+                  color="#8A959E"
+                  style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }}
+                />
+                <Text style={[styles.searchMarketLocationText, isRtl && styles.searchMarketLocationTextRtl]} numberOfLines={1}>
+                  {post.location}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
 
   // Render single post card matching signature premium aesthetic
   const renderPostCard = (post) => (
@@ -1377,13 +1444,23 @@ export default function CommunityScreen({
                 </View>
               )}
 
-              {/* Relevant Posts / Content */}
-              {matchingPosts.length > 0 && (
+              {/* Listed Marketplace Items (Same design as Souq card, but bigger to fit post footprint) */}
+              {matchingMarketplace.length > 0 && (
                 <View style={styles.searchSection}>
                   <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
-                    {isRtl ? 'المحتوى والمنشورات' : 'Posts & Content'}
+                    {isRtl ? 'معروضات للبيع في السوق' : 'Listed in Souq'}
                   </Text>
-                  {matchingPosts.map((post) => renderPostCard(post))}
+                  {matchingMarketplace.map((post) => renderSearchMarketplaceCard(post))}
+                </View>
+              )}
+
+              {/* Relevant Community Posts */}
+              {matchingFeedPosts.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
+                    {isRtl ? 'المنشورات' : 'Posts'}
+                  </Text>
+                  {matchingFeedPosts.map((post) => renderPostCard(post))}
                 </View>
               )}
 
@@ -2437,6 +2514,95 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   searchEmptySubtitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  searchMarketCardShadow: {
+    width: '100%',
+    borderRadius: 22,
+    backgroundColor: '#F2F4F5',
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3.5,
+      },
+      android: {
+        elevation: 2.8,
+      },
+    }),
+  },
+  searchMarketCardSurface: {
+    backgroundColor: '#F2F4F5',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  searchMarketImageContainer: {
+    width: '100%',
+    height: 190,
+    backgroundColor: '#E2E6E9',
+    overflow: 'hidden',
+  },
+  searchMarketImage: {
+    width: '100%',
+    height: '100%',
+  },
+  searchMarketPlaceholderContainer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#EAEFF2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  searchMarketPlaceholderCar: {
+    width: '80%',
+    height: '80%',
+    opacity: 0.7,
+  },
+  searchMarketDetails: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  searchMarketDetailsRtl: {
+    alignItems: 'flex-end',
+  },
+  searchMarketPrice: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#003514',
+    letterSpacing: -0.2,
+  },
+  searchMarketPriceRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  searchMarketTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A211B',
+    marginTop: 3,
+  },
+  searchMarketTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  searchMarketLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  searchMarketLocationRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  searchMarketLocationText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#8A959E',
+  },
+  searchMarketLocationTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
 });
