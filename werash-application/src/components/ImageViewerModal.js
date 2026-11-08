@@ -4,7 +4,6 @@ import {
   View,
   Text,
   Image,
-  Modal,
   StatusBar,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -13,6 +12,8 @@ import {
   Animated,
   PanResponder,
   Platform,
+  BackHandler,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,6 +40,7 @@ function getTouchesCenter(touches) {
 }
 
 function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive }) {
+  const [imageLoading, setImageLoading] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -324,7 +326,15 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
             source={typeof uri === 'string' ? { uri } : uri}
             style={styles.fullImage}
             resizeMode="contain"
+            onLoadStart={() => setImageLoading(true)}
+            onLoadEnd={() => setImageLoading(false)}
+            onError={() => setImageLoading(false)}
           />
+          {imageLoading && (
+            <View style={styles.loadingOverlay} pointerEvents="none">
+              <ActivityIndicator size="large" color="#FFFFFF" />
+            </View>
+          )}
         </Animated.View>
       </TouchableWithoutFeedback>
     </View>
@@ -343,6 +353,16 @@ export default function ImageViewerModal({
   const [isZoomed, setIsZoomed] = useState(false);
   const headerOpacity = useRef(new Animated.Value(1)).current;
   const flatListRef = useRef(null);
+
+  // Handle hardware back press on Android
+  useEffect(() => {
+    if (!visible) return;
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose?.();
+      return true;
+    });
+    return () => backSub.remove();
+  }, [visible, onClose]);
 
   useEffect(() => {
     if (visible) {
@@ -374,88 +394,82 @@ export default function ImageViewerModal({
   ) + 10;
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      statusBarTranslucent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalBackground}>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+    <View style={styles.modalOverlay}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-        {/* Top Header Bar: Hides when zoomed in, shows when at default zoom level */}
-        <Animated.View 
-          style={[
-            styles.headerBar, 
-            { paddingTop: topSafe, opacity: headerOpacity }, 
-            isRTL && styles.headerBarRtl
-          ]}
-          pointerEvents={isZoomed ? 'none' : 'box-none'}
+      {/* Top Header Bar: Hides when zoomed in, shows when at default zoom level */}
+      <Animated.View 
+        style={[
+          styles.headerBar, 
+          { paddingTop: topSafe, opacity: headerOpacity }, 
+          isRTL && styles.headerBarRtl
+        ]}
+        pointerEvents={isZoomed ? 'none' : 'box-none'}
+      >
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={onClose}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={onClose}
-            activeOpacity={0.7}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
 
-          {images.length > 1 && (
-            <View style={styles.counterBadge}>
-              <Text style={styles.counterText}>
-                {`${currentIndex + 1} / ${images.length}`}
-              </Text>
-            </View>
-          )}
+        {images.length > 1 && (
+          <View style={styles.counterBadge}>
+            <Text style={styles.counterText}>
+              {`${currentIndex + 1} / ${images.length}`}
+            </Text>
+          </View>
+        )}
 
-          {/* Placeholder for layout symmetry */}
-          <View style={{ width: 44, height: 44 }} />
-        </Animated.View>
+        {/* Placeholder for layout symmetry */}
+        <View style={{ width: 44, height: 44 }} />
+      </Animated.View>
 
-        {/* Swipeable Paging Image Gallery: Paging disabled while zoomed to allow free panning */}
-        <FlatList
-          ref={flatListRef}
-          data={images}
-          horizontal
-          pagingEnabled
-          scrollEnabled={!isZoomed}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(_, index) => `img_view_${index}`}
-          initialScrollIndex={Math.max(0, Math.min(initialIndex || 0, images.length - 1))}
-          getItemLayout={(_, index) => ({
-            length: SCREEN_WIDTH,
-            offset: SCREEN_WIDTH * index,
-            index,
-          })}
-          onMomentumScrollEnd={(e) => {
-            const offsetX = e.nativeEvent.contentOffset.x;
-            const newIndex = Math.round(offsetX / SCREEN_WIDTH);
-            if (newIndex >= 0 && newIndex < images.length) {
-              setCurrentIndex(newIndex);
-              setIsZoomed(false);
-            }
-          }}
-          renderItem={({ item, index }) => (
-            <ZoomableImage
-              uri={item}
-              screenWidth={SCREEN_WIDTH}
-              screenHeight={SCREEN_HEIGHT}
-              onZoomChange={setIsZoomed}
-              isActive={index === currentIndex}
-            />
-          )}
-        />
-      </View>
-    </Modal>
+      {/* Swipeable Paging Image Gallery: Paging disabled while zoomed to allow free panning */}
+      <FlatList
+        ref={flatListRef}
+        data={images}
+        horizontal
+        pagingEnabled
+        scrollEnabled={!isZoomed}
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_, index) => `img_view_${index}`}
+        initialScrollIndex={Math.max(0, Math.min(initialIndex || 0, images.length - 1))}
+        getItemLayout={(_, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
+        onMomentumScrollEnd={(e) => {
+          const offsetX = e.nativeEvent.contentOffset.x;
+          const newIndex = Math.round(offsetX / SCREEN_WIDTH);
+          if (newIndex >= 0 && newIndex < images.length) {
+            setCurrentIndex(newIndex);
+            setIsZoomed(false);
+          }
+        }}
+        renderItem={({ item, index }) => (
+          <ZoomableImage
+            uri={item}
+            screenWidth={SCREEN_WIDTH}
+            screenHeight={SCREEN_HEIGHT}
+            onZoomChange={setIsZoomed}
+            isActive={index === currentIndex}
+          />
+        )}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  modalBackground: {
-    flex: 1,
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
+    zIndex: 999999,
+    elevation: 999999,
   },
   headerBar: {
     position: 'absolute',
@@ -532,5 +546,10 @@ const styles = StyleSheet.create({
   fullImage: {
     width: '100%',
     height: '100%',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

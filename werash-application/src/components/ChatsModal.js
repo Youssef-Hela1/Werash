@@ -409,19 +409,27 @@ export default function ChatsModal({
           }
 
           let msgImages = null;
-          if (m.media_type === 'images' || m.media_type === 'image') {
-            if (m.media_url) {
-              if (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[') && m.media_url.trim().endsWith(']')) {
-                try {
-                  const parsed = JSON.parse(m.media_url);
-                  if (Array.isArray(parsed) && parsed.length > 0) {
-                    msgImages = parsed;
-                  }
-                } catch (_) {}
-              }
-              if (!msgImages) {
-                msgImages = [m.media_url];
-              }
+          const isMediaImage = m.media_type === 'images' || m.media_type === 'image'
+            || (m.media_url && !isAudio && (
+              (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[')) ||
+              m.media_url.includes('community-media') ||
+              m.media_url.includes('.jpg') ||
+              m.media_url.includes('.jpeg') ||
+              m.media_url.includes('.png') ||
+              m.media_url.includes('.webp')
+            ));
+
+          if (isMediaImage && m.media_url) {
+            if (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[') && m.media_url.trim().endsWith(']')) {
+              try {
+                const parsed = JSON.parse(m.media_url);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  msgImages = parsed;
+                }
+              } catch (_) {}
+            }
+            if (!msgImages) {
+              msgImages = [m.media_url];
             }
           }
 
@@ -519,19 +527,27 @@ export default function ChatsModal({
             }
 
             let msgImages = null;
-            if (m.media_type === 'images' || m.media_type === 'image') {
-              if (m.media_url) {
-                if (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[') && m.media_url.trim().endsWith(']')) {
-                  try {
-                    const parsed = JSON.parse(m.media_url);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                      msgImages = parsed;
-                    }
-                  } catch (_) {}
-                }
-                if (!msgImages) {
-                  msgImages = [m.media_url];
-                }
+            const isMediaImage = m.media_type === 'images' || m.media_type === 'image'
+              || (m.media_url && !isAudio && (
+                (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[')) ||
+                m.media_url.includes('community-media') ||
+                m.media_url.includes('.jpg') ||
+                m.media_url.includes('.jpeg') ||
+                m.media_url.includes('.png') ||
+                m.media_url.includes('.webp')
+              ));
+
+            if (isMediaImage && m.media_url) {
+              if (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[') && m.media_url.trim().endsWith(']')) {
+                try {
+                  const parsed = JSON.parse(m.media_url);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    msgImages = parsed;
+                  }
+                } catch (_) {}
+              }
+              if (!msgImages) {
+                msgImages = [m.media_url];
               }
             }
 
@@ -1024,6 +1040,25 @@ export default function ChatsModal({
   const performUpload = async (msgId, imagesToUpload, caption, otherUserId) => {
     if (!activeUser?.id || !activeChatId) return;
 
+    // Ensure recipient ID is resolved
+    let targetRecipientId = otherUserId;
+    if (!targetRecipientId) {
+      const targetChat = chats.find(c => c.id === activeChatId);
+      targetRecipientId = targetChat?.otherUserId;
+    }
+    if (!targetRecipientId) {
+      try {
+        const { data: convData } = await supabase
+          .from('conversations')
+          .select('participant_1, participant_2')
+          .eq('id', activeChatId)
+          .maybeSingle();
+        if (convData) {
+          targetRecipientId = convData.participant_1 === activeUser.id ? convData.participant_2 : convData.participant_1;
+        }
+      } catch (_) {}
+    }
+
     setChats(prev => prev.map(c => {
       if (c.id === activeChatId) {
         return {
@@ -1038,24 +1073,26 @@ export default function ChatsModal({
       const uploadedUrls = [];
       for (let i = 0; i < imagesToUpload.length; i++) {
         const localUri = imagesToUpload[i];
-        if (localUri.startsWith('http://') || localUri.startsWith('https://')) {
+        if (typeof localUri === 'string' && (localUri.startsWith('http://') || localUri.startsWith('https://'))) {
           uploadedUrls.push(localUri);
           continue;
         }
 
         const response = await fetch(localUri);
         const blob = await response.blob();
-        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-        const fileName = `messages/${activeChatId}/${activeUser.id}_${Date.now()}_${i}.${ext}`;
+        const ext = (typeof localUri === 'string' ? localUri.split('.').pop()?.split('?')[0]?.toLowerCase() : null) || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${activeUser.id}/chat_${activeChatId}_${Date.now()}_${i}.${ext}`;
 
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from('community-media')
           .upload(fileName, blob, {
-            contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+            contentType,
             upsert: true,
           });
 
         if (uploadErr) {
+          console.warn('Storage upload error for image:', uploadErr.message);
           throw uploadErr;
         }
 
@@ -1079,22 +1116,24 @@ export default function ChatsModal({
       }
 
       const mediaUrlPayload = uploadedUrls.length === 1 ? uploadedUrls[0] : JSON.stringify(uploadedUrls);
-      const mediaTypePayload = uploadedUrls.length === 1 ? 'image' : 'images';
 
       const { data: insertedMsg, error: insertErr } = await supabase
         .from('direct_messages')
         .insert([{
           conversation_id: activeChatId,
           sender_id: activeUser.id,
-          receiver_id: otherUserId,
+          receiver_id: targetRecipientId || null,
           text: caption || null,
           media_url: mediaUrlPayload,
-          media_type: mediaTypePayload,
+          media_type: 'image',
         }])
         .select()
         .single();
 
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        console.warn('direct_messages insert error:', insertErr.message);
+        throw insertErr;
+      }
 
       if (insertedMsg) {
         setChats(prev => prev.map(c => {
@@ -1745,8 +1784,9 @@ export default function ChatsModal({
                       )}
                     
                     <TouchableOpacity
-                      activeOpacity={isSelectionMode ? 0.75 : 0.95}
+                      activeOpacity={isSelectionMode ? 0.75 : 1}
                       delayLongPress={300}
+                      disabled={!isSelectionMode && Boolean((msg?.images && msg.images.length > 0) || msg?.image)}
                       onPress={() => {
                         if (isSelectionMode) {
                           handleToggleSelectMessage(msg);
@@ -1779,7 +1819,8 @@ export default function ChatsModal({
                                 handleToggleSelectMessage(msg);
                                 return;
                               }
-                              setViewerImages(msg.images || [msg.image]);
+                              const imagesList = msg.images || [msg.image];
+                              setViewerImages(imagesList);
                               setViewerInitialIndex(tappedIndex);
                               setViewerVisible(true);
                             }}
@@ -1791,14 +1832,25 @@ export default function ChatsModal({
                             onRetry={() => performUpload(msg.id, msg.images || [msg.image], msg.text, targetChat?.otherUserId)}
                           />
                           {Boolean(msg?.text) && (
-                            <Text style={[
-                              styles.msgText,
-                              isUser ? styles.userMsgText : styles.contactMsgText,
-                              { marginTop: 6, marginHorizontal: 4 },
-                              isRTL && { fontFamily: 'AlkhalilArabic-Regular', fontSize: 13.0, textAlign: 'right' }
-                            ]}>
-                              {msg.text}
-                            </Text>
+                            <TouchableOpacity
+                              activeOpacity={0.88}
+                              onPress={() => {
+                                if (isSelectionMode) {
+                                  handleToggleSelectMessage(msg);
+                                }
+                              }}
+                              onLongPress={() => handleLongPressMessage(msg)}
+                              delayLongPress={280}
+                            >
+                              <Text style={[
+                                styles.msgText,
+                                isUser ? styles.userMsgText : styles.contactMsgText,
+                                { marginTop: 6, marginHorizontal: 4 },
+                                isRTL && { fontFamily: 'AlkhalilArabic-Regular', fontSize: 13.0, textAlign: 'right' }
+                              ]}>
+                                {msg.text}
+                              </Text>
+                            </TouchableOpacity>
                           )}
                         </View>
                       ) : isAudioMsg ? (
