@@ -110,6 +110,9 @@ export default function CommunityScreen({
   // Dedicated other user profile page modal state
   const [viewingOtherUser, setViewingOtherUser] = useState(null);
 
+  // Full-screen image preview state (for banner and avatar)
+  const [previewImage, setPreviewImage] = useState(null);
+
   // Interactive Comments state & animations
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
   const [commentInputText, setCommentInputText] = useState('');
@@ -182,10 +185,14 @@ export default function CommunityScreen({
     }
   };
 
-  // Hardware back button dismisses blank search & create post pages
+  // Hardware back button dismisses image preview, blank search & create post pages
   useEffect(() => {
-    if (!isSearchActive && !isCreatePostActive) return;
+    if (!isSearchActive && !isCreatePostActive && !previewImage) return;
     const backAction = () => {
+      if (previewImage) {
+        setPreviewImage(null);
+        return true;
+      }
       if (isCreatePostActive) {
         setIsCreatePostActive(false);
         setNewPostContent('');
@@ -201,7 +208,7 @@ export default function CommunityScreen({
     };
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [isSearchActive, isCreatePostActive]);
+  }, [previewImage, isSearchActive, isCreatePostActive]);
 
   useEffect(() => {
     if (currentUser?.avatarUrl || currentUser?.avatar) {
@@ -1775,7 +1782,16 @@ export default function CommunityScreen({
             <View style={styles.profileCardShadow}>
               <View style={styles.profileCardSurface}>
                 {/* Banner Wallpaper behind avatar */}
-                <View style={styles.profileBannerContainer}>
+                <TouchableOpacity
+                  activeOpacity={0.92}
+                  onPress={() => {
+                    const bannerSrc = resolvedBanner
+                      ? (typeof resolvedBanner === 'string' ? { uri: resolvedBanner } : resolvedBanner)
+                      : require('../../assets/Banner wallpaper.png');
+                    setPreviewImage(bannerSrc);
+                  }}
+                  style={styles.profileBannerContainer}
+                >
                   <Image
                     source={
                       resolvedBanner
@@ -1815,11 +1831,22 @@ export default function CommunityScreen({
                       </View>
                     )}
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
 
                 {/* Overlapping Profile Picture with Edit Badge */}
                 <View style={styles.profileAvatarOuter}>
-                  <View style={styles.profileAvatarCircle}>
+                  <TouchableOpacity
+                    activeOpacity={resolvedAvatar ? 0.85 : 1}
+                    onPress={() => {
+                      if (resolvedAvatar) {
+                        const avatarSrc = typeof resolvedAvatar === 'string'
+                          ? { uri: resolvedAvatar }
+                          : resolvedAvatar;
+                        setPreviewImage(avatarSrc);
+                      }
+                    }}
+                    style={styles.profileAvatarCircle}
+                  >
                     {resolvedAvatar ? (
                       <Image
                         source={typeof resolvedAvatar === 'string' ? { uri: resolvedAvatar } : resolvedAvatar}
@@ -1831,7 +1858,7 @@ export default function CommunityScreen({
                         <Ionicons name="person" size={40} color="#FFFFFF" />
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
 
                   {/* Edit Avatar Circular Badge */}
                   <TouchableOpacity
@@ -2131,7 +2158,13 @@ export default function CommunityScreen({
         animationType="fade"
         transparent={false}
         statusBarTranslucent={true}
-        onRequestClose={handleCloseOtherUserProfile}
+        onRequestClose={() => {
+          if (previewImage) {
+            setPreviewImage(null);
+          } else {
+            handleCloseOtherUserProfile();
+          }
+        }}
       >
         {Boolean(viewingOtherUser) && (
           <View style={styles.blankPageContainer}>
@@ -2172,7 +2205,16 @@ export default function CommunityScreen({
               <View style={styles.profileCardShadow}>
                 <View style={styles.profileCardSurface}>
                   {/* Banner */}
-                  <View style={styles.profileBannerContainer}>
+                  <TouchableOpacity
+                    activeOpacity={0.92}
+                    onPress={() => {
+                      const bannerSrc = viewingOtherUser.banner
+                        ? (typeof viewingOtherUser.banner === 'string' ? { uri: viewingOtherUser.banner } : viewingOtherUser.banner)
+                        : require('../../assets/Banner wallpaper.png');
+                      setPreviewImage(bannerSrc);
+                    }}
+                    style={styles.profileBannerContainer}
+                  >
                     <Image
                       source={
                         viewingOtherUser.banner
@@ -2183,11 +2225,22 @@ export default function CommunityScreen({
                       resizeMode="cover"
                     />
                     <View style={styles.profileBannerOverlay} />
-                  </View>
+                  </TouchableOpacity>
 
                   {/* Circular Avatar */}
                   <View style={styles.profileAvatarOuter}>
-                    <View style={styles.profileAvatarCircle}>
+                    <TouchableOpacity
+                      activeOpacity={viewingOtherUser.avatar ? 0.85 : 1}
+                      onPress={() => {
+                        if (viewingOtherUser.avatar) {
+                          const avatarSrc = typeof viewingOtherUser.avatar === 'string'
+                            ? { uri: viewingOtherUser.avatar }
+                            : viewingOtherUser.avatar;
+                          setPreviewImage(avatarSrc);
+                        }
+                      }}
+                      style={styles.profileAvatarCircle}
+                    >
                       {viewingOtherUser.avatar ? (
                         <Image
                           source={typeof viewingOtherUser.avatar === 'string' ? { uri: viewingOtherUser.avatar } : viewingOtherUser.avatar}
@@ -2199,7 +2252,7 @@ export default function CommunityScreen({
                           <Ionicons name="person" size={40} color="#FFFFFF" />
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   </View>
 
                   {/* Name & Handle */}
@@ -2289,9 +2342,67 @@ export default function CommunityScreen({
                 )
               )}
             </ScrollView>
+
+            {/* Full-Screen Image Preview overlay inside User Profile Modal */}
+            {Boolean(previewImage) && (
+              <View style={styles.imageViewerAbsoluteOverlay}>
+                <StatusBar barStyle="light-content" backgroundColor="#000000" />
+                <View style={[styles.imageViewerHeader, { paddingTop: topInset + 10 }, isRtl && styles.imageViewerHeaderRtl]}>
+                  <TouchableOpacity
+                    onPress={() => setPreviewImage(null)}
+                    activeOpacity={0.8}
+                    style={styles.imageViewerCloseButton}
+                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                  >
+                    <Ionicons name="close" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.imageViewerCenterContainer}
+                  activeOpacity={1}
+                  onPress={() => setPreviewImage(null)}
+                >
+                  <Image
+                    source={previewImage}
+                    style={styles.imageViewerFullImage}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
       </Modal>
+
+      {/* Full-Screen Image Preview overlay for main screen */}
+      {Boolean(previewImage && !viewingOtherUser) && (
+        <View style={styles.imageViewerAbsoluteOverlay}>
+          <StatusBar barStyle="light-content" backgroundColor="#000000" />
+          <View style={[styles.imageViewerHeader, { paddingTop: topInset + 10 }, isRtl && styles.imageViewerHeaderRtl]}>
+            <TouchableOpacity
+              onPress={() => setPreviewImage(null)}
+              activeOpacity={0.8}
+              style={styles.imageViewerCloseButton}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.imageViewerCenterContainer}
+            activeOpacity={1}
+            onPress={() => setPreviewImage(null)}
+          >
+            <Image
+              source={previewImage}
+              style={styles.imageViewerFullImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Blank White Page Modal on Search Icon Click */}
       <Modal
@@ -4990,5 +5101,49 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '700',
     color: colors.secondaryText,
     marginLeft: 6,
+  },
+
+  // Full-Screen Image Preview styles
+  imageViewerAbsoluteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.96)',
+    zIndex: 99999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 100000,
+  },
+  imageViewerHeaderRtl: {
+    flexDirection: 'row-reverse',
+  },
+  imageViewerCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  imageViewerCenterContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerFullImage: {
+    width: '92%',
+    height: '82%',
   },
 });
