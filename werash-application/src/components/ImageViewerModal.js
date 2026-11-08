@@ -11,6 +11,7 @@ import {
   FlatList,
   Animated,
   PanResponder,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -163,6 +164,11 @@ export default function ImageViewerModal({
 
   if (!visible || !images || images.length === 0) return null;
 
+  const topSafe = Math.max(
+    insets.top || 0,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 20
+  ) + 10;
+
   return (
     <Modal
       visible={visible}
@@ -175,12 +181,12 @@ export default function ImageViewerModal({
         <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
         {/* Top Header Bar */}
-        <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 16) + 6 }, isRTL && styles.headerBarRtl]}>
+        <View style={[styles.headerBar, { paddingTop: topSafe }, isRTL && styles.headerBarRtl]}>
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={onClose}
             activeOpacity={0.7}
-            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Ionicons name="close" size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -194,7 +200,7 @@ export default function ImageViewerModal({
           )}
 
           {/* Placeholder for layout symmetry */}
-          <View style={{ width: 40 }} />
+          <View style={{ width: 44, height: 44 }} />
         </View>
 
         {/* Swipeable Paging Image Gallery */}
@@ -252,20 +258,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.35,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   counterBadge: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.35,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   counterText: {
     color: '#FFFFFF',

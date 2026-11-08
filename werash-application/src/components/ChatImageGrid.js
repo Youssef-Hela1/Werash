@@ -166,6 +166,8 @@ const styles = StyleSheet.create({
   thumbTouchable: {
     position: 'relative',
     overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   imageFill: {
     width: '100%',
@@ -173,16 +175,18 @@ const styles = StyleSheet.create({
   },
   moreOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.58)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   moreText: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    fontFamily: 'AlkhalilArabic-Bold',
-    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   statusOverlay: {
     ...StyleSheet.absoluteFillObject,
