@@ -366,11 +366,12 @@ export default function ChatsModal({
             {/* Conversation Header */}
             <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity 
-                style={styles.backBtnRound} 
+                style={styles.backBtn} 
                 onPress={() => setActiveChatId(null)}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color={colors.primaryText} />
+                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color={colors.primaryText} />
               </TouchableOpacity>
 
               <View style={[styles.headerContactInfo, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -590,15 +591,16 @@ export default function ChatsModal({
             {/* Header bar */}
             <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity 
-                style={styles.backBtnRound} 
+                style={styles.backBtn} 
                 onPress={onClose}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={22} color={colors.primaryText} />
+                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color={colors.primaryText} />
               </TouchableOpacity>
               
               <Text style={[styles.headerTitle, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 18.0 }]}>
-                {isRTL ? 'الرسائل والمحادثات' : 'Messages & Chat'}
+                {isRTL ? 'الرسائل' : 'Messages'}
               </Text>
               
               <View style={{ width: 36 }} />
@@ -788,13 +790,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderBottomColor: isDarkMode ? colors.cardBorder : '#EDF0F2',
     backgroundColor: colors.screenBg,
   },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   backBtnRound: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
-    borderWidth: 1,
-    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
