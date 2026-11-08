@@ -81,6 +81,7 @@ export default function CommunityScreen({
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
   const [chatsVisible, setChatsVisible] = useState(false);
+  const [chatInitialUser, setChatInitialUser] = useState(null);
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
   const [allProfiles, setAllProfiles] = useState([]);
@@ -2243,8 +2244,13 @@ export default function CommunityScreen({
       {/* Chats Drawer Modal */}
       <ChatsModal
         visible={chatsVisible}
-        onClose={() => setChatsVisible(false)}
+        onClose={() => {
+          setChatsVisible(false);
+          setChatInitialUser(null);
+        }}
         selectedLanguage={selectedLanguage}
+        currentUser={currentUser}
+        initialUser={chatInitialUser}
       />
 
       {/* Dedicated User Profile Page Modal */}
@@ -2366,7 +2372,9 @@ export default function CommunityScreen({
                       activeOpacity={0.85}
                       style={[styles.otherProfileMessageBtn, isRtl && styles.otherProfileMessageBtnRtl]}
                       onPress={() => {
+                        const target = viewingOtherUser;
                         setViewingOtherUser(null);
+                        setChatInitialUser(target);
                         setChatsVisible(true);
                       }}
                     >

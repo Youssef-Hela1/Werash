@@ -100,6 +100,7 @@ export default function Header({
           visible={chatsVisible}
           onClose={() => setChatsVisible(false)}
           selectedLanguage={selectedLanguage}
+          currentUser={currentUser}
         />
       </View>
     );
@@ -124,6 +125,7 @@ export default function Header({
         visible={chatsVisible}
         onClose={() => setChatsVisible(false)}
         selectedLanguage={selectedLanguage}
+        currentUser={currentUser}
       />
       
       {/* Top Solid Green Block (Hidden on Home) */}

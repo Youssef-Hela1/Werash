@@ -3,64 +3,52 @@ import {
   StyleSheet, View, Text, TextInput, TouchableOpacity, 
   Image, ScrollView, StatusBar, Modal,
   KeyboardAvoidingView, Platform, Alert, Animated,
-  Dimensions, PanResponder
+  Dimensions, PanResponder, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
-
-const initialChats = [
-  {
-    id: 'c1',
-    name: 'Samir Fahmy',
-    nameAr: 'سمير فهمي',
-    avatar: require('../../assets/expert_samir.png'),
-    unread: true,
-    lastTime: '2h ago',
-    lastTimeAr: 'منذ ساعتين',
-    messages: [
-      { id: 'm1_1', sender: 'contact', text: 'Is the price negotiable for the BBS LM rims?', textAr: 'هل السعر قابل للتفاوض لجنوط BBS LM؟', time: 'Yesterday' },
-      { id: 'm1_2', sender: 'user', text: 'I can lower it slightly if you can pick them up this week.', textAr: 'يمكنني تخفيضه قليلاً إذا تمكنت من استلامها هذا الأسبوع.', time: 'Yesterday' },
-      { id: 'm1_3', sender: 'contact', text: 'Great! Let me check my schedule and get back to you.', textAr: 'رائع! دعني أتحقق من جدولي وأعود إليك.', time: '2h ago' }
-    ]
-  },
-  {
-    id: 'c2',
-    name: 'Elena Rostova',
-    nameAr: 'إيلينا روستوفا',
-    avatar: require('../../assets/expert_elena.png'),
-    unread: false,
-    lastTime: '2d ago',
-    lastTimeAr: 'منذ يومين',
-    messages: [
-      { id: 'm2_1', sender: 'user', text: 'Hi Elena, when is the electrical check finished?', textAr: 'مرحباً إيلينا، متى ينتهي فحص الكهرباء؟', time: '3d ago' },
-      { id: 'm2_2', sender: 'contact', text: 'All diagnostics are complete. The alternator is charging correctly now.', textAr: 'جميع الفحوصات اكتملت. الدينامو يشحن بشكل صحيح الآن.', time: '3d ago' },
-      { id: 'm2_3', sender: 'user', text: 'Awesome, I will come pick up the car tomorrow.', textAr: 'رائع، سآتي لاستلام السيارة غداً.', time: '2d ago' }
-    ]
-  },
-  {
-    id: 'c3',
-    name: 'Michael Chang',
-    nameAr: 'مايكل تشانغ',
-    avatar: require('../../assets/expert_michael.png'),
-    unread: false,
-    lastTime: '4d ago',
-    lastTimeAr: 'منذ ٤ أيام',
-    messages: [
-      { id: 'm3_1', sender: 'contact', text: 'Did you notice any noise after the strut installation?', textAr: 'هل لاحظت أي صوت بعد تركيب المساعدين؟', time: '5d ago' },
-      { id: 'm3_2', sender: 'user', text: 'No, it feels very solid and quiet now. Thank you!', textAr: 'لا، إنها تبدو قوية وهادئة جداً الآن. شكراً لك!', time: '4d ago' }
-    ]
-  }
-];
+import { supabase } from '../services/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const getAvatarSource = (avatar) => {
+  if (!avatar) return require('../../assets/expert_samir.png');
+  if (typeof avatar === 'string') return { uri: avatar };
+  if (avatar && avatar.uri) return avatar;
+  return avatar;
+};
+
+const formatTimeAgo = (dateString, isRtl) => {
+  if (!dateString) return isRtl ? 'الآن' : 'Just now';
+  const parsed = new Date(dateString);
+  const timeMs = parsed.getTime();
+  if (isNaN(timeMs)) return isRtl ? 'الآن' : 'Just now';
+  const diffMs = Date.now() - timeMs;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return isRtl ? 'الآن' : 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return isRtl ? `منذ ${diffMin} د` : `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return isRtl ? `منذ ${diffHr} س` : `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return isRtl ? 'أمس' : 'Yesterday';
+  if (diffDay < 7) return isRtl ? `منذ ${diffDay} أيام` : `${diffDay}d ago`;
+  try {
+    return parsed.toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
+  } catch (_) {
+    return isRtl ? 'الآن' : 'Just now';
+  }
+};
 
 export default function ChatsModal({
   visible,
   onClose,
-  selectedLanguage
+  selectedLanguage,
+  currentUser,
+  initialUser,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -68,7 +56,9 @@ export default function ChatsModal({
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 24);
   const isRTL = selectedLanguage === 'Arabic';
 
-  const [chats, setChats] = useState(initialChats);
+  const [activeUser, setActiveUser] = useState(currentUser || null);
+  const [chats, setChats] = useState([]);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
   const [activeChatId, setActiveChatId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
@@ -85,8 +75,6 @@ export default function ChatsModal({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only trigger swipe-to-go-back if the drag starts near the left edge
-        // and is primarily dragging horizontally to the right
         return activeChatIdRef.current !== null && gestureState.x0 < 50 && gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
       },
       onPanResponderMove: (evt, gestureState) => {
@@ -123,7 +111,7 @@ export default function ChatsModal({
   
   // Voice playback simulation states
   const [playingVoiceId, setPlayingVoiceId] = useState(null);
-  const [voiceProgress, setVoiceProgress] = useState({}); // { [msgId]: value between 0 and 1 }
+  const [voiceProgress, setVoiceProgress] = useState({});
 
   const scrollViewRef = useRef(null);
   const recordingInterval = useRef(null);
@@ -131,6 +119,278 @@ export default function ChatsModal({
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const activeChat = chats.find(c => c.id === activeChatId);
+
+  // Sync activeUser
+  useEffect(() => {
+    if (currentUser?.id) {
+      setActiveUser(currentUser);
+    } else {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) {
+          setActiveUser(user);
+        }
+      }).catch(() => {});
+    }
+  }, [currentUser]);
+
+  // Fetch all user conversations from Supabase
+  const fetchConversations = async () => {
+    if (!activeUser?.id) return;
+    try {
+      setIsLoadingChats(true);
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`participant_1.eq.${activeUser.id},participant_2.eq.${activeUser.id}`)
+        .order('last_message_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error fetching cloud conversations:', error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const mapped = data.map((c) => {
+          const isP1 = c.participant_1 === activeUser.id;
+          const otherUserId = isP1 ? c.participant_2 : c.participant_1;
+          const otherName = isP1 ? (c.participant_2_name || 'User') : (c.participant_1_name || 'User');
+          const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
+          const resolvedAvatar = getAvatarSource(otherAvatar);
+
+          const lastTime = formatTimeAgo(c.last_message_at, false);
+          const lastTimeAr = formatTimeAgo(c.last_message_at, true);
+          const isUnread = Boolean(c.last_sender_id && c.last_sender_id !== activeUser.id);
+
+          return {
+            id: c.id,
+            otherUserId,
+            name: otherName,
+            nameAr: otherName,
+            avatar: resolvedAvatar,
+            unread: isUnread,
+            lastTime,
+            lastTimeAr,
+            lastMessageText: c.last_message_text || '',
+            messages: [],
+          };
+        });
+
+        setChats(prev => {
+          return mapped.map(newC => {
+            const existing = prev.find(p => p.id === newC.id);
+            return {
+              ...newC,
+              messages: existing?.messages?.length ? existing.messages : [],
+            };
+          });
+        });
+      } else {
+        setChats([]);
+      }
+    } catch (err) {
+      console.warn('fetchConversations error:', err);
+    } finally {
+      setIsLoadingChats(false);
+    }
+  };
+
+  // Fetch messages for a specific conversation
+  const fetchMessagesForConversation = async (convId) => {
+    if (!convId) return;
+    try {
+      const { data, error } = await supabase
+        .from('direct_messages')
+        .select('*')
+        .eq('conversation_id', convId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Error fetching direct_messages from cloud:', error.message);
+        return;
+      }
+
+      const formatted = (data || []).map((m) => {
+        const isUser = activeUser?.id ? m.sender_id === activeUser.id : m.sender === 'user';
+        return {
+          id: m.id,
+          sender: isUser ? 'user' : 'contact',
+          text: m.text || '',
+          textAr: m.text || '',
+          image: m.media_type === 'image' ? m.media_url : null,
+          voiceDuration: m.media_type === 'audio' ? (m.voice_duration || '0:05') : null,
+          time: formatTimeAgo(m.created_at, isRTL),
+          created_at: m.created_at,
+        };
+      });
+
+      setChats(prev => prev.map(c => {
+        if (c.id === convId) {
+          return {
+            ...c,
+            unread: false,
+            messages: formatted,
+          };
+        }
+        return c;
+      }));
+    } catch (err) {
+      console.warn('fetchMessagesForConversation error:', err);
+    }
+  };
+
+  // Realtime subscription for conversations list
+  useEffect(() => {
+    if (!visible || !activeUser?.id) return;
+    fetchConversations();
+
+    const convChannel = supabase
+      .channel(`conversations_realtime_${activeUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+        },
+        () => {
+          fetchConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(convChannel);
+    };
+  }, [visible, activeUser?.id]);
+
+  // Realtime subscription for active conversation messages
+  useEffect(() => {
+    if (!activeChatId || !activeUser?.id) return;
+
+    fetchMessagesForConversation(activeChatId);
+
+    const dmChannel = supabase
+      .channel(`dm_realtime_${activeChatId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `conversation_id=eq.${activeChatId}`,
+        },
+        (payload) => {
+          if (payload?.new) {
+            const m = payload.new;
+            const isUser = m.sender_id === activeUser.id;
+            const newMsg = {
+              id: m.id,
+              sender: isUser ? 'user' : 'contact',
+              text: m.text || '',
+              textAr: m.text || '',
+              image: m.media_type === 'image' ? m.media_url : null,
+              voiceDuration: m.media_type === 'audio' ? (m.voice_duration || '0:05') : null,
+              time: formatTimeAgo(m.created_at, isRTL),
+              created_at: m.created_at,
+            };
+
+            setChats(prev => prev.map(c => {
+              if (c.id === activeChatId) {
+                if (c.messages.some(existing => existing.id === m.id)) {
+                  return c;
+                }
+                return {
+                  ...c,
+                  messages: [...c.messages, newMsg],
+                };
+              }
+              return c;
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dmChannel);
+    };
+  }, [activeChatId, activeUser?.id, isRTL]);
+
+  // Handle initial user passed from user profile page
+  useEffect(() => {
+    if (visible && initialUser && activeUser?.id) {
+      handleOpenOrStartChatWithUser(initialUser);
+    }
+  }, [visible, initialUser, activeUser?.id]);
+
+  const handleOpenOrStartChatWithUser = async (targetUser) => {
+    if (!targetUser || !activeUser?.id) return;
+    const theirId = targetUser.userId || targetUser.user_id || targetUser.id;
+    if (!theirId || theirId === activeUser.id) return;
+
+    const existingInState = chats.find(c => c.otherUserId === theirId);
+    if (existingInState) {
+      setActiveChatId(existingInState.id);
+      fetchMessagesForConversation(existingInState.id);
+      return;
+    }
+
+    try {
+      const myId = activeUser.id;
+      const [p1, p2] = [myId, theirId].sort();
+      const isP1 = myId === p1;
+
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('participant_1', p1)
+        .eq('participant_2', p2)
+        .maybeSingle();
+
+      let conv = existingConv;
+      if (!conv) {
+        const myName = activeUser.fullName || activeUser.name || 'User';
+        const myHandle = `@${myName.toLowerCase().replace(/[\s\W]+/g, '')}`;
+        const myAvatar = activeUser.avatarUrl || activeUser.avatar || null;
+
+        const theirName = targetUser.author || targetUser.fullName || targetUser.name || 'User';
+        const theirHandle = targetUser.handle || `@${theirName.toLowerCase().replace(/[\s\W]+/g, '')}`;
+        const theirAvatar = typeof targetUser.avatar === 'string' ? targetUser.avatar : (targetUser.avatar?.uri || null);
+
+        const newRow = {
+          participant_1: p1,
+          participant_2: p2,
+          participant_1_name: isP1 ? myName : theirName,
+          participant_1_handle: isP1 ? myHandle : theirHandle,
+          participant_1_avatar: isP1 ? myAvatar : theirAvatar,
+          participant_2_name: isP1 ? theirName : myName,
+          participant_2_handle: isP1 ? theirHandle : myHandle,
+          participant_2_avatar: isP1 ? theirAvatar : myAvatar,
+          last_message_text: '',
+          last_message_at: new Date().toISOString(),
+          last_sender_id: myId,
+        };
+
+        const { data: createdConv, error: createErr } = await supabase
+          .from('conversations')
+          .insert([newRow])
+          .select()
+          .single();
+
+        if (!createErr && createdConv) {
+          conv = createdConv;
+        }
+      }
+
+      if (conv) {
+        await fetchConversations();
+        setActiveChatId(conv.id);
+        fetchMessagesForConversation(conv.id);
+      }
+    } catch (err) {
+      console.warn('handleOpenOrStartChatWithUser error:', err);
+    }
+  };
 
   // Pulse animation for recording mic icon
   useEffect(() => {
@@ -197,37 +457,79 @@ export default function ChatsModal({
 
   const handleOpenConversation = (id) => {
     setActiveChatId(id);
-    // Mark as read
     setChats(prev => prev.map(c => c.id === id ? { ...c, unread: false } : c));
+    if (activeUser?.id) {
+      fetchMessagesForConversation(id);
+    }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessageText.trim() || !activeChatId) return;
 
+    const text = newMessageText.trim();
+    setNewMessageText('');
+
+    const targetChat = chats.find(c => c.id === activeChatId);
+    const tempId = `m_${Date.now()}`;
     const newMsg = {
-      id: `m_${Date.now()}`,
+      id: tempId,
       sender: 'user',
-      text: newMessageText.trim(),
-      textAr: newMessageText.trim(),
-      time: isRTL ? 'الآن' : 'Just now'
+      text: text,
+      textAr: text,
+      time: isRTL ? 'الآن' : 'Just now',
+      created_at: new Date().toISOString(),
     };
 
-    appendMsg(newMsg);
-    setNewMessageText('');
-  };
-
-  const appendMsg = (newMsg) => {
     setChats(prev => prev.map(c => {
       if (c.id === activeChatId) {
         return {
           ...c,
           lastTime: 'Just now',
           lastTimeAr: 'الآن',
-          messages: [...c.messages, newMsg]
+          messages: [...(c.messages || []), newMsg]
         };
       }
       return c;
     }));
+
+    if (activeUser?.id && targetChat?.otherUserId) {
+      try {
+        const { data: insertedMsg } = await supabase
+          .from('direct_messages')
+          .insert([{
+            conversation_id: activeChatId,
+            sender_id: activeUser.id,
+            receiver_id: targetChat.otherUserId,
+            text: text,
+            media_type: 'text'
+          }])
+          .select()
+          .single();
+
+        if (insertedMsg) {
+          setChats(prev => prev.map(c => {
+            if (c.id === activeChatId) {
+              return {
+                ...c,
+                messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id } : m)
+              };
+            }
+            return c;
+          }));
+        }
+
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: text,
+            last_message_at: new Date().toISOString(),
+            last_sender_id: activeUser.id,
+          })
+          .eq('id', activeChatId);
+      } catch (err) {
+        console.warn('handleSendMessage cloud error:', err);
+      }
+    }
   };
 
   const handlePickImage = async () => {
@@ -250,14 +552,88 @@ export default function ChatsModal({
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const selectedImageUri = result.assets[0].uri;
+      const targetChat = chats.find(c => c.id === activeChatId);
+      const tempId = `m_${Date.now()}`;
       const newMsg = {
-        id: `m_${Date.now()}`,
+        id: tempId,
         sender: 'user',
         image: selectedImageUri,
-        time: isRTL ? 'الآن' : 'Just now'
+        time: isRTL ? 'الآن' : 'Just now',
+        created_at: new Date().toISOString(),
       };
-      appendMsg(newMsg);
+
+      setChats(prev => prev.map(c => {
+        if (c.id === activeChatId) {
+          return {
+            ...c,
+            lastTime: 'Just now',
+            lastTimeAr: 'الآن',
+            messages: [...(c.messages || []), newMsg]
+          };
+        }
+        return c;
+      }));
       setAttachmentMenuVisible(false);
+
+      if (activeUser?.id && activeChatId) {
+        try {
+          const response = await fetch(selectedImageUri);
+          const blob = await response.blob();
+          const ext = selectedImageUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+          const fileName = `messages/${activeChatId}/${activeUser.id}_${Date.now()}.${ext}`;
+
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('community-media')
+            .upload(fileName, blob, {
+              contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+              upsert: true,
+            });
+
+          let publicUrl = selectedImageUri;
+          if (!uploadErr && uploadData) {
+            const { data: publicData } = supabase.storage
+              .from('community-media')
+              .getPublicUrl(fileName);
+            publicUrl = publicData?.publicUrl || selectedImageUri;
+          }
+
+          const { data: insertedMsg } = await supabase
+            .from('direct_messages')
+            .insert([{
+              conversation_id: activeChatId,
+              sender_id: activeUser.id,
+              receiver_id: targetChat?.otherUserId,
+              text: null,
+              media_url: publicUrl,
+              media_type: 'image',
+            }])
+            .select()
+            .single();
+
+          if (insertedMsg) {
+            setChats(prev => prev.map(c => {
+              if (c.id === activeChatId) {
+                return {
+                  ...c,
+                  messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id, image: publicUrl } : m)
+                };
+              }
+              return c;
+            }));
+          }
+
+          await supabase
+            .from('conversations')
+            .update({
+              last_message_text: isRTL ? '📷 صورة' : '📷 Image',
+              last_message_at: new Date().toISOString(),
+              last_sender_id: activeUser.id,
+            })
+            .eq('id', activeChatId);
+        } catch (mediaErr) {
+          console.warn('handlePickImage cloud error:', mediaErr);
+        }
+      }
     }
   };
 
@@ -271,39 +647,86 @@ export default function ChatsModal({
     setRecordTime(0);
   };
 
-  const handleSendVoice = () => {
+  const handleSendVoice = async () => {
     const durationStr = formatRecordTime(recordTime === 0 ? 3 : recordTime);
+    cancelVoiceRecording();
+
+    const targetChat = chats.find(c => c.id === activeChatId);
+    const tempId = `m_${Date.now()}`;
     const newMsg = {
-      id: `m_${Date.now()}`,
+      id: tempId,
       sender: 'user',
       voiceDuration: durationStr,
       time: isRTL ? 'الآن' : 'Just now'
     };
-    appendMsg(newMsg);
-    setIsRecording(false);
-    setRecordTime(0);
+
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        return {
+          ...c,
+          lastTime: 'Just now',
+          lastTimeAr: 'الآن',
+          messages: [...(c.messages || []), newMsg]
+        };
+      }
+      return c;
+    }));
+
+    if (activeUser?.id && activeChatId) {
+      try {
+        const { data: insertedMsg } = await supabase
+          .from('direct_messages')
+          .insert([{
+            conversation_id: activeChatId,
+            sender_id: activeUser.id,
+            receiver_id: targetChat?.otherUserId,
+            text: null,
+            media_type: 'audio',
+            voice_duration: durationStr,
+          }])
+          .select()
+          .single();
+
+        if (insertedMsg) {
+          setChats(prev => prev.map(c => {
+            if (c.id === activeChatId) {
+              return {
+                ...c,
+                messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id } : m)
+              };
+            }
+            return c;
+          }));
+        }
+
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message',
+            last_message_at: new Date().toISOString(),
+            last_sender_id: activeUser.id,
+          })
+          .eq('id', activeChatId);
+      } catch (voiceErr) {
+        console.warn('handleSendVoice cloud error:', voiceErr);
+      }
+    }
   };
 
   const handleTogglePlayVoice = (msgId) => {
     if (playingVoiceId === msgId) {
-      // Pause
       setPlayingVoiceId(null);
       if (voicePlayIntervals.current[msgId]) {
         clearInterval(voicePlayIntervals.current[msgId]);
       }
     } else {
-      // Play
       setPlayingVoiceId(msgId);
-      
-      // Clear previous interval if any
       if (voicePlayIntervals.current[msgId]) {
         clearInterval(voicePlayIntervals.current[msgId]);
       }
 
-      // Initialize progress to 0 if starting fresh or keep current
       const currentProgress = voiceProgress[msgId] || 0;
       let tempProgress = currentProgress >= 1 ? 0 : currentProgress;
-      
       setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
 
       voicePlayIntervals.current[msgId] = setInterval(() => {
@@ -329,11 +752,10 @@ export default function ChatsModal({
   const filteredChats = chats.filter(c => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return true;
-    const nameToSearch = isRTL ? c.nameAr : c.name;
-    const lastMsg = c.messages[c.messages.length - 1];
-    const lastMsgText = lastMsg.image ? (isRTL ? 'صورة' : 'Photo') : lastMsg.voiceDuration ? (isRTL ? 'رسالة صوتية' : 'Voice message') : lastMsg.text;
-    const msgText = isRTL ? (lastMsg.textAr || lastMsgText) : (lastMsg.text || lastMsgText);
-    return nameToSearch.toLowerCase().includes(query) || msgText.toLowerCase().includes(query);
+    const nameToSearch = isRTL ? (c.nameAr || c.name || '') : (c.name || c.nameAr || '');
+    const lastMsg = (c.messages && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
+    const lastMsgText = lastMsg ? (lastMsg.image ? (isRTL ? 'صورة' : 'Photo') : lastMsg.voiceDuration ? (isRTL ? 'رسالة صوتية' : 'Voice message') : (lastMsg.text || '')) : (c.lastMessageText || '');
+    return nameToSearch.toLowerCase().includes(query) || lastMsgText.toLowerCase().includes(query);
   });
 
   return (
@@ -376,12 +798,12 @@ export default function ChatsModal({
 
               <View style={[styles.headerContactInfo, isRTL && { flexDirection: 'row-reverse' }]}>
                 <View style={styles.avatarWrapperMini}>
-                  <Image source={activeChat.avatar} style={styles.headerContactAvatar} />
+                  <Image source={getAvatarSource(activeChat?.avatar)} style={styles.headerContactAvatar} />
                   <View style={styles.onlineDotMini} />
                 </View>
                 <View style={[styles.headerContactDetails, isRTL ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10, alignItems: 'flex-start' }]}>
                   <Text style={[styles.headerContactName, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]}>
-                    {isRTL ? activeChat.nameAr : activeChat.name}
+                    {isRTL ? (activeChat?.nameAr || activeChat?.name || '') : (activeChat?.name || activeChat?.nameAr || '')}
                   </Text>
                   <Text style={[styles.headerStatusText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]}>
                     {isRTL ? 'نشط الآن' : 'Online'}
@@ -392,7 +814,7 @@ export default function ChatsModal({
               <View style={[styles.headerActions, isRTL && { flexDirection: 'row-reverse' }]}>
                 <TouchableOpacity 
                   style={styles.actionIconBtn} 
-                  onPress={() => handleMockCall(isRTL ? activeChat.nameAr : activeChat.name)}
+                  onPress={() => handleMockCall(isRTL ? (activeChat?.nameAr || activeChat?.name) : activeChat?.name)}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="call" size={18} color={colors.forestGreen} />
@@ -407,22 +829,30 @@ export default function ChatsModal({
               contentContainerStyle={styles.messagesScrollContent}
               style={{ backgroundColor: colors.screenBg }}
             >
-              {activeChat.messages.map((msg, index) => {
-                const isUser = msg.sender === 'user';
-                const msgText = isRTL ? msg.textAr : msg.text;
+              {(activeChat?.messages || []).length === 0 ? (
+                <View style={styles.emptyMessagesContainer}>
+                  <Ionicons name="chatbubbles-outline" size={42} color={colors.secondaryText} style={{ marginBottom: 12, opacity: 0.6 }} />
+                  <Text style={[styles.emptyMessagesText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.5 }]}>
+                    {isRTL ? 'لا توجد رسائل بعد. أرسل رسالة لبدء المحادثة!' : 'No messages yet. Send a message to start chatting!'}
+                  </Text>
+                </View>
+              ) : (
+                (activeChat?.messages || []).map((msg, index) => {
+                  const isUser = msg.sender === 'user';
+                  const msgText = isRTL ? (msg.textAr || msg.text) : (msg.text || msg.textAr);
 
-                return (
-                  <View 
-                    key={msg.id || index}
-                    style={[
-                      styles.msgBubbleRow, 
-                      isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
-                      isRTL && { flexDirection: isUser ? 'row-reverse' : 'row' }
-                    ]}
-                  >
-                    {!isUser && (
-                      <Image source={activeChat.avatar} style={styles.msgAvatar} />
-                    )}
+                  return (
+                    <View 
+                      key={msg.id || index}
+                      style={[
+                        styles.msgBubbleRow, 
+                        isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
+                        isRTL && { flexDirection: isUser ? 'row-reverse' : 'row' }
+                      ]}
+                    >
+                      {!isUser && (
+                        <Image source={getAvatarSource(activeChat?.avatar)} style={styles.msgAvatar} />
+                      )}
                     
                     <View style={[
                       styles.msgBubble,
@@ -630,25 +1060,35 @@ export default function ChatsModal({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollListContent}
             >
-              {filteredChats.length === 0 ? (
+              {isLoadingChats ? (
+                <View style={styles.emptyInbox}>
+                  <ActivityIndicator size="large" color={colors.forestGreen} />
+                </View>
+              ) : filteredChats.length === 0 ? (
                 <View style={styles.emptyInbox}>
                   <View style={styles.emptyBadgeContainer}>
                     <Ionicons name="chatbubbles-outline" size={48} color={colors.forestGreen} />
                   </View>
                   <Text style={[styles.emptyInboxText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
-                    {isRTL ? 'لا توجد محادثات تطابق بحثك.' : 'No conversations found.'}
+                    {searchQuery.trim().length > 0 
+                      ? (isRTL ? 'لا توجد محادثات تطابق بحثك.' : 'No conversations found.')
+                      : (isRTL ? 'لا توجد محادثات بعد.' : 'No conversations yet.')}
                   </Text>
                 </View>
               ) : (
                 filteredChats.map((chat) => {
-                  const lastMsg = chat.messages[chat.messages.length - 1];
-                  const lastMsgText = lastMsg.image 
-                    ? (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo') 
-                    : lastMsg.voiceDuration 
-                      ? (isRTL ? '🎵 رسالة صوتية' : '🎵 Voice message') 
-                      : (isRTL ? lastMsg.textAr : lastMsg.text);
-                  const timeText = isRTL ? chat.lastTimeAr : chat.lastTime;
-                  const nameText = isRTL ? chat.nameAr : chat.name;
+                  const lastMsg = (chat.messages && chat.messages.length > 0) 
+                    ? chat.messages[chat.messages.length - 1] 
+                    : null;
+                  const lastMsgText = lastMsg 
+                    ? (lastMsg.image 
+                        ? (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo') 
+                        : lastMsg.voiceDuration 
+                          ? (isRTL ? '🎵 رسالة صوتية' : '🎵 Voice message') 
+                          : (isRTL ? (lastMsg.textAr || lastMsg.text) : (lastMsg.text || lastMsg.textAr)))
+                    : (chat.lastMessageText || (isRTL ? 'لا توجد رسائل بعد' : 'No messages yet'));
+                  const timeText = isRTL ? (chat.lastTimeAr || chat.lastTime || '') : (chat.lastTime || chat.lastTimeAr || '');
+                  const nameText = isRTL ? (chat.nameAr || chat.name || 'مستخدم') : (chat.name || chat.nameAr || 'User');
 
                   return (
                     <TouchableOpacity
@@ -666,7 +1106,7 @@ export default function ChatsModal({
                     >
                       {/* Contact Avatar Wrapper */}
                       <View style={styles.avatarWrapper}>
-                        <Image source={chat.avatar} style={styles.chatAvatar} />
+                        <Image source={getAvatarSource(chat.avatar)} style={styles.chatAvatar} />
                         <View style={styles.onlineDot} />
                       </View>
 
@@ -1004,6 +1444,17 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   emptyInboxText: {
     fontSize: 14,
+    color: colors.secondaryText,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emptyMessagesContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 100,
+  },
+  emptyMessagesText: {
+    fontSize: 13.5,
     color: colors.secondaryText,
     fontWeight: '600',
     textAlign: 'center',
