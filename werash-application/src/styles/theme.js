@@ -6,7 +6,7 @@ export const LIGHT_COLORS = {
   cardBorder: '#FFFFFF',
   primaryText: '#1E2D1F',
   secondaryText: '#8E8E93',
-  mutedDecor: 'rgba(0, 0, 0, 0.08)',
+  mutedDecor: '#37633B',
   forestGreen: '#003514',
   activeHighlight: '#37633B',
   inactiveNav: '#8E8E93',
