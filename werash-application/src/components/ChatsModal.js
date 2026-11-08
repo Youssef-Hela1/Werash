@@ -14,6 +14,27 @@ import { supabase } from '../services/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const WAVEFORM_HEIGHTS = [8, 14, 22, 16, 10, 18, 26, 20, 12, 16, 24, 28, 18, 12, 20, 24, 16, 10, 18, 24, 20, 14, 18, 12, 16, 8];
+
+const parseDurationSeconds = (str) => {
+  if (!str) return 10;
+  const parts = String(str).split(':');
+  if (parts.length === 2) {
+    const mins = parseInt(parts[0], 10) || 0;
+    const secs = parseInt(parts[1], 10) || 0;
+    return Math.max(1, mins * 60 + secs);
+  }
+  const parsed = parseInt(str, 10);
+  return isNaN(parsed) || parsed <= 0 ? 10 : parsed;
+};
+
+const formatSecondsToTime = (totalSecs) => {
+  const secs = Math.max(0, Math.floor(totalSecs));
+  const mins = Math.floor(secs / 60);
+  const remainingSecs = secs % 60;
+  return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
+};
+
 const getAvatarSource = (avatar) => {
   if (!avatar) return require('../../assets/expert_samir.png');
   if (typeof avatar === 'string') return { uri: avatar };
@@ -116,7 +137,17 @@ export default function ChatsModal({
   const scrollViewRef = useRef(null);
   const recordingInterval = useRef(null);
   const voicePlayIntervals = useRef({});
+  const trackWidthsRef = useRef({});
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Cleanup voice playback intervals on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(voicePlayIntervals.current).forEach(interval => {
+        if (interval) clearInterval(interval);
+      });
+    };
+  }, []);
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
@@ -713,31 +744,62 @@ export default function ChatsModal({
     }
   };
 
-  const handleTogglePlayVoice = (msgId) => {
-    if (playingVoiceId === msgId) {
-      setPlayingVoiceId(null);
-      if (voicePlayIntervals.current[msgId]) {
-        clearInterval(voicePlayIntervals.current[msgId]);
-      }
-    } else {
-      setPlayingVoiceId(msgId);
-      if (voicePlayIntervals.current[msgId]) {
-        clearInterval(voicePlayIntervals.current[msgId]);
-      }
+  const handleSeek = (msgId, durationStr, localX) => {
+    const w = trackWidthsRef.current[msgId] || 180;
+    const clampedX = Math.max(0, Math.min(localX, w));
+    const newProgress = clampedX / w;
+    setVoiceProgress(prev => ({ ...prev, [msgId]: newProgress }));
 
-      const currentProgress = voiceProgress[msgId] || 0;
-      let tempProgress = currentProgress >= 1 ? 0 : currentProgress;
-      setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
+    if (playingVoiceId === msgId) {
+      if (voicePlayIntervals.current[msgId]) {
+        clearInterval(voicePlayIntervals.current[msgId]);
+      }
+      const totalSecs = parseDurationSeconds(durationStr || '0:10');
+      const stepIntervalMs = 100;
+      const stepProgress = stepIntervalMs / (totalSecs * 1000);
+      let tempProgress = newProgress;
 
       voicePlayIntervals.current[msgId] = setInterval(() => {
-        tempProgress += 0.05;
+        tempProgress += stepProgress;
         if (tempProgress >= 1.0) {
           tempProgress = 1.0;
           clearInterval(voicePlayIntervals.current[msgId]);
           setPlayingVoiceId(null);
         }
         setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
-      }, 100);
+      }, stepIntervalMs);
+    }
+  };
+
+  const handleTogglePlayVoice = (msgId, durationStr) => {
+    if (playingVoiceId === msgId) {
+      setPlayingVoiceId(null);
+      if (voicePlayIntervals.current[msgId]) {
+        clearInterval(voicePlayIntervals.current[msgId]);
+      }
+    } else {
+      if (playingVoiceId && voicePlayIntervals.current[playingVoiceId]) {
+        clearInterval(voicePlayIntervals.current[playingVoiceId]);
+      }
+      setPlayingVoiceId(msgId);
+
+      const totalSecs = parseDurationSeconds(durationStr || '0:10');
+      const stepIntervalMs = 100;
+      const stepProgress = stepIntervalMs / (totalSecs * 1000);
+
+      const currentProgress = voiceProgress[msgId] || 0;
+      let tempProgress = currentProgress >= 1 ? 0 : currentProgress;
+      setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
+
+      voicePlayIntervals.current[msgId] = setInterval(() => {
+        tempProgress += stepProgress;
+        if (tempProgress >= 1.0) {
+          tempProgress = 1.0;
+          clearInterval(voicePlayIntervals.current[msgId]);
+          setPlayingVoiceId(null);
+        }
+        setVoiceProgress(prev => ({ ...prev, [msgId]: tempProgress }));
+      }, stepIntervalMs);
     }
   };
 
@@ -860,6 +922,7 @@ export default function ChatsModal({
                       styles.msgBubble,
                       isUser ? styles.userMsgBubble : styles.contactMsgBubble,
                       msg?.image && styles.imageMsgBubble,
+                      msg?.voiceDuration && styles.voiceMsgBubble,
                       !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
                     ]}>
                       
@@ -873,43 +936,79 @@ export default function ChatsModal({
                           />
                         </View>
                       ) : msg?.voiceDuration ? (
-                        /* Render Voice Record Player Message */
+                        /* Render Voice Record Player Message with Interactive Touch/Drag Scrubber */
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
                             style={[styles.voicePlayBtn, isUser ? styles.userVoicePlayBtn : styles.contactVoicePlayBtn]}
-                            onPress={() => handleTogglePlayVoice(msg.id)}
+                            onPress={() => handleTogglePlayVoice(msg.id, msg.voiceDuration)}
                             activeOpacity={0.8}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
                             <Ionicons 
                               name={playingVoiceId === msg.id ? "pause" : "play"} 
-                              size={16} 
+                              size={18} 
                               color={isUser ? colors.forestGreen : '#FFFFFF'} 
                             />
                           </TouchableOpacity>
 
                           <View style={styles.voiceProgressWrapper}>
-                            {/* Animated progress bar and waveform tracks */}
-                            <View style={styles.waveformContainer}>
-                              {[...Array(12)].map((_, i) => {
-                                const progress = voiceProgress[msg.id] || 0;
-                                const isPassed = (i / 12) <= progress;
-                                return (
-                                  <View
-                                    key={i}
-                                    style={[
-                                      styles.waveformBar,
-                                      { height: 8 + (Math.sin(i * 0.8) * 12) },
-                                      isUser 
-                                        ? { backgroundColor: isPassed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.35)' }
-                                        : { backgroundColor: isPassed ? colors.forestGreen : (isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 53, 20, 0.18)') }
-                                    ]}
-                                  />
-                                );
-                              })}
+                            {/* Interactive Waveform Track with Drag & Tap Scrubbing */}
+                            <View 
+                              style={styles.waveformTouchArea}
+                              onLayout={(e) => {
+                                const w = e.nativeEvent.layout.width;
+                                if (w > 0) {
+                                  trackWidthsRef.current[msg.id] = w;
+                                }
+                              }}
+                              onStartShouldSetResponder={() => true}
+                              onMoveShouldSetResponder={() => true}
+                              onResponderGrant={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX)}
+                              onResponderMove={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX)}
+                              onResponderRelease={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX)}
+                            >
+                              <View style={styles.waveformContainer}>
+                                {WAVEFORM_HEIGHTS.map((height, i) => {
+                                  const progress = voiceProgress[msg.id] || 0;
+                                  const barFraction = i / (WAVEFORM_HEIGHTS.length - 1);
+                                  const isPassed = barFraction <= progress;
+                                  return (
+                                    <View
+                                      key={i}
+                                      style={[
+                                        styles.waveformBar,
+                                        { height },
+                                        isUser 
+                                          ? { backgroundColor: isPassed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.35)' }
+                                          : { backgroundColor: isPassed ? colors.forestGreen : (isDarkMode ? 'rgba(255, 255, 255, 0.20)' : 'rgba(0, 53, 20, 0.22)') }
+                                      ]}
+                                    />
+                                  );
+                                })}
+                              </View>
+
+                              {/* Scrubbing Thumb Indicator */}
+                              <View 
+                                pointerEvents="none"
+                                style={[
+                                  styles.scrubThumb,
+                                  isUser ? styles.userScrubThumb : styles.contactScrubThumb,
+                                  {
+                                    left: `${Math.min(100, Math.max(0, (voiceProgress[msg.id] || 0) * 100))}%`
+                                  }
+                                ]} 
+                              />
                             </View>
-                            <Text style={[styles.voiceDurationText, isUser ? styles.userVoiceTime : styles.contactVoiceTime]}>
-                              {msg.voiceDuration}
-                            </Text>
+
+                            {/* Time counter: Current Second / Total Duration */}
+                            <View style={[styles.voiceTimeRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                              <Text style={[styles.voiceDurationText, isUser ? styles.userVoiceTime : styles.contactVoiceTime]}>
+                                {formatSecondsToTime((voiceProgress[msg.id] || 0) * parseDurationSeconds(msg.voiceDuration))}
+                              </Text>
+                              <Text style={[styles.voiceTotalDurationText, isUser ? styles.userVoiceTotalTime : styles.contactVoiceTotalTime]}>
+                                {msg.voiceDuration}
+                              </Text>
+                            </View>
                           </View>
                         </View>
                       ) : (
@@ -927,7 +1026,8 @@ export default function ChatsModal({
                         styles.msgTime,
                         isUser ? styles.userMsgTime : styles.contactMsgTime,
                         isRTL ? { textAlign: 'left' } : { textAlign: 'right' },
-                        msg?.image && styles.imageMsgTime
+                        msg?.image && styles.imageMsgTime,
+                        msg?.voiceDuration && styles.voiceMsgTime
                       ]}>
                         {msg?.time}
                       </Text>
@@ -1507,6 +1607,13 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingVertical: 5,
     overflow: 'hidden',
   },
+  voiceMsgBubble: {
+    width: Math.min(SCREEN_WIDTH * 0.82, 320),
+    maxWidth: '88%',
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
   contactMsgBubble: {
     backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
     borderWidth: 1,
@@ -1579,15 +1686,26 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   voicePlayerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 160,
+    width: '100%',
     paddingVertical: 2,
   },
   voicePlayBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1.5 },
+        shadowOpacity: 0.16,
+        shadowRadius: 2.5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   userVoicePlayBtn: {
     backgroundColor: '#FFFFFF',
@@ -1597,30 +1715,81 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   voiceProgressWrapper: {
     flex: 1,
-    marginLeft: 10,
-    marginRight: 10,
+    marginLeft: 12,
+    marginRight: 6,
     justifyContent: 'center',
+  },
+  waveformTouchArea: {
+    width: '100%',
+    paddingVertical: 6,
+    justifyContent: 'center',
+    position: 'relative',
   },
   waveformContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    height: 24,
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    height: 28,
   },
   waveformBar: {
     width: 3,
     borderRadius: 1.5,
   },
+  scrubThumb: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -5,
+    marginLeft: -5,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1.5 },
+        shadowOpacity: 0.28,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  userScrubThumb: {
+    backgroundColor: '#FFFFFF',
+  },
+  contactScrubThumb: {
+    backgroundColor: colors.forestGreen,
+  },
+  voiceTimeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 3,
+  },
   voiceDurationText: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '700',
   },
+  voiceTotalDurationText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
   userVoiceTime: {
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: '#FFFFFF',
+  },
+  userVoiceTotalTime: {
+    color: 'rgba(255, 255, 255, 0.72)',
   },
   contactVoiceTime: {
+    color: colors.forestGreen,
+  },
+  contactVoiceTotalTime: {
     color: colors.secondaryText,
+  },
+  voiceMsgTime: {
+    marginTop: 2,
+    alignSelf: 'flex-end',
   },
   inputBar: {
     flexDirection: 'row',
