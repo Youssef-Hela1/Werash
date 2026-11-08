@@ -115,9 +115,11 @@ export default function ChatsModal({
   // Voice playback states
   const [playingVoiceId, setPlayingVoiceId] = useState(null);
   const [voiceProgress, setVoiceProgress] = useState({});
+  const [audioDurations, setAudioDurations] = useState({});
 
   const scrollViewRef = useRef(null);
   const recordingInterval = useRef(null);
+  const recordStartTimeRef = useRef(0);
   const voicePlayIntervals = useRef({});
   const trackWidthsRef = useRef({});
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -230,14 +232,19 @@ export default function ChatsModal({
 
       const formatted = (data || []).map((m) => {
         const isUser = activeUser?.id ? m.sender_id === activeUser.id : m.sender === 'user';
+        const isAudio = m.media_type === 'audio';
+        const audioDuration = isAudio 
+          ? (m.text && m.text.includes(':') ? m.text : (m.voice_duration || '0:03'))
+          : null;
+
         return {
           id: m.id,
           sender: isUser ? 'user' : 'contact',
-          text: m.text || '',
-          textAr: m.text || '',
+          text: isAudio ? '' : (m.text || ''),
+          textAr: isAudio ? '' : (m.text || ''),
           image: m.media_type === 'image' ? m.media_url : null,
-          voiceDuration: m.media_type === 'audio' ? (m.voice_duration || '0:05') : null,
-          audioUri: m.media_type === 'audio' ? m.media_url : null,
+          voiceDuration: audioDuration,
+          audioUri: isAudio ? m.media_url : null,
           time: formatTimeAgo(m.created_at, isRTL),
           created_at: m.created_at,
         };
@@ -303,14 +310,19 @@ export default function ChatsModal({
           if (payload?.new) {
             const m = payload.new;
             const isUser = m.sender_id === activeUser.id;
+            const isAudio = m.media_type === 'audio';
+            const audioDuration = isAudio 
+              ? (m.text && m.text.includes(':') ? m.text : (m.voice_duration || '0:03'))
+              : null;
+
             const newMsg = {
               id: m.id,
               sender: isUser ? 'user' : 'contact',
-              text: m.text || '',
-              textAr: m.text || '',
+              text: isAudio ? '' : (m.text || ''),
+              textAr: isAudio ? '' : (m.text || ''),
               image: m.media_type === 'image' ? m.media_url : null,
-              voiceDuration: m.media_type === 'audio' ? (m.voice_duration || '0:05') : null,
-              audioUri: m.media_type === 'audio' ? m.media_url : null,
+              voiceDuration: audioDuration,
+              audioUri: isAudio ? m.media_url : null,
               time: formatTimeAgo(m.created_at, isRTL),
               created_at: m.created_at,
             };
@@ -660,6 +672,7 @@ export default function ChatsModal({
 
   const startVoiceRecording = async () => {
     setAttachmentMenuVisible(false);
+    recordStartTimeRef.current = Date.now();
     try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
@@ -674,6 +687,7 @@ export default function ChatsModal({
         playsInSilentMode: true,
       });
       await recorder.prepareToRecordAsync();
+      recordStartTimeRef.current = Date.now();
       recorder.record();
     } catch (err) {
       console.warn('startVoiceRecording error:', err);
@@ -684,6 +698,7 @@ export default function ChatsModal({
   const cancelVoiceRecording = async () => {
     setIsRecording(false);
     setRecordTime(0);
+    recordStartTimeRef.current = 0;
     try {
       if (recorder?.isRecording) {
         await recorder.stop();
@@ -693,7 +708,8 @@ export default function ChatsModal({
   };
 
   const handleSendVoice = async () => {
-    const durationSec = recordTime === 0 ? 3 : recordTime;
+    const elapsedMs = recordStartTimeRef.current > 0 ? (Date.now() - recordStartTimeRef.current) : (recordTime * 1000);
+    const durationSec = Math.max(1, Math.round(elapsedMs / 1000));
     const durationStr = formatRecordTime(durationSec);
 
     let recordedUri = null;
@@ -718,6 +734,8 @@ export default function ChatsModal({
       time: isRTL ? 'الآن' : 'Just now',
       created_at: new Date().toISOString(),
     };
+
+    setAudioDurations(prev => ({ ...prev, [tempId]: durationStr }));
 
     setChats(prev => prev.map(c => {
       if (c.id === activeChatId) {
@@ -760,21 +778,25 @@ export default function ChatsModal({
           }
         }
 
-        const { data: insertedMsg } = await supabase
+        const { data: insertedMsg, error: insertErr } = await supabase
           .from('direct_messages')
           .insert([{
             conversation_id: activeChatId,
             sender_id: activeUser.id,
             receiver_id: targetChat?.otherUserId,
-            text: null,
+            text: durationStr,
             media_url: publicAudioUrl,
             media_type: 'audio',
-            voice_duration: durationStr,
           }])
           .select()
           .single();
 
+        if (insertErr) {
+          console.warn('direct_messages insert audio error:', insertErr.message);
+        }
+
         if (insertedMsg) {
+          setAudioDurations(prev => ({ ...prev, [insertedMsg.id]: durationStr }));
           setChats(prev => prev.map(c => {
             if (c.id === activeChatId) {
               return {
@@ -806,7 +828,8 @@ export default function ChatsModal({
     const newProgress = clampedX / w;
     setVoiceProgress(prev => ({ ...prev, [msgId]: newProgress }));
 
-    const totalSecs = parseDurationSeconds(durationStr || '0:10');
+    const resolvedDurationStr = audioDurations[msgId] || durationStr || '0:03';
+    const totalSecs = parseDurationSeconds(resolvedDurationStr);
     const seekSecs = newProgress * totalSecs;
 
     if (activePlayerRef.current && activePlayerMsgIdRef.current === msgId) {
@@ -820,10 +843,13 @@ export default function ChatsModal({
         clearInterval(voicePlayIntervals.current[msgId]);
       }
       const stepIntervalMs = 100;
-      const stepProgress = stepIntervalMs / (totalSecs * 1000);
       let tempProgress = newProgress;
 
       voicePlayIntervals.current[msgId] = setInterval(() => {
+        const player = activePlayerRef.current;
+        const actualSecs = (player && player.duration > 0) ? player.duration : totalSecs;
+        const stepProgress = stepIntervalMs / (actualSecs * 1000);
+
         tempProgress += stepProgress;
         if (tempProgress >= 1.0) {
           tempProgress = 1.0;
@@ -851,9 +877,9 @@ export default function ChatsModal({
       }
       setPlayingVoiceId(msgId);
 
-      const totalSecs = parseDurationSeconds(durationStr || '0:10');
+      const resolvedDurationStr = audioDurations[msgId] || durationStr || '0:03';
+      const totalSecs = parseDurationSeconds(resolvedDurationStr);
       const stepIntervalMs = 100;
-      const stepProgress = stepIntervalMs / (totalSecs * 1000);
 
       const currentProgress = voiceProgress[msgId] || 0;
       let tempProgress = currentProgress >= 1.0 ? 0 : currentProgress;
@@ -870,16 +896,37 @@ export default function ChatsModal({
         activePlayerRef.current = player;
         activePlayerMsgIdRef.current = msgId;
 
+        if (player.addListener) {
+          player.addListener('playbackStatusUpdate', (status) => {
+            if (status && status.duration && status.duration > 0) {
+              const formatted = formatSecondsToTime(status.duration);
+              setAudioDurations(prev => {
+                if (prev[msgId] === formatted) return prev;
+                return { ...prev, [msgId]: formatted };
+              });
+            }
+          });
+        }
+
         const startSeconds = tempProgress * totalSecs;
         if (startSeconds > 0) {
           try { await player.seekTo(startSeconds); } catch (_) {}
         }
         player.play();
+
+        if (player.duration && player.duration > 0) {
+          const formatted = formatSecondsToTime(player.duration);
+          setAudioDurations(prev => ({ ...prev, [msgId]: formatted }));
+        }
       } catch (audioEx) {
         console.warn('Audio playback error:', audioEx);
       }
 
       voicePlayIntervals.current[msgId] = setInterval(() => {
+        const player = activePlayerRef.current;
+        const actualSecs = (player && player.duration > 0) ? player.duration : totalSecs;
+        const stepProgress = stepIntervalMs / (actualSecs * 1000);
+
         tempProgress += stepProgress;
         if (tempProgress >= 1.0) {
           tempProgress = 1.0;
@@ -994,6 +1041,7 @@ export default function ChatsModal({
                   if (!msg) return null;
                   const isUser = msg?.sender === 'user';
                   const msgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
+                  const effectiveVoiceDuration = audioDurations[msg?.id] || msg?.voiceDuration || '0:03';
 
                   return (
                     <View 
@@ -1030,7 +1078,7 @@ export default function ChatsModal({
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
                             style={[styles.voicePlayBtn, isUser ? styles.userVoicePlayBtn : styles.contactVoicePlayBtn]}
-                            onPress={() => handleTogglePlayVoice(msg.id, msg.voiceDuration, msg.audioUri || msg.media_url)}
+                            onPress={() => handleTogglePlayVoice(msg.id, effectiveVoiceDuration, msg.audioUri || msg.media_url)}
                             activeOpacity={0.8}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
@@ -1053,9 +1101,9 @@ export default function ChatsModal({
                               }}
                               onStartShouldSetResponder={() => true}
                               onMoveShouldSetResponder={() => true}
-                              onResponderGrant={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
-                              onResponderMove={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
-                              onResponderRelease={(e) => handleSeek(msg.id, msg.voiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
+                              onResponderGrant={(e) => handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
+                              onResponderMove={(e) => handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
+                              onResponderRelease={(e) => handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
                             >
                               <View style={styles.waveformContainer}>
                                 {WAVEFORM_HEIGHTS.map((height, i) => {
@@ -1093,10 +1141,10 @@ export default function ChatsModal({
                             {/* Time counter: Current Second / Total Duration */}
                             <View style={[styles.voiceTimeRow, isRTL && { flexDirection: 'row-reverse' }]}>
                               <Text style={[styles.voiceDurationText, isUser ? styles.userVoiceTime : styles.contactVoiceTime]}>
-                                {formatSecondsToTime((voiceProgress[msg.id] || 0) * parseDurationSeconds(msg.voiceDuration))}
+                                {formatSecondsToTime((voiceProgress[msg.id] || 0) * parseDurationSeconds(effectiveVoiceDuration))}
                               </Text>
                               <Text style={[styles.voiceTotalDurationText, isUser ? styles.userVoiceTotalTime : styles.contactVoiceTotalTime]}>
-                                {msg.voiceDuration}
+                                {effectiveVoiceDuration}
                               </Text>
                             </View>
                           </View>
