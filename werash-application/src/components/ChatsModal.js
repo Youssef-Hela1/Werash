@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   createAudioPlayer, 
   useAudioRecorder, 
@@ -116,6 +117,45 @@ export default function ChatsModal({
   const [playingVoiceId, setPlayingVoiceId] = useState(null);
   const [voiceProgress, setVoiceProgress] = useState({});
   const [audioDurations, setAudioDurations] = useState({});
+
+  // Message selection & deletion states
+  const [selectedMessages, setSelectedMessages] = useState({});
+  const selectedCount = Object.keys(selectedMessages).length;
+  const isSelectionMode = selectedCount > 0;
+
+  const [deletedForMeIds, setDeletedForMeIds] = useState(new Set());
+  const deletedForMeIdsRef = useRef(new Set());
+  deletedForMeIdsRef.current = deletedForMeIds;
+
+  const loadPersistedDeletedIds = async () => {
+    try {
+      const keys = ['@werash_deleted_messages_all'];
+      if (activeUser?.id) {
+        keys.push(`@werash_deleted_messages_${activeUser.id}`);
+      }
+      const values = await AsyncStorage.multiGet(keys);
+      const combined = new Set(deletedForMeIdsRef.current);
+      values.forEach(([_, val]) => {
+        if (val) {
+          try {
+            const arr = JSON.parse(val);
+            if (Array.isArray(arr)) {
+              arr.forEach((id) => combined.add(id));
+            }
+          } catch (_) {}
+        }
+      });
+      deletedForMeIdsRef.current = combined;
+      setDeletedForMeIds(combined);
+      return combined;
+    } catch (_) {
+      return deletedForMeIdsRef.current;
+    }
+  };
+
+  useEffect(() => {
+    loadPersistedDeletedIds();
+  }, [activeUser?.id]);
 
   const scrollViewRef = useRef(null);
   const recordingInterval = useRef(null);
@@ -230,7 +270,11 @@ export default function ChatsModal({
         return;
       }
 
-      const formatted = (data || []).map((m) => {
+      const deletedIds = await loadPersistedDeletedIds();
+
+      const formatted = (data || [])
+        .filter((m) => !deletedIds.has(m.id))
+        .map((m) => {
         const isUser = activeUser?.id ? m.sender_id === activeUser.id : m.sender === 'user';
         const isAudio = m.media_type === 'audio';
         const audioDuration = isAudio 
@@ -309,6 +353,7 @@ export default function ChatsModal({
         (payload) => {
           if (payload?.new) {
             const m = payload.new;
+            if (deletedForMeIdsRef.current.has(m.id)) return;
             const isUser = m.sender_id === activeUser.id;
             const isAudio = m.media_type === 'audio';
             const audioDuration = isAudio 
@@ -335,6 +380,29 @@ export default function ChatsModal({
                 return {
                   ...c,
                   messages: [...c.messages, newMsg],
+                };
+              }
+              return c;
+            }));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `conversation_id=eq.${activeChatId}`,
+        },
+        (payload) => {
+          if (payload?.old?.id) {
+            const deletedId = payload.old.id;
+            setChats(prev => prev.map(c => {
+              if (c.id === activeChatId) {
+                return {
+                  ...c,
+                  messages: (c.messages || []).filter(existing => existing.id !== deletedId),
                 };
               }
               return c;
@@ -489,10 +557,133 @@ export default function ChatsModal({
   };
 
   const handleOpenConversation = (id) => {
+    stopCurrentPlayer();
+    setSelectedMessages({});
     setActiveChatId(id);
     setChats(prev => prev.map(c => c.id === id ? { ...c, unread: false } : c));
     if (activeUser?.id) {
       fetchMessagesForConversation(id);
+    }
+  };
+
+  const handleToggleSelectMessage = (msg) => {
+    if (!msg || !msg.id) return;
+    setSelectedMessages((prev) => {
+      const next = { ...prev };
+      if (next[msg.id]) {
+        delete next[msg.id];
+      } else {
+        next[msg.id] = msg;
+      }
+      return next;
+    });
+  };
+
+  const handleLongPressMessage = (msg) => {
+    if (!msg || !msg.id) return;
+    handleToggleSelectMessage(msg);
+  };
+
+  const handleDeleteSelectedMessages = async () => {
+    const messagesToDelete = Object.values(selectedMessages);
+    if (messagesToDelete.length === 0 || !activeChatId) return;
+
+    const targetChat = chats.find(c => c.id === activeChatId);
+
+    // Clear selection mode immediately
+    setSelectedMessages({});
+
+    // Stop audio playback if any deleted message is playing
+    if (playingVoiceId && messagesToDelete.some(m => m.id === playingVoiceId)) {
+      stopCurrentPlayer();
+      setPlayingVoiceId(null);
+    }
+
+    const deleteIdsSet = new Set(messagesToDelete.map(m => m.id));
+
+    // Optimistically remove all selected messages from active chat in state
+    let newLastText = '';
+    let newLastTime = '';
+    let newLastAt = new Date().toISOString();
+    let newLastSenderId = null;
+
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        const currentList = c.messages || [];
+        const updatedList = currentList.filter(m => !deleteIdsSet.has(m.id));
+
+        const lastMsg = updatedList.length > 0 ? updatedList[updatedList.length - 1] : null;
+        if (lastMsg) {
+          newLastText = lastMsg.text || (lastMsg.voiceDuration ? (isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message') : (lastMsg.image ? (isRTL ? '📷 صورة' : '📷 Image') : ''));
+          newLastTime = lastMsg.time || 'Just now';
+          newLastAt = lastMsg.created_at || new Date().toISOString();
+          newLastSenderId = lastMsg.sender === 'user' ? activeUser?.id : targetChat?.otherUserId;
+        }
+
+        return {
+          ...c,
+          messages: updatedList,
+          lastMessageText: newLastText,
+          lastTime: newLastTime,
+          lastTimeAr: isRTL ? 'الآن' : 'Just now',
+        };
+      }
+      return c;
+    }));
+
+    // Partition IDs: Sent by ME vs Sent by the OTHER USER
+    const myMessageIds = messagesToDelete
+      .filter(m => m.sender === 'user')
+      .map(m => m.id);
+
+    const allDeletedIds = messagesToDelete.map(m => m.id);
+
+    // Persist deleted message IDs locally (so deleted messages never reappear on reload)
+    try {
+      const updatedSet = new Set(deletedForMeIdsRef.current);
+      allDeletedIds.forEach(id => updatedSet.add(id));
+      setDeletedForMeIds(updatedSet);
+      deletedForMeIdsRef.current = updatedSet;
+
+      const serialized = JSON.stringify(Array.from(updatedSet));
+      await AsyncStorage.setItem('@werash_deleted_messages_all', serialized);
+      if (activeUser?.id) {
+        await AsyncStorage.setItem(`@werash_deleted_messages_${activeUser.id}`, serialized);
+      }
+    } catch (err) {
+      console.warn('handleDeleteSelectedMessages persistence error:', err);
+    }
+
+    // 1. Messages sent by ME -> Delete from Supabase for everyone
+    if (myMessageIds.length > 0) {
+      try {
+        const { error: delError } = await supabase
+          .from('direct_messages')
+          .delete()
+          .in('id', myMessageIds);
+
+        if (delError) {
+          console.warn('Error deleting my messages from Supabase:', delError.message);
+        }
+      } catch (err) {
+        console.warn('handleDeleteSelectedMessages cloud delete error:', err);
+      }
+    }
+
+    // 2. Update conversation's last message in Supabase
+    if (activeChatId) {
+      try {
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: newLastText,
+            last_message_at: newLastAt,
+            last_sender_id: newLastSenderId,
+          })
+          .eq('id', activeChatId);
+      } catch (convErr) {
+        console.warn('Error updating conversation after message deletion:', convErr);
+      }
     }
   };
 
@@ -965,6 +1156,10 @@ export default function ChatsModal({
       statusBarTranslucent={true}
       onRequestClose={() => {
         stopCurrentPlayer();
+        if (isSelectionMode) {
+          setSelectedMessages({});
+          return;
+        }
         if (activeChatId) {
           setActiveChatId(null);
         } else {
@@ -984,42 +1179,78 @@ export default function ChatsModal({
             >
             {/* Conversation Header */}
             <View style={[styles.header, { paddingTop: topInset + 8 }, isRTL && { flexDirection: 'row-reverse' }]}>
-              <TouchableOpacity 
-                style={styles.backBtn} 
-                onPress={() => {
-                  stopCurrentPlayer();
-                  setActiveChatId(null);
-                }}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color={colors.primaryText} />
-              </TouchableOpacity>
+              {isSelectionMode ? (
+                <View style={[styles.dmHeaderSelectionRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                  {/* Left: Close selection / cancel button */}
+                  <TouchableOpacity
+                    style={[styles.dmHeaderCloseSelectBtn, isRTL && { flexDirection: 'row-reverse' }]}
+                    onPress={() => setSelectedMessages({})}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Ionicons name="close" size={24} color={colors.primaryText} />
+                    <Text style={[
+                      styles.dmHeaderSelectCountText, 
+                      { color: colors.primaryText },
+                      isRTL ? { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5, marginLeft: 0, marginRight: 8 } : { marginLeft: 8 }
+                    ]}>
+                      {isRTL ? `${selectedCount} محددة` : `${selectedCount} selected`}
+                    </Text>
+                  </TouchableOpacity>
 
-              <View style={[styles.headerContactInfo, isRTL && { flexDirection: 'row-reverse' }]}>
-                <View style={styles.avatarWrapperMini}>
-                  <Image source={getAvatarSource(activeChat?.avatar)} style={styles.headerContactAvatar} />
-                  <View style={styles.onlineDotMini} />
+                  {/* Right: Red Delete Button */}
+                  <TouchableOpacity
+                    style={[styles.dmHeaderDeleteBtn, isRTL && { flexDirection: 'row-reverse' }]}
+                    onPress={handleDeleteSelectedMessages}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#FFFFFF" style={isRTL ? { marginLeft: 6 } : { marginRight: 6 }} />
+                    <Text style={[styles.dmHeaderDeleteBtnText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
+                      {isRTL ? `حذف (${selectedCount})` : `Delete (${selectedCount})`}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={[styles.headerContactDetails, isRTL ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10, alignItems: 'flex-start' }]}>
-                  <Text style={[styles.headerContactName, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]}>
-                    {isRTL ? (activeChat?.nameAr || activeChat?.name || '') : (activeChat?.name || activeChat?.nameAr || '')}
-                  </Text>
-                  <Text style={[styles.headerStatusText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]}>
-                    {isRTL ? 'نشط الآن' : 'Online'}
-                  </Text>
-                </View>
-              </View>
+              ) : (
+                <>
+                  <TouchableOpacity 
+                    style={styles.backBtn} 
+                    onPress={() => {
+                      stopCurrentPlayer();
+                      setActiveChatId(null);
+                    }}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color={colors.primaryText} />
+                  </TouchableOpacity>
 
-              <View style={[styles.headerActions, isRTL && { flexDirection: 'row-reverse' }]}>
-                <TouchableOpacity 
-                  style={styles.actionIconBtn} 
-                  onPress={() => handleMockCall(isRTL ? (activeChat?.nameAr || activeChat?.name) : activeChat?.name)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="call" size={18} color={colors.forestGreen} />
-                </TouchableOpacity>
-              </View>
+                  <View style={[styles.headerContactInfo, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <View style={styles.avatarWrapperMini}>
+                      <Image source={getAvatarSource(activeChat?.avatar)} style={styles.headerContactAvatar} />
+                      <View style={styles.onlineDotMini} />
+                    </View>
+                    <View style={[styles.headerContactDetails, isRTL ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10, alignItems: 'flex-start' }]}>
+                      <Text style={[styles.headerContactName, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]}>
+                        {isRTL ? (activeChat?.nameAr || activeChat?.name || '') : (activeChat?.name || activeChat?.nameAr || '')}
+                      </Text>
+                      <Text style={[styles.headerStatusText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]}>
+                        {isRTL ? 'نشط الآن' : 'Online'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.headerActions, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <TouchableOpacity 
+                      style={styles.actionIconBtn} 
+                      onPress={() => handleMockCall(isRTL ? (activeChat?.nameAr || activeChat?.name) : activeChat?.name)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="call" size={18} color={colors.forestGreen} />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
 
             {/* Conversation Messages Log */}
@@ -1042,6 +1273,7 @@ export default function ChatsModal({
                   const isUser = msg?.sender === 'user';
                   const msgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
                   const effectiveVoiceDuration = audioDurations[msg?.id] || msg?.voiceDuration || '0:03';
+                  const isSelected = Boolean(selectedMessages[msg?.id]);
 
                   return (
                     <View 
@@ -1056,29 +1288,62 @@ export default function ChatsModal({
                         <Image source={getAvatarSource(activeChat?.avatar)} style={styles.msgAvatar} />
                       )}
                     
-                    <View style={[
-                      styles.msgBubble,
-                      isUser ? styles.userMsgBubble : styles.contactMsgBubble,
-                      msg?.image && styles.imageMsgBubble,
-                      msg?.voiceDuration && styles.voiceMsgBubble,
-                      !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
-                    ]}>
+                    <TouchableOpacity
+                      activeOpacity={isSelectionMode ? 0.75 : 0.95}
+                      delayLongPress={300}
+                      onPress={() => {
+                        if (isSelectionMode) {
+                          handleToggleSelectMessage(msg);
+                        }
+                      }}
+                      onLongPress={() => handleLongPressMessage(msg)}
+                      style={[
+                        styles.msgBubble,
+                        isUser ? styles.userMsgBubble : styles.contactMsgBubble,
+                        msg?.image && styles.imageMsgBubble,
+                        msg?.voiceDuration && styles.voiceMsgBubble,
+                        isSelected && styles.msgBubbleSelected,
+                        !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
+                      ]}
+                    >
+                      {/* Selected Checkmark Badge */}
+                      {isSelected && (
+                        <View style={[styles.msgSelectCheckBadge, isUser ? styles.msgSelectCheckBadgeMe : styles.msgSelectCheckBadgeThem]}>
+                          <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                        </View>
+                      )}
                       
                       {msg?.image ? (
                         /* Render Image Message */
-                        <View style={styles.imageMsgContainer}>
+                        <TouchableOpacity
+                          activeOpacity={isSelectionMode ? 0.75 : 0.9}
+                          delayLongPress={300}
+                          onPress={() => {
+                            if (isSelectionMode) {
+                              handleToggleSelectMessage(msg);
+                            }
+                          }}
+                          onLongPress={() => handleLongPressMessage(msg)}
+                          style={styles.imageMsgContainer}
+                        >
                           <Image 
                             source={typeof msg.image === 'string' ? { uri: msg.image } : msg.image} 
                             style={styles.imageMsgContent} 
                             resizeMode="cover" 
                           />
-                        </View>
+                        </TouchableOpacity>
                       ) : msg?.voiceDuration ? (
                         /* Render Voice Record Player Message with Interactive Touch/Drag Scrubber */
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
                             style={[styles.voicePlayBtn, isUser ? styles.userVoicePlayBtn : styles.contactVoicePlayBtn]}
-                            onPress={() => handleTogglePlayVoice(msg.id, effectiveVoiceDuration, msg.audioUri || msg.media_url)}
+                            onPress={() => {
+                              if (isSelectionMode) {
+                                handleToggleSelectMessage(msg);
+                                return;
+                              }
+                              handleTogglePlayVoice(msg.id, effectiveVoiceDuration, msg.audioUri || msg.media_url);
+                            }}
                             activeOpacity={0.8}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
@@ -1101,9 +1366,21 @@ export default function ChatsModal({
                               }}
                               onStartShouldSetResponder={() => true}
                               onMoveShouldSetResponder={() => true}
-                              onResponderGrant={(e) => handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
-                              onResponderMove={(e) => handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
-                              onResponderRelease={(e) => handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url)}
+                              onResponderGrant={(e) => {
+                                if (isSelectionMode) {
+                                  handleToggleSelectMessage(msg);
+                                  return;
+                                }
+                                handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url);
+                              }}
+                              onResponderMove={(e) => {
+                                if (isSelectionMode) return;
+                                handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url);
+                              }}
+                              onResponderRelease={(e) => {
+                                if (isSelectionMode) return;
+                                handleSeek(msg.id, effectiveVoiceDuration, e.nativeEvent.locationX, msg.audioUri || msg.media_url);
+                              }}
                             >
                               <View style={styles.waveformContainer}>
                                 {WAVEFORM_HEIGHTS.map((height, i) => {
@@ -1166,7 +1443,7 @@ export default function ChatsModal({
                       ]}>
                         {msg?.time}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                 );
               }))}
@@ -2113,5 +2390,94 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.secondaryText,
     fontSize: 14,
     fontWeight: '700',
-  }
+  },
+  dmHeaderSelectionRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  dmHeaderCloseSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  dmHeaderSelectCountText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.primaryText,
+    marginLeft: 8,
+  },
+  dmHeaderDeleteBtn: {
+    backgroundColor: '#FF3B30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+    height: 36,
+    borderRadius: 18,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FF3B30',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.35,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  dmHeaderDeleteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  msgBubbleSelected: {
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FF3B30',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.45,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  msgSelectCheckBadge: {
+    position: 'absolute',
+    top: -6,
+    zIndex: 20,
+    backgroundColor: '#FF3B30',
+    borderRadius: 11,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  msgSelectCheckBadgeMe: {
+    left: -6,
+  },
+  msgSelectCheckBadgeThem: {
+    right: -6,
+  },
 });
