@@ -53,11 +53,46 @@ export default function CommunityScreen({
   const scrollViewRef = useRef(null);
   const lastOffsetY = useRef(0);
 
+  // Collapsible & Click-at-top Header state & animation
+  const [headerHeight, setHeaderHeight] = useState(topInset + 115);
+  const headerTranslateAnim = useRef(new Animated.Value(0)).current;
+  const isHeaderHidden = useRef(false);
+
+  const onHeaderLayout = (event) => {
+    const { height } = event.nativeEvent.layout;
+    if (height && Math.abs(height - headerHeight) > 1) {
+      setHeaderHeight(height);
+    }
+  };
+
   const handleScroll = (event) => {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastOffsetY.current;
 
-    // Show button when user is down (> 320px) and scrolls UP (diff < -8)
+    // When scrolling down past initial top zone: hide header off-screen
+    if (currentY > 60 && diff > 8) {
+      if (!isHeaderHidden.current) {
+        isHeaderHidden.current = true;
+        Animated.timing(headerTranslateAnim, {
+          toValue: -headerHeight,
+          duration: 220,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+    // When scrolling up (diff < -8) or at the top: immediately slide down and click header at the top
+    else if (diff < -8 || currentY <= 15) {
+      if (isHeaderHidden.current || currentY <= 15) {
+        isHeaderHidden.current = false;
+        Animated.timing(headerTranslateAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+
+    // Show "Back to top" button when user is down (> 320px) and scrolls UP (diff < -8)
     if (currentY > 320 && diff < -8) {
       if (!showBackToTop) {
         setShowBackToTop(true);
@@ -84,13 +119,22 @@ export default function CommunityScreen({
   };
 
   const handleScrollToTop = () => {
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    // Dock header at top
+    isHeaderHidden.current = false;
+    Animated.timing(headerTranslateAnim, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+
     setShowBackToTop(false);
     Animated.timing(backToTopAnim, {
       toValue: 0,
       duration: 180,
       useNativeDriver: true,
     }).start();
+
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   // Fetch live posts from Supabase cloud
@@ -236,6 +280,12 @@ export default function CommunityScreen({
   // Tab switching handler
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
+    isHeaderHidden.current = false;
+    Animated.timing(headerTranslateAnim, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
     if (showBackToTop) {
       setShowBackToTop(false);
       backToTopAnim.setValue(0);
@@ -277,7 +327,7 @@ export default function CommunityScreen({
       <ScrollView
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollListContent, { paddingTop: topInset + 6 }]}
+        contentContainerStyle={[styles.scrollListContent, { paddingTop: headerHeight + 8 }]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -289,81 +339,10 @@ export default function CommunityScreen({
             }}
             tintColor="#003514"
             colors={['#003514']}
+            progressViewOffset={headerHeight}
           />
         }
       >
-        {/* Top Header Row with Logo & Wordmark on Left and Search & Message on Right */}
-        <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
-          <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
-            <Image
-              source={require('../../assets/logo_green.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-            {isRtl ? (
-              <Text style={styles.brandNameArabic}>
-                وِرَش
-              </Text>
-            ) : (
-              <Image
-                source={require('../../assets/Werash_wordmark.png')}
-                style={styles.wordmarkImage}
-                resizeMode="contain"
-              />
-            )}
-          </View>
-          <View style={styles.spacer} />
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // Search handler
-            }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Ionicons name="search-outline" size={28} color="#003514" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.iconButton, { marginLeft: 14 }]}
-            activeOpacity={0.7}
-            onPress={() => setChatsVisible(true)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Messages"
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={28} color="#003514" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Tabs Navigation: Feed | Profile | Souq */}
-        <View style={[styles.tabsBar, isRtl && styles.tabsBarRtl]}>
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <TouchableOpacity
-                key={tab.id}
-                style={styles.tabItem}
-                activeOpacity={0.7}
-                onPress={() => handleTabChange(tab.id)}
-              >
-                <Text style={[
-                  styles.tabText,
-                  isActive && styles.tabTextActive,
-                  isRtl && styles.tabTextRtl,
-                ]}>
-                  {isRtl ? tab.labelAr : tab.label}
-                </Text>
-                <View style={[
-                  styles.tabIndicator,
-                  isActive && styles.tabIndicatorActive,
-                ]} />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
         {/* Feed Tab Content */}
         {activeTab === 'feed' && (
           <>
@@ -606,13 +585,97 @@ export default function CommunityScreen({
         )}
       </ScrollView>
 
+      {/* Dockable / Collapsible Header at Top */}
+      <Animated.View
+        onLayout={onHeaderLayout}
+        style={[
+          styles.floatingHeader,
+          {
+            paddingTop: topInset + 6,
+            transform: [{ translateY: headerTranslateAnim }],
+          },
+        ]}
+      >
+        {/* Top Header Row with Logo & Wordmark on Left and Search & Message on Right */}
+        <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
+          <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
+            <Image
+              source={require('../../assets/logo_green.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            {isRtl ? (
+              <Text style={styles.brandNameArabic}>
+                وِرَش
+              </Text>
+            ) : (
+              <Image
+                source={require('../../assets/Werash_wordmark.png')}
+                style={styles.wordmarkImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+          <View style={styles.spacer} />
+          <TouchableOpacity
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            onPress={() => {
+              // Search handler
+            }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Ionicons name="search-outline" size={28} color="#003514" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, { marginLeft: 14 }]}
+            activeOpacity={0.7}
+            onPress={() => setChatsVisible(true)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={28} color="#003514" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tabs Navigation: Feed | Profile | Souq */}
+        <View style={[styles.tabsBar, isRtl && styles.tabsBarRtl]}>
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+                onPress={() => handleTabChange(tab.id)}
+              >
+                <Text style={[
+                  styles.tabText,
+                  isActive && styles.tabTextActive,
+                  isRtl && styles.tabTextRtl,
+                ]}>
+                  {isRtl ? tab.labelAr : tab.label}
+                </Text>
+                <View style={[
+                  styles.tabIndicator,
+                  isActive && styles.tabIndicatorActive,
+                ]} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Animated.View>
+
       {/* Floating "Back to top" Pill Button */}
       <Animated.View
         pointerEvents={showBackToTop ? 'auto' : 'none'}
         style={[
           styles.backToTopContainer,
           {
-            top: topInset + 12,
+            top: headerHeight + 10,
             opacity: backToTopAnim,
             transform: [
               {
@@ -657,6 +720,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  floatingHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    zIndex: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   headerRow: {
     flexDirection: 'row',
@@ -744,7 +826,7 @@ const styles = StyleSheet.create({
   },
   postBarWrapper: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
   },
   postsListWrapper: {
     paddingHorizontal: 20,
@@ -1029,7 +1111,7 @@ const styles = StyleSheet.create({
   // Profile Summary Card Styles
   profileWrapper: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
   },
   profileCardShadow: {
     width: '100%',
