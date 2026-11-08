@@ -137,6 +137,7 @@ export default function ChatsModal({
   selectedLanguage,
   currentUser,
   initialUser,
+  onOpenProfile,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -150,6 +151,11 @@ export default function ChatsModal({
   const [activeChatId, setActiveChatId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
+
+  // Real-time user presence tracking
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [viewingProfileUser, setViewingProfileUser] = useState(null);
+  const [profilePreviewImage, setProfilePreviewImage] = useState(null);
 
   // Real audio recording and playback via expo-audio
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -291,6 +297,181 @@ export default function ChatsModal({
   }, []);
 
   const activeChat = chats.find(c => c.id === activeChatId);
+  const otherUserId = activeChat?.otherUserId;
+  const isOtherUserOnline = Boolean(
+    (otherUserId && onlineUsers.has(otherUserId)) ||
+    (onlineUsers.size === 0 && Boolean(activeChat?.isOnline))
+  );
+
+  // 1. Global User Presence Channel
+  useEffect(() => {
+    if (!visible || !activeUser?.id) return;
+
+    const presenceChannel = supabase.channel('global_user_presence', {
+      config: {
+        presence: { key: activeUser.id },
+      },
+    });
+
+    const updatePresenceState = () => {
+      const state = presenceChannel.presenceState();
+      const onlineSet = new Set();
+      Object.keys(state).forEach((key) => {
+        onlineSet.add(key);
+        const list = state[key] || [];
+        list.forEach((item) => {
+          if (item?.user_id) onlineSet.add(item.user_id);
+        });
+      });
+      setOnlineUsers(onlineSet);
+    };
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, updatePresenceState)
+      .on('presence', { event: 'join' }, updatePresenceState)
+      .on('presence', { event: 'leave' }, updatePresenceState)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          try {
+            await presenceChannel.track({
+              user_id: activeUser.id,
+              online_at: new Date().toISOString(),
+            });
+          } catch (_) {}
+        }
+      });
+
+    return () => {
+      try {
+        presenceChannel.untrack?.();
+        supabase.removeChannel(presenceChannel);
+      } catch (_) {}
+    };
+  }, [visible, activeUser?.id]);
+
+  // 2. Active Chat Room Presence Channel
+  useEffect(() => {
+    if (!visible || !activeChatId || !activeUser?.id) return;
+
+    const chatChannel = supabase.channel(`chat_room_presence_${activeChatId}`, {
+      config: {
+        presence: { key: activeUser.id },
+      },
+    });
+
+    const updateChatPresence = () => {
+      const state = chatChannel.presenceState();
+      setOnlineUsers(prev => {
+        const next = new Set(prev);
+        Object.keys(state).forEach((k) => {
+          next.add(k);
+          const list = state[k] || [];
+          list.forEach(item => {
+            if (item?.user_id) next.add(item.user_id);
+          });
+        });
+        return next;
+      });
+    };
+
+    chatChannel
+      .on('presence', { event: 'sync' }, updateChatPresence)
+      .on('presence', { event: 'join' }, updateChatPresence)
+      .on('presence', { event: 'leave' }, updateChatPresence)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          try {
+            await chatChannel.track({
+              user_id: activeUser.id,
+              chat_id: activeChatId,
+              online_at: new Date().toISOString(),
+            });
+          } catch (_) {}
+        }
+      });
+
+    return () => {
+      try {
+        chatChannel.untrack?.();
+        supabase.removeChannel(chatChannel);
+      } catch (_) {}
+    };
+  }, [visible, activeChatId, activeUser?.id]);
+
+  const handleOpenUserProfileFromHeader = async () => {
+    if (!activeChat) return;
+    const targetUserId = activeChat.otherUserId;
+    const targetName = isRTL ? (activeChat.nameAr || activeChat.name) : (activeChat.name || activeChat.nameAr);
+
+    if (typeof onOpenProfile === 'function') {
+      onOpenProfile({
+        id: targetUserId || activeChat.id,
+        userId: targetUserId,
+        author: targetName,
+        fullName: targetName,
+        name: targetName,
+        avatar: activeChat.avatar,
+      });
+      return;
+    }
+
+    const initialData = {
+      id: targetUserId || activeChat.id,
+      userId: targetUserId,
+      author: targetName,
+      fullName: targetName,
+      name: targetName,
+      handle: `@${String(targetName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
+      avatar: activeChat.avatar,
+      banner: null,
+      vehicle: null,
+      posts: [],
+      likesCount: 0,
+      isOnline: isOtherUserOnline,
+    };
+
+    setViewingProfileUser(initialData);
+
+    if (targetUserId) {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', targetUserId)
+          .maybeSingle();
+
+        if (prof) {
+          const resolvedAv = prof.avatar_url ? { uri: prof.avatar_url } : activeChat.avatar;
+          const resolvedVeh = prof.vehicle || (prof.car_brand ? `${prof.car_brand || ''} ${prof.car_model || ''}`.trim() : null);
+          setViewingProfileUser(prev => prev ? {
+            ...prev,
+            avatar: resolvedAv,
+            banner: prof.banner_url || null,
+            vehicle: resolvedVeh,
+            fullName: prof.full_name || prev.fullName,
+            author: prof.full_name || prev.author,
+          } : null);
+        }
+
+        const { data: userPosts } = await supabase
+          .from('community_posts')
+          .select('*')
+          .eq('user_id', targetUserId)
+          .order('created_at', { ascending: false });
+
+        if (userPosts) {
+          const totalLikes = userPosts.reduce((acc, p) => acc + (p.likes_count || 0), 0);
+          setViewingProfileUser(prev => prev ? {
+            ...prev,
+            posts: userPosts,
+            likesCount: totalLikes,
+          } : null);
+        }
+      } catch (err) {
+        console.warn('Error fetching profile details for header:', err);
+      }
+    }
+  };
 
   // Sync activeUser
   useEffect(() => {
@@ -1704,6 +1885,7 @@ export default function ChatsModal({
                 </View>
               ) : (
                 <>
+                  {/* Left: Back Button */}
                   <TouchableOpacity 
                     style={styles.backBtn} 
                     onPress={() => {
@@ -1716,30 +1898,59 @@ export default function ChatsModal({
                     <Ionicons name={isRTL ? "arrow-forward" : "arrow-back"} size={24} color={colors.primaryText} />
                   </TouchableOpacity>
 
-                  <View style={[styles.headerContactInfo, isRTL && { flexDirection: 'row-reverse' }]}>
-                    <View style={styles.avatarWrapperMini}>
-                      <Image source={getAvatarSource(activeChat?.avatar)} style={styles.headerContactAvatar} />
-                      <View style={styles.onlineDotMini} />
-                    </View>
-                    <View style={[styles.headerContactDetails, isRTL ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10, alignItems: 'flex-start' }]}>
-                      <Text style={[styles.headerContactName, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.5 }]}>
-                        {isRTL ? (activeChat?.nameAr || activeChat?.name || '') : (activeChat?.name || activeChat?.nameAr || '')}
-                      </Text>
-                      <Text style={[styles.headerStatusText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]}>
-                        {isRTL ? 'نشط الآن' : 'Online'}
+                  {/* Center: User's Name and Online/Offline Status */}
+                  <View style={styles.headerCenterContent}>
+                    <Text 
+                      style={[
+                        styles.headerCenterName, 
+                        { color: colors.primaryText },
+                        isRTL && { fontFamily: 'AlkhalilArabic-Bold' }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isRTL ? (activeChat?.nameAr || activeChat?.name || '') : (activeChat?.name || activeChat?.nameAr || '')}
+                    </Text>
+                    <View style={[styles.headerStatusRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                      <View 
+                        style={[
+                          styles.headerPresenceDot, 
+                          { backgroundColor: isOtherUserOnline ? '#4CAF50' : (isDarkMode ? '#757575' : '#9E9E9E') }
+                        ]} 
+                      />
+                      <Text 
+                        style={[
+                          styles.headerStatusText, 
+                          { color: isOtherUserOnline ? '#4CAF50' : colors.secondaryText },
+                          isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }
+                        ]}
+                      >
+                        {isOtherUserOnline 
+                          ? (isRTL ? 'نشط الآن' : 'Online') 
+                          : (isRTL ? 'غير متصل' : 'Offline')}
                       </Text>
                     </View>
                   </View>
 
-                  <View style={[styles.headerActions, isRTL && { flexDirection: 'row-reverse' }]}>
-                    <TouchableOpacity 
-                      style={styles.actionIconBtn} 
-                      onPress={() => handleMockCall(isRTL ? (activeChat?.nameAr || activeChat?.name) : activeChat?.name)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="call" size={18} color={colors.forestGreen} />
-                    </TouchableOpacity>
-                  </View>
+                  {/* Right: User's Profile Picture (Tapping opens Profile Page) */}
+                  <TouchableOpacity 
+                    style={styles.headerProfileBtn} 
+                    onPress={handleOpenUserProfileFromHeader}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <View style={styles.headerAvatarContainer}>
+                      <Image 
+                        source={getAvatarSource(activeChat?.avatar)} 
+                        style={styles.headerProfileAvatar} 
+                      />
+                      <View 
+                        style={[
+                          styles.headerAvatarOnlineBadge,
+                          { backgroundColor: isOtherUserOnline ? '#4CAF50' : (isDarkMode ? '#757575' : '#9E9E9E') }
+                        ]} 
+                      />
+                    </View>
+                  </TouchableOpacity>
                 </>
               )}
             </View>
@@ -2414,6 +2625,215 @@ export default function ChatsModal({
           </View>
         )}
 
+        {/* Dedicated Other User Profile Page View */}
+        {Boolean(viewingProfileUser) && (
+          <View style={[styles.profilePageOverlay, { paddingTop: topInset }]}>
+            <StatusBar
+              barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+              backgroundColor={colors.screenBg}
+            />
+
+            {/* Profile Header */}
+            <View style={[styles.profileHeaderRow, isRTL && styles.profileHeaderRowRtl]}>
+              <TouchableOpacity
+                onPress={() => setViewingProfileUser(null)}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                activeOpacity={0.7}
+                style={styles.profileBackButton}
+              >
+                <Ionicons
+                  name={isRTL ? 'arrow-forward' : 'arrow-back'}
+                  size={24}
+                  color={colors.primaryText}
+                />
+              </TouchableOpacity>
+
+              <Text style={[styles.profileHeaderTitle, { color: colors.primaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]} numberOfLines={1}>
+                {viewingProfileUser.author || viewingProfileUser.fullName || viewingProfileUser.name}
+              </Text>
+
+              <View style={{ width: 40, height: 40 }} />
+            </View>
+
+            {/* Scrollable Profile Content */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.profileScrollContent}
+            >
+              {/* Profile Card */}
+              <View style={[styles.profileCardSurface, { backgroundColor: colors.cardBg, borderColor: isDarkMode ? colors.cardBorder : '#EDF0F2' }]}>
+                {/* Banner */}
+                <TouchableOpacity
+                  activeOpacity={0.92}
+                  onPress={() => {
+                    const bannerSrc = viewingProfileUser.banner
+                      ? (typeof viewingProfileUser.banner === 'string' ? { uri: viewingProfileUser.banner } : viewingProfileUser.banner)
+                      : require('../../assets/Banner wallpaper.png');
+                    setProfilePreviewImage(bannerSrc);
+                  }}
+                  style={styles.profileBannerContainer}
+                >
+                  <Image
+                    source={
+                      viewingProfileUser.banner
+                        ? (typeof viewingProfileUser.banner === 'string' ? { uri: viewingProfileUser.banner } : viewingProfileUser.banner)
+                        : require('../../assets/Banner wallpaper.png')
+                    }
+                    style={styles.profileBannerImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.profileBannerOverlay} />
+                </TouchableOpacity>
+
+                {/* Circular Avatar */}
+                <View style={styles.profileAvatarOuter}>
+                  <TouchableOpacity
+                    activeOpacity={viewingProfileUser.avatar ? 0.85 : 1}
+                    onPress={() => {
+                      if (viewingProfileUser.avatar) {
+                        const avatarSrc = typeof viewingProfileUser.avatar === 'string'
+                          ? { uri: viewingProfileUser.avatar }
+                          : viewingProfileUser.avatar;
+                        setProfilePreviewImage(avatarSrc);
+                      }
+                    }}
+                    style={[styles.profileAvatarCircle, { borderColor: colors.screenBg }]}
+                  >
+                    <Image
+                      source={getAvatarSource(viewingProfileUser.avatar)}
+                      style={styles.profileAvatarImage}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Meta details */}
+                <View style={styles.profileMetaContainer}>
+                  <Text style={[styles.profileNameText, { color: colors.primaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                    {viewingProfileUser.author || viewingProfileUser.fullName || viewingProfileUser.name}
+                  </Text>
+                  <Text style={[styles.profileHandleText, { color: colors.secondaryText }]}>
+                    {viewingProfileUser.handle}
+                  </Text>
+
+                  {/* Presence Status Pill Badge */}
+                  <View style={[
+                    styles.profilePresencePill, 
+                    { backgroundColor: isOtherUserOnline ? 'rgba(76, 175, 80, 0.12)' : (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') },
+                    isRTL && { flexDirection: 'row-reverse' }
+                  ]}>
+                    <View style={[styles.profilePillDot, { backgroundColor: isOtherUserOnline ? '#4CAF50' : '#9E9E9E' }]} />
+                    <Text style={[styles.profilePillText, { color: isOtherUserOnline ? '#4CAF50' : colors.secondaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                      {isOtherUserOnline ? (isRTL ? 'نشط الآن' : 'Online') : (isRTL ? 'غير متصل' : 'Offline')}
+                    </Text>
+                  </View>
+
+                  {/* Vehicle Tag if present */}
+                  {Boolean(viewingProfileUser.vehicle) && (
+                    <View style={[styles.profileVehiclePill, isRTL && { flexDirection: 'row-reverse' }]}>
+                      <Ionicons name="car-sport" size={14} color={colors.forestGreen} style={{ marginHorizontal: 4 }} />
+                      <Text style={[styles.profileVehicleText, { color: colors.forestGreen }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                        {viewingProfileUser.vehicle}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Stats Row */}
+                <View style={[styles.profileStatsRow, { borderTopColor: isDarkMode ? colors.cardBorder : '#F0F2F4' }, isRTL && styles.profileStatsRowRtl]}>
+                  <View style={styles.profileStatItem}>
+                    <Text style={[styles.profileStatNumber, { color: colors.primaryText }]}>
+                      {(viewingProfileUser.posts || []).length}
+                    </Text>
+                    <Text style={[styles.profileStatLabel, { color: colors.secondaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                      {isRTL ? 'منشورات' : 'Posts'}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.profileStatDivider, { backgroundColor: isDarkMode ? colors.cardBorder : '#E0E0E0' }]} />
+
+                  <View style={styles.profileStatItem}>
+                    <Text style={[styles.profileStatNumber, { color: colors.primaryText }]}>
+                      {viewingProfileUser.likesCount || 0}
+                    </Text>
+                    <Text style={[styles.profileStatLabel, { color: colors.secondaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                      {isRTL ? 'إعجابات' : 'Likes'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* User Posts Section */}
+              <View style={[styles.profilePostsHeaderRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                <Text style={[styles.profilePostsHeaderTitle, { color: colors.primaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                  {isRTL ? 'المنشورات' : 'Posts'}
+                </Text>
+                <Text style={[styles.profilePostsCount, { color: colors.secondaryText }]}>
+                  ({(viewingProfileUser.posts || []).length})
+                </Text>
+              </View>
+
+              {(viewingProfileUser.posts || []).length === 0 ? (
+                <View style={[styles.noPostsCard, { backgroundColor: colors.cardBg, borderColor: isDarkMode ? colors.cardBorder : '#EDF0F2' }]}>
+                  <Ionicons name="document-text-outline" size={32} color={colors.secondaryText} style={{ opacity: 0.6, marginBottom: 8 }} />
+                  <Text style={[styles.noPostsTitle, { color: colors.primaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                    {isRTL ? 'لا توجد منشورات' : 'No posts'}
+                  </Text>
+                  <Text style={[styles.noPostsSubtitle, { color: colors.secondaryText }, isRTL && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                    {isRTL ? 'لم يقم هذا المستخدم بنشر أي منشورات بعد' : 'This user has not shared any posts yet'}
+                  </Text>
+                </View>
+              ) : (
+                viewingProfileUser.posts.map((post, pIdx) => (
+                  <View key={`prof_post_${post.id || pIdx}`} style={[styles.userPostCard, { backgroundColor: colors.cardBg, borderColor: isDarkMode ? colors.cardBorder : '#EDF0F2' }]}>
+                    <Text style={[styles.userPostContent, { color: colors.primaryText }, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Regular' }]}>
+                      {post.content}
+                    </Text>
+                    {Boolean(post.media_url) && (
+                      <Image
+                        source={{ uri: post.media_url }}
+                        style={styles.userPostImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                    <View style={[styles.userPostFooter, isRTL && { flexDirection: 'row-reverse' }]}>
+                      <View style={[styles.postStatBadge, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="heart" size={14} color="#E91E63" />
+                        <Text style={[styles.postStatText, { color: colors.secondaryText }]}>
+                          {post.likes_count || 0}
+                        </Text>
+                      </View>
+                      <View style={[styles.postStatBadge, isRTL && { flexDirection: 'row-reverse' }]}>
+                        <Ionicons name="chatbubble" size={13} color={colors.secondaryText} />
+                        <Text style={[styles.postStatText, { color: colors.secondaryText }]}>
+                          {post.comments_count || 0}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Image Preview Overlay for Profile Modal */}
+            {Boolean(profilePreviewImage) && (
+              <View style={styles.profileImagePreviewOverlay}>
+                <TouchableOpacity
+                  style={styles.profilePreviewCloseBtn}
+                  onPress={() => setProfilePreviewImage(null)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Image
+                  source={profilePreviewImage}
+                  style={styles.profilePreviewFullImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Full-Screen Multi-Image Viewer Gallery */}
         <ImageViewerModal
           visible={viewerVisible}
@@ -2443,14 +2863,14 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     backgroundColor: colors.screenBg,
   },
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backBtnRound: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2459,60 +2879,297 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '800',
     color: colors.primaryText,
   },
-  headerContactInfo: {
+  headerCenterContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  headerCenterName: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  headerStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    paddingHorizontal: 12,
-  },
-  avatarWrapperMini: {
-    position: 'relative',
-  },
-  headerContactAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1.5,
-    borderColor: colors.forestGreen,
-  },
-  onlineDotMini: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#4CAF50',
-    borderWidth: 1.5,
-    borderColor: colors.screenBg,
-  },
-  headerContactDetails: {
     justifyContent: 'center',
+    marginTop: 2,
   },
-  headerContactName: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: colors.primaryText,
+  headerPresenceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 5,
   },
   headerStatusText: {
-    fontSize: 10.5,
-    color: colors.forestGreen,
+    fontSize: 11,
     fontWeight: '700',
-    marginTop: 1,
   },
-  headerActions: {
-    flexDirection: 'row',
+  headerProfileBtn: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionIconBtn: {
+  headerAvatarContainer: {
+    position: 'relative',
+    width: 38,
+    height: 38,
+  },
+  headerProfileAvatar: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: isDarkMode ? colors.cardBg : '#F2F4F5',
-    borderWidth: 1,
-    borderColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.08)',
+  },
+  headerAvatarOnlineBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 2,
+    borderColor: colors.screenBg,
+  },
+  // Dedicated Profile Page Overlay styles
+  profilePageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.screenBg,
+    zIndex: 99999,
+  },
+  profileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? colors.cardBorder : '#EDF0F2',
+  },
+  profileHeaderRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  profileBackButton: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileHeaderTitle: {
+    fontSize: 16.5,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  profileScrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  profileCardSurface: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  profileBannerContainer: {
+    width: '100%',
+    height: 120,
+    position: 'relative',
+  },
+  profileBannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileBannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+  },
+  profileAvatarOuter: {
+    alignItems: 'center',
+    marginTop: -42,
+  },
+  profileAvatarCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 3.5,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  profileAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileMetaContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 16,
+  },
+  profileNameText: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  profileHandleText: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  profilePresencePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  profilePillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 6,
+  },
+  profilePillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  profileVehiclePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46, 125, 50, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  profileVehicleText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  profileStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  profileStatsRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  profileStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  profileStatNumber: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  profileStatLabel: {
+    fontSize: 11.5,
+    marginTop: 2,
+  },
+  profileStatDivider: {
+    width: 1,
+    height: 24,
+  },
+  profilePostsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  profilePostsHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginRight: 6,
+  },
+  profilePostsCount: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noPostsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noPostsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  noPostsSubtitle: {
+    fontSize: 12.5,
+    textAlign: 'center',
+  },
+  userPostCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+  },
+  userPostContent: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  userPostImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  userPostFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 4,
+  },
+  postStatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  postStatText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  profileImagePreviewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
+    zIndex: 999999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profilePreviewCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  profilePreviewFullImage: {
+    width: '100%',
+    height: '80%',
   },
   searchContainer: {
     paddingHorizontal: 16,
