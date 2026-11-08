@@ -260,6 +260,17 @@ export default function CommunityScreen({
     };
   }, [onToggleNavBar]);
 
+  // Hide bottom navbar when viewing image in full-screen on main screen
+  useEffect(() => {
+    if (previewImage) {
+      if (onToggleNavBar) onToggleNavBar(true);
+    } else {
+      if (onToggleNavBar && !isNavHidden.current) {
+        onToggleNavBar(false);
+      }
+    }
+  }, [previewImage, onToggleNavBar]);
+
   const onHeaderLayout = (event) => {
     const { height } = event.nativeEvent.layout;
     if (height && Math.abs(height - headerHeight) > 1) {
@@ -2377,8 +2388,14 @@ export default function CommunityScreen({
         )}
       </Modal>
 
-      {/* Full-Screen Image Preview overlay for main screen */}
-      {Boolean(previewImage && !viewingOtherUser) && (
+      {/* Full-Screen Image Preview Modal for main screen (Profile Tab, etc.) */}
+      <Modal
+        visible={Boolean(previewImage && !viewingOtherUser)}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setPreviewImage(null)}
+      >
         <View style={styles.imageViewerAbsoluteOverlay}>
           <StatusBar barStyle="light-content" backgroundColor="#000000" />
           <View style={[styles.imageViewerHeader, { paddingTop: topInset + 10 }, isRtl && styles.imageViewerHeaderRtl]}>
@@ -2404,7 +2421,7 @@ export default function CommunityScreen({
             />
           </TouchableOpacity>
         </View>
-      )}
+      </Modal>
 
       {/* Blank White Page Modal on Search Icon Click */}
       <Modal
