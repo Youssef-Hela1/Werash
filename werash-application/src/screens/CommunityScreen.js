@@ -1329,38 +1329,53 @@ export default function CommunityScreen({
               keyboardDismissMode="on-drag"
               keyboardShouldPersistTaps="handled"
             >
-              {/* If search brings up a person: create a small card that has the person's profile picture and name */}
+              {/* If search brings up people: display side-by-side in horizontal scroll */}
               {matchingPeople.length > 0 && (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
+                <View style={styles.searchSectionPeople}>
+                  <Text style={[styles.searchSectionHeading, styles.searchSectionHeadingPadded, isRtl && styles.searchSectionHeadingRtl]}>
                     {isRtl ? 'الأشخاص' : 'People'}
                   </Text>
-                  {matchingPeople.map((person) => (
-                    <View key={person.id} style={styles.personCardShadow}>
-                      <View style={[styles.personCardSurface, isRtl && styles.personCardSurfaceRtl]}>
-                        {person.avatar ? (
-                          <Image
-                            source={typeof person.avatar === 'string' ? { uri: person.avatar } : person.avatar}
-                            style={styles.personAvatar}
-                          />
-                        ) : (
-                          <View style={styles.personAvatarPlaceholder}>
-                            <Ionicons name="person" size={20} color="#FFFFFF" />
-                          </View>
-                        )}
-                        <View style={[styles.personInfo, isRtl && styles.personInfoRtl]}>
-                          <Text style={[styles.personName, isRtl && styles.personNameRtl]} numberOfLines={1}>
-                            {person.name}
-                          </Text>
-                          {Boolean(person.handle) && (
-                            <Text style={[styles.personHandle, isRtl && styles.personHandleRtl]} numberOfLines={1}>
-                              {person.handle}
-                            </Text>
+                  <ScrollView
+                    horizontal={true}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={[
+                      styles.peopleScrollContent,
+                      isRtl && styles.peopleScrollContentRtl,
+                    ]}
+                  >
+                    {matchingPeople.map((person) => (
+                      <View
+                        key={person.id}
+                        style={[
+                          styles.personCardShadow,
+                          isRtl ? styles.personCardShadowRtl : styles.personCardShadowLtr,
+                        ]}
+                      >
+                        <View style={[styles.personCardSurface, isRtl && styles.personCardSurfaceRtl]}>
+                          {person.avatar ? (
+                            <Image
+                              source={typeof person.avatar === 'string' ? { uri: person.avatar } : person.avatar}
+                              style={styles.personAvatar}
+                            />
+                          ) : (
+                            <View style={styles.personAvatarPlaceholder}>
+                              <Ionicons name="person" size={18} color="#FFFFFF" />
+                            </View>
                           )}
+                          <View style={[styles.personInfo, isRtl && styles.personInfoRtl]}>
+                            <Text style={[styles.personName, isRtl && styles.personNameRtl]} numberOfLines={1}>
+                              {person.name}
+                            </Text>
+                            {Boolean(person.handle) && (
+                              <Text style={[styles.personHandle, isRtl && styles.personHandleRtl]} numberOfLines={1}>
+                                {person.handle}
+                              </Text>
+                            )}
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  ))}
+                    ))}
+                  </ScrollView>
                 </View>
               )}
 
@@ -2302,6 +2317,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 16,
   },
+  searchSectionPeople: {
+    marginBottom: 18,
+  },
   searchSectionHeading: {
     fontSize: 13,
     fontWeight: '700',
@@ -2310,15 +2328,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  searchSectionHeadingPadded: {
+    paddingHorizontal: 16,
+  },
   searchSectionHeadingRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
     textAlign: 'right',
   },
+  peopleScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  peopleScrollContentRtl: {
+    flexDirection: 'row-reverse',
+  },
   personCardShadow: {
-    width: '100%',
+    width: 175,
     borderRadius: 18,
     backgroundColor: '#F2F4F5',
-    marginBottom: 10,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
@@ -2331,6 +2358,12 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  personCardShadowLtr: {
+    marginRight: 10,
+  },
+  personCardShadowRtl: {
+    marginLeft: 10,
+  },
   personCardSurface: {
     backgroundColor: '#F2F4F5',
     borderRadius: 18,
@@ -2339,23 +2372,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
+    height: 58,
   },
   personCardSurfaceRtl: {
     flexDirection: 'row-reverse',
   },
   personAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#E0E5E8',
     borderWidth: 1,
     borderColor: '#FFFFFF',
   },
   personAvatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#003514',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2363,17 +2397,17 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   personInfo: {
-    marginLeft: 12,
+    marginLeft: 10,
     flex: 1,
     justifyContent: 'center',
   },
   personInfoRtl: {
     marginLeft: 0,
-    marginRight: 12,
+    marginRight: 10,
     alignItems: 'flex-end',
   },
   personName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1A211B',
   },
@@ -2381,7 +2415,7 @@ const styles = StyleSheet.create({
     fontFamily: 'AlkhalilArabic-Bold',
   },
   personHandle: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     color: '#8A959E',
     marginTop: 2,
   },
