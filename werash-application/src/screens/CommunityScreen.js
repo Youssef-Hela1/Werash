@@ -84,24 +84,35 @@ export default function CommunityScreen({
   const [newPostContent, setNewPostContent] = useState('');
   const [postImageUri, setPostImageUri] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [isPickingPostImage, setIsPickingPostImage] = useState(false);
   const createPostInputRef = useRef(null);
 
-  // Pick image for new post
+  // Fast permission check without blocking main thread on repeat taps
+  const ensureMediaPermissions = async () => {
+    try {
+      const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+      if (status === 'granted') return true;
+      if (status === 'undetermined' || !status) {
+        const { status: reqStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        return reqStatus === 'granted';
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  };
+
+  // Pick image for new post (instantaneous, no cropping freeze)
   const handlePickPostImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          isRtl ? 'إذن المعرض مطلوب' : 'Gallery Permission Required',
-          isRtl ? 'يرجى منح إذن الوصول لمعرض الصور لإرفاق صورة بالمنشور.' : 'Please allow access to your gallery to attach a photo to your post.'
-        );
-        return;
-      }
+      setIsPickingPostImage(true);
+      await ensureMediaPermissions();
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.85,
+        allowsEditing: false, // Bypasses heavy cropping activity for instant selection
+        quality: 0.7,
+        selectionLimit: 1,
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
@@ -109,6 +120,8 @@ export default function CommunityScreen({
       }
     } catch (err) {
       console.warn('handlePickPostImage error:', err);
+    } finally {
+      setIsPickingPostImage(false);
     }
   };
 
@@ -281,86 +294,82 @@ export default function CommunityScreen({
   const handlePickAndUploadAvatar = async () => {
     if (!requireAuth()) return;
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
-          isRtl ? 'نحتاج إلى إذن للوصول إلى معرض الصور لتحديث صورتك الشخصية.' : 'We need permission to access your gallery to update your profile photo.'
-        );
-        return;
-      }
+      setIsUploadingAvatar(true);
+      await ensureMediaPermissions();
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.65,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const localUri = result.assets[0].uri;
-        setIsUploadingAvatar(true);
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        setIsUploadingAvatar(false);
+        return;
+      }
 
-        const response = await fetch(localUri);
-        const blob = await response.blob();
-        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-        const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
+      const localUri = result.assets[0].uri;
 
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from('community-media')
-          .upload(fileName, blob, {
-            contentType,
-            upsert: true,
-          });
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+      const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
 
-        if (uploadErr) throw uploadErr;
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('community-media')
+        .upload(fileName, blob, {
+          contentType,
+          upsert: true,
+        });
 
-        const { data: publicData } = supabase.storage
-          .from('community-media')
-          .getPublicUrl(fileName);
-        const publicUrl = publicData?.publicUrl;
+      if (uploadErr) throw uploadErr;
 
-        if (publicUrl) {
-          try {
-            await supabase
-              .from('profiles')
-              .update({ avatar_url: publicUrl })
-              .eq('id', currentUser.id);
-          } catch (e) {
-            console.warn('Error updating profile avatar_url:', e);
-          }
+      const { data: publicData } = supabase.storage
+        .from('community-media')
+        .getPublicUrl(fileName);
+      const publicUrl = publicData?.publicUrl;
 
-          try {
-            await supabase.auth.updateUser({
-              data: { avatar_url: publicUrl }
-            });
-          } catch (e) {
-            console.warn('Error updating auth metadata avatar_url:', e);
-          }
-
-          if (typeof onUpdateCurrentUser === 'function') {
-            onUpdateCurrentUser({
-              ...currentUser,
-              avatar: publicUrl,
-              avatarUrl: publicUrl,
-            });
-          }
-
-          setMyAvatarUrl(publicUrl);
-
-          setPosts(prev => prev.map(p => {
-            if (p.userId === currentUser.id || p.author === currentUser.fullName) {
-              return { ...p, avatar: { uri: publicUrl } };
-            }
-            return p;
-          }));
-
-          Alert.alert(
-            isRtl ? 'تم بنجاح' : 'Success',
-            isRtl ? 'تم تحديث الصورة الشخصية بنجاح.' : 'Profile picture updated successfully.'
-          );
+      if (publicUrl) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', currentUser.id);
+        } catch (e) {
+          console.warn('Error updating profile avatar_url:', e);
         }
+
+        try {
+          await supabase.auth.updateUser({
+            data: { avatar_url: publicUrl }
+          });
+        } catch (e) {
+          console.warn('Error updating auth metadata avatar_url:', e);
+        }
+
+        if (typeof onUpdateCurrentUser === 'function') {
+          onUpdateCurrentUser({
+            ...currentUser,
+            avatar: publicUrl,
+            avatarUrl: publicUrl,
+          });
+        }
+
+        setMyAvatarUrl(publicUrl);
+
+        setPosts(prev => prev.map(p => {
+          if (p.userId === currentUser.id || p.author === currentUser.fullName) {
+            return { ...p, avatar: { uri: publicUrl } };
+          }
+          return p;
+        }));
+
+        Alert.alert(
+          isRtl ? 'تم بنجاح' : 'Success',
+          isRtl ? 'تم تحديث الصورة الشخصية بنجاح.' : 'Profile picture updated successfully.'
+        );
       }
     } catch (err) {
       console.warn('handlePickAndUploadAvatar error:', err);
@@ -377,84 +386,80 @@ export default function CommunityScreen({
   const handlePickAndUploadBanner = async () => {
     if (!requireAuth()) return;
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
-          isRtl ? 'نحتاج إلى إذن للوصول إلى الصور لتحديث صورة الغلاف.' : 'We need permission to access your gallery to update your banner.'
-        );
-        return;
-      }
+      setIsUploadingBanner(true);
+      await ensureMediaPermissions();
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 9],
-        quality: 0.85,
+        quality: 0.65,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const localUri = result.assets[0].uri;
-        setIsUploadingBanner(true);
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        setIsUploadingBanner(false);
+        return;
+      }
 
-        const response = await fetch(localUri);
-        const blob = await response.blob();
-        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-        const fileName = `${currentUser.id}/banner_${Date.now()}.${ext}`;
+      const localUri = result.assets[0].uri;
 
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from('community-media')
-          .upload(fileName, blob, {
-            contentType,
-            upsert: true,
-          });
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+      const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      const fileName = `${currentUser.id}/banner_${Date.now()}.${ext}`;
 
-        if (uploadErr) throw uploadErr;
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('community-media')
+        .upload(fileName, blob, {
+          contentType,
+          upsert: true,
+        });
 
-        const { data: publicData } = supabase.storage
-          .from('community-media')
-          .getPublicUrl(fileName);
-        const publicUrl = publicData?.publicUrl;
+      if (uploadErr) throw uploadErr;
 
-        if (publicUrl) {
-          try {
-            await supabase
-              .from('profiles')
-              .update({ banner_url: publicUrl })
-              .eq('id', currentUser.id);
-          } catch (e) {
-            console.warn('Error updating profile banner_url:', e);
-          }
+      const { data: publicData } = supabase.storage
+        .from('community-media')
+        .getPublicUrl(fileName);
+      const publicUrl = publicData?.publicUrl;
 
-          try {
-            await supabase.auth.updateUser({
-              data: { banner_url: publicUrl }
-            });
-          } catch (e) {
-            console.warn('Error updating auth metadata banner_url:', e);
-          }
-
-          try {
-            await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
-          } catch (e) {
-            console.warn('Error saving banner to storage:', e);
-          }
-
-          if (typeof onUpdateCurrentUser === 'function') {
-            onUpdateCurrentUser({
-              ...currentUser,
-              bannerUrl: publicUrl,
-            });
-          }
-
-          setMyBannerUrl(publicUrl);
-
-          Alert.alert(
-            isRtl ? 'تم بنجاح' : 'Success',
-            isRtl ? 'تم تحديث صورة الغلاف بنجاح.' : 'Banner updated successfully.'
-          );
+      if (publicUrl) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ banner_url: publicUrl })
+            .eq('id', currentUser.id);
+        } catch (e) {
+          console.warn('Error updating profile banner_url:', e);
         }
+
+        try {
+          await supabase.auth.updateUser({
+            data: { banner_url: publicUrl }
+          });
+        } catch (e) {
+          console.warn('Error updating auth metadata banner_url:', e);
+        }
+
+        try {
+          await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+        } catch (e) {
+          console.warn('Error saving banner to storage:', e);
+        }
+
+        if (typeof onUpdateCurrentUser === 'function') {
+          onUpdateCurrentUser({
+            ...currentUser,
+            bannerUrl: publicUrl,
+          });
+        }
+
+        setMyBannerUrl(publicUrl);
+
+        Alert.alert(
+          isRtl ? 'تم بنجاح' : 'Success',
+          isRtl ? 'تم تحديث صورة الغلاف بنجاح.' : 'Banner updated successfully.'
+        );
       }
     } catch (err) {
       console.warn('handlePickAndUploadBanner error:', err);
@@ -1738,11 +1743,16 @@ export default function CommunityScreen({
               activeOpacity={0.7}
               style={styles.createPostImageIconBtn}
               onPress={handlePickPostImage}
+              disabled={isPickingPostImage}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="button"
               accessibilityLabel="Add Image"
             >
-              <Ionicons name="images-outline" size={24} color="#003514" />
+              {isPickingPostImage ? (
+                <ActivityIndicator size="small" color="#003514" />
+              ) : (
+                <Ionicons name="images-outline" size={24} color="#003514" />
+              )}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
