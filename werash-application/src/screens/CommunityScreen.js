@@ -902,46 +902,27 @@ export default function CommunityScreen({
         {/* Souq Tab Content */}
         {activeTab === 'souq' && (
           <View style={styles.souqWrapper}>
-            {/* List Item Bar (Signature Premium Card Style) */}
+            {/* Green List Item Button */}
             <TouchableOpacity
               activeOpacity={0.85}
-              style={styles.postBarShadow}
+              style={styles.listItemButton}
               onPress={() => {
                 if (!requireAuth()) return;
                 // Open list item modal/screen
               }}
               accessibilityRole="button"
-              accessibilityLabel="List an item"
+              accessibilityLabel="List Item"
             >
-              <View style={[styles.postBarSurface, isRtl && styles.postBarSurfaceRtl]}>
-                {/* User Avatar */}
-                {currentUser && (currentUser.avatarUrl || currentUser.avatar) ? (
-                  <Image
-                    source={
-                      typeof (currentUser.avatarUrl || currentUser.avatar) === 'string'
-                        ? { uri: currentUser.avatarUrl || currentUser.avatar }
-                        : (currentUser.avatarUrl || currentUser.avatar)
-                    }
-                    style={styles.avatarImage}
-                  />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person" size={18} color="#FFFFFF" />
-                  </View>
-                )}
-
-                {/* Vertical Divider */}
-                <View style={styles.postDivider} />
-
-                {/* Input Placeholder Text */}
-                <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
-                  {isRtl ? 'اعرض قطعة غيار أو سيارة للبيع...' : 'List an item for sale...'}
+              <View style={[styles.listItemButtonContent, isRtl && styles.listItemButtonContentRtl]}>
+                <Ionicons
+                  name="add"
+                  size={22}
+                  color="#FFFFFF"
+                  style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }}
+                />
+                <Text style={[styles.listItemButtonText, isRtl && styles.listItemButtonTextRtl]}>
+                  {isRtl ? 'عرض منتج' : 'List Item'}
                 </Text>
-
-                {/* Plus Circular Button */}
-                <View style={styles.postPlusButton}>
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
-                </View>
               </View>
             </TouchableOpacity>
           </View>
@@ -1479,6 +1460,44 @@ const styles = StyleSheet.create({
   souqWrapper: {
     paddingHorizontal: 20,
     paddingTop: 12,
+  },
+  listItemButton: {
+    width: '100%',
+    backgroundColor: '#003514',
+    borderRadius: 18,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#003514',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.22,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  listItemButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listItemButtonContentRtl: {
+    flexDirection: 'row-reverse',
+  },
+  listItemButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  listItemButtonTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    fontSize: 17,
   },
   profileCardShadow: {
     width: '100%',
