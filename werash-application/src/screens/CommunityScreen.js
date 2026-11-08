@@ -1508,6 +1508,13 @@ export default function CommunityScreen({
               />
             </TouchableOpacity>
           </View>
+
+          {/* Prompt text below the arrow */}
+          <View style={[styles.createPostPromptContainer, isRtl && styles.createPostPromptContainerRtl]}>
+            <Text style={[styles.createPostPromptText, isRtl && styles.createPostPromptTextRtl]}>
+              {isRtl ? 'ماذا تريد أن تشارك...' : 'What do you wanna share...'}
+            </Text>
+          </View>
         </View>
       </Modal>
     </View>
@@ -2632,5 +2639,21 @@ const styles = StyleSheet.create({
   },
   searchMarketLocationTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
+  },
+  createPostPromptContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  createPostPromptContainerRtl: {
+    alignItems: 'flex-end',
+  },
+  createPostPromptText: {
+    fontSize: 18,
+    color: '#9EAAB2',
+    fontWeight: '500',
+  },
+  createPostPromptTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    textAlign: 'right',
   },
 });
