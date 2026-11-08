@@ -266,11 +266,11 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
               <View style={styles.adCardSurface}>
                 {/* Top Section: Brand Image / Logo (Bosch, Shell, Mobil, etc.) */}
                 <View style={styles.adBrandArea}>
-                  {ad.serviceBrand ? (
+                  {ad?.serviceBrand ? (
                     <ServiceBrandLogo brand={ad.serviceBrand} />
-                  ) : (
-                    <Image source={ad.image} style={styles.adBrandImage} resizeMode="contain" />
-                  )}
+                  ) : ad?.image ? (
+                    <Image source={typeof ad.image === 'string' ? { uri: ad.image } : ad.image} style={styles.adBrandImage} resizeMode="contain" />
+                  ) : null}
                 </View>
 
                 {/* Small Bottom Section: Green space with white title */}

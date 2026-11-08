@@ -138,6 +138,8 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
     })
   );
 
+  if (!ad) return null;
+
   return (
     <View style={styles.overlayContainer}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}>
@@ -180,11 +182,11 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
 
           {/* Ad Banner Image */}
           <View style={[styles.expandedCover, { backgroundColor: '#EBEBEB', alignItems: 'center', justifyContent: 'center' }]}>
-            {ad.serviceBrand ? (
+            {ad?.serviceBrand ? (
               <ServiceBrandLogo brand={ad.serviceBrand} />
-            ) : (
-              <Image source={ad.image} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
-            )}
+            ) : ad?.image ? (
+              <Image source={typeof ad.image === 'string' ? { uri: ad.image } : ad.image} resizeMode="contain" style={{ width: '65%', height: '65%' }} />
+            ) : null}
           </View>
 
           {/* Sponsored Label */}

@@ -749,12 +749,13 @@ export default function ChatsModal({
   };
 
   // Filter threads by search query
-  const filteredChats = chats.filter(c => {
+  const filteredChats = (chats || []).filter(c => {
+    if (!c) return false;
     const query = searchQuery.toLowerCase().trim();
     if (!query) return true;
     const nameToSearch = isRTL ? (c.nameAr || c.name || '') : (c.name || c.nameAr || '');
-    const lastMsg = (c.messages && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
-    const lastMsgText = lastMsg ? (lastMsg.image ? (isRTL ? 'صورة' : 'Photo') : lastMsg.voiceDuration ? (isRTL ? 'رسالة صوتية' : 'Voice message') : (lastMsg.text || '')) : (c.lastMessageText || '');
+    const lastMsg = (Array.isArray(c.messages) && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
+    const lastMsgText = lastMsg ? (lastMsg?.image ? (isRTL ? 'صورة' : 'Photo') : lastMsg?.voiceDuration ? (isRTL ? 'رسالة صوتية' : 'Voice message') : (lastMsg?.text || '')) : (c.lastMessageText || '');
     return nameToSearch.toLowerCase().includes(query) || lastMsgText.toLowerCase().includes(query);
   });
 
@@ -838,12 +839,13 @@ export default function ChatsModal({
                 </View>
               ) : (
                 (activeChat?.messages || []).map((msg, index) => {
-                  const isUser = msg.sender === 'user';
-                  const msgText = isRTL ? (msg.textAr || msg.text) : (msg.text || msg.textAr);
+                  if (!msg) return null;
+                  const isUser = msg?.sender === 'user';
+                  const msgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
 
                   return (
                     <View 
-                      key={msg.id || index}
+                      key={msg?.id || index}
                       style={[
                         styles.msgBubbleRow, 
                         isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
@@ -857,16 +859,20 @@ export default function ChatsModal({
                     <View style={[
                       styles.msgBubble,
                       isUser ? styles.userMsgBubble : styles.contactMsgBubble,
-                      msg.image && styles.imageMsgBubble,
+                      msg?.image && styles.imageMsgBubble,
                       !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
                     ]}>
                       
-                      {msg.image ? (
+                      {msg?.image ? (
                         /* Render Image Message */
                         <View style={styles.imageMsgContainer}>
-                          <Image source={{ uri: msg.image }} style={styles.imageMsgContent} resizeMode="cover" />
+                          <Image 
+                            source={typeof msg.image === 'string' ? { uri: msg.image } : msg.image} 
+                            style={styles.imageMsgContent} 
+                            resizeMode="cover" 
+                          />
                         </View>
-                      ) : msg.voiceDuration ? (
+                      ) : msg?.voiceDuration ? (
                         /* Render Voice Record Player Message */
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
@@ -921,9 +927,9 @@ export default function ChatsModal({
                         styles.msgTime,
                         isUser ? styles.userMsgTime : styles.contactMsgTime,
                         isRTL ? { textAlign: 'left' } : { textAlign: 'right' },
-                        msg.image && styles.imageMsgTime
+                        msg?.image && styles.imageMsgTime
                       ]}>
-                        {msg.time}
+                        {msg?.time}
                       </Text>
                     </View>
                   </View>
@@ -1077,18 +1083,19 @@ export default function ChatsModal({
                 </View>
               ) : (
                 filteredChats.map((chat) => {
-                  const lastMsg = (chat.messages && chat.messages.length > 0) 
+                  if (!chat) return null;
+                  const lastMsg = (Array.isArray(chat?.messages) && chat.messages.length > 0) 
                     ? chat.messages[chat.messages.length - 1] 
                     : null;
                   const lastMsgText = lastMsg 
-                    ? (lastMsg.image 
+                    ? (lastMsg?.image 
                         ? (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo') 
-                        : lastMsg.voiceDuration 
+                        : lastMsg?.voiceDuration 
                           ? (isRTL ? '🎵 رسالة صوتية' : '🎵 Voice message') 
-                          : (isRTL ? (lastMsg.textAr || lastMsg.text) : (lastMsg.text || lastMsg.textAr)))
-                    : (chat.lastMessageText || (isRTL ? 'لا توجد رسائل بعد' : 'No messages yet'));
-                  const timeText = isRTL ? (chat.lastTimeAr || chat.lastTime || '') : (chat.lastTime || chat.lastTimeAr || '');
-                  const nameText = isRTL ? (chat.nameAr || chat.name || 'مستخدم') : (chat.name || chat.nameAr || 'User');
+                          : (isRTL ? (lastMsg?.textAr || lastMsg?.text) : (lastMsg?.text || lastMsg?.textAr)))
+                    : (chat?.lastMessageText || (isRTL ? 'لا توجد رسائل بعد' : 'No messages yet'));
+                  const timeText = isRTL ? (chat?.lastTimeAr || chat?.lastTime || '') : (chat?.lastTime || chat?.lastTimeAr || '');
+                  const nameText = isRTL ? (chat?.nameAr || chat?.name || 'مستخدم') : (chat?.name || chat?.nameAr || 'User');
 
                   return (
                     <TouchableOpacity
