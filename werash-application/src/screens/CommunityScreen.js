@@ -80,6 +80,8 @@ export default function CommunityScreen({
 
   // Blank white create post page state
   const [isCreatePostActive, setIsCreatePostActive] = useState(false);
+  const [newPostContent, setNewPostContent] = useState('');
+  const createPostInputRef = useRef(null);
 
   // Hardware back button dismisses blank search & create post pages
   useEffect(() => {
@@ -87,6 +89,7 @@ export default function CommunityScreen({
     const backAction = () => {
       if (isCreatePostActive) {
         setIsCreatePostActive(false);
+        setNewPostContent('');
         return true;
       }
       if (isSearchActive) {
@@ -1496,7 +1499,10 @@ export default function CommunityScreen({
         <View style={styles.blankPageContainer}>
           <View style={[styles.blankPageHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRowRtl]}>
             <TouchableOpacity
-              onPress={() => setIsCreatePostActive(false)}
+              onPress={() => {
+                setIsCreatePostActive(false);
+                setNewPostContent('');
+              }}
               hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               activeOpacity={0.7}
               style={styles.blankPageBackButton}
@@ -1509,11 +1515,19 @@ export default function CommunityScreen({
             </TouchableOpacity>
           </View>
 
-          {/* Prompt text below the arrow */}
+          {/* Multiline Input to type in post */}
           <View style={[styles.createPostPromptContainer, isRtl && styles.createPostPromptContainerRtl]}>
-            <Text style={[styles.createPostPromptText, isRtl && styles.createPostPromptTextRtl]}>
-              {isRtl ? 'ماذا تريد أن تشارك...' : 'What do you wanna share...'}
-            </Text>
+            <TextInput
+              ref={createPostInputRef}
+              style={[styles.createPostInput, isRtl && styles.createPostInputRtl]}
+              placeholder={isRtl ? 'ماذا تريد أن تشارك...' : 'What do you wanna share...'}
+              placeholderTextColor="#9EAAB2"
+              value={newPostContent}
+              onChangeText={setNewPostContent}
+              multiline={true}
+              autoFocus={true}
+              textAlignVertical="top"
+            />
           </View>
         </View>
       </Modal>
@@ -2643,9 +2657,23 @@ const styles = StyleSheet.create({
   createPostPromptContainer: {
     paddingHorizontal: 20,
     paddingTop: 14,
+    flex: 1,
   },
   createPostPromptContainerRtl: {
     alignItems: 'flex-end',
+  },
+  createPostInput: {
+    fontSize: 18,
+    color: '#1A211B',
+    lineHeight: 26,
+    minHeight: 180,
+    paddingTop: 0,
+    paddingBottom: 0,
+    width: '100%',
+  },
+  createPostInputRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    textAlign: 'right',
   },
   createPostPromptText: {
     fontSize: 18,
