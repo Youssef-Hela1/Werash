@@ -934,7 +934,7 @@ export default function ChatsModal({
                     </View>
                   </View>
                 );
-              })}
+              }))}
             </ScrollView>
 
             {/* Input Send Bar / Voice Recording Bar */}
