@@ -652,12 +652,10 @@ export default function CommunityScreen({
       ).toLowerCase();
       return searchKeywords.some((kw) => listingTitle.includes(kw));
     }
-    // For regular community posts: match content, vehicle, author, or location
-    const content = (post.content || '').toLowerCase();
-    const vehicle = (post.vehicle || '').toLowerCase();
-    const author = (post.author || '').toLowerCase();
-    const location = (post.location || '').toLowerCase();
-    return searchKeywords.some((kw) => content.includes(kw) || vehicle.includes(kw) || author.includes(kw) || location.includes(kw));
+    // For regular community posts: only match based on the text on the post alone (not username or anything else)
+    const postText = (post.content || '').toLowerCase();
+    const postTextAr = (post.contentAr || '').toLowerCase();
+    return searchKeywords.some((kw) => postText.includes(kw) || postTextAr.includes(kw));
   });
 
 
