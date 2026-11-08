@@ -3768,15 +3768,16 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   commentsHandleArea: {
     width: '100%',
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 10,
+    minHeight: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   commentsHandleBar: {
-    width: 44,
-    height: 4.5,
-    borderRadius: 2.5,
-    backgroundColor: colors.cardBorder,
+    width: 48,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: isDarkMode ? 'rgba(242, 245, 242, 0.35)' : 'rgba(0, 0, 0, 0.22)',
   },
   commentsHeader: {
     flexDirection: 'row',
