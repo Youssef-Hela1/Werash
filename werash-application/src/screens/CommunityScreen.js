@@ -481,6 +481,7 @@ export default function CommunityScreen({
           liked: likedPostIds.has(p.id),
           vehicle: p.vehicle || 'General',
           isMarketplace: Boolean(p.is_marketplace),
+          title: p.title || (p.content ? p.content.split('\n')[0].trim() : (p.vehicle || null)),
           price: p.price || null,
           location: p.location || null,
         };
@@ -643,6 +644,15 @@ export default function CommunityScreen({
   });
 
   const matchingPosts = trimmedSearchQuery.length === 0 ? [] : posts.filter((post) => {
+    if (post.isMarketplace) {
+      // For listings: only match based on the title of the listing alone (not description or anything else)
+      const listingTitle = (
+        post.title ||
+        (post.content ? post.content.split('\n')[0].trim() : (post.vehicle || ''))
+      ).toLowerCase();
+      return searchKeywords.some((kw) => listingTitle.includes(kw));
+    }
+    // For regular community posts: match content, vehicle, author, or location
     const content = (post.content || '').toLowerCase();
     const vehicle = (post.vehicle || '').toLowerCase();
     const author = (post.author || '').toLowerCase();
@@ -653,7 +663,7 @@ export default function CommunityScreen({
 
   // Render full-width listed marketplace item card matching Souq design (larger footprint)
   const renderSearchMarketplaceCard = (post) => {
-    const itemTitle = post.content ? post.content.split('\n')[0].trim() : (post.vehicle || (isRtl ? 'منتج للبيع' : 'Item for sale'));
+    const itemTitle = post.title || (post.content ? post.content.split('\n')[0].trim() : (post.vehicle || (isRtl ? 'منتج للبيع' : 'Item for sale')));
     const hasImage = Boolean(post.postImage);
     const imageSource = typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage;
 
@@ -1138,7 +1148,7 @@ export default function CommunityScreen({
             {!isLoading && displayedPosts.length > 0 && (
               <View style={[styles.souqGridContainer, isRtl && styles.souqGridContainerRtl]}>
                 {displayedPosts.map((post) => {
-                  const itemTitle = post.content ? post.content.split('\n')[0].trim() : (post.vehicle || (isRtl ? 'منتج للبيع' : 'Item for sale'));
+                  const itemTitle = post.title || (post.content ? post.content.split('\n')[0].trim() : (post.vehicle || (isRtl ? 'منتج للبيع' : 'Item for sale')));
                   const hasImage = Boolean(post.postImage);
                   const imageSource = typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage;
 
