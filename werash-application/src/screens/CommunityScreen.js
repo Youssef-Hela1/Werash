@@ -601,6 +601,38 @@ export default function CommunityScreen({
           </TouchableOpacity>
         </View>
 
+        {/* Marketplace Item Badges (Price & Location) */}
+        {post.isMarketplace && (Boolean(post.price) || Boolean(post.location)) && (
+          <View style={[styles.marketMetaRow, isRtl && styles.marketMetaRowRtl]}>
+            {Boolean(post.price) && (
+              <View style={styles.marketPriceBadge}>
+                <Ionicons
+                  name="pricetag"
+                  size={13}
+                  color="#003514"
+                  style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }}
+                />
+                <Text style={[styles.marketPriceText, isRtl && styles.marketPriceTextRtl]}>
+                  {post.price}
+                </Text>
+              </View>
+            )}
+            {Boolean(post.location) && (
+              <View style={styles.marketLocationBadge}>
+                <Ionicons
+                  name="location-sharp"
+                  size={13}
+                  color="#5C6A72"
+                  style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }}
+                />
+                <Text style={[styles.marketLocationText, isRtl && styles.marketLocationTextRtl]}>
+                  {post.location}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Post Body Text */}
         {Boolean(post.content) && (
           <Text style={[styles.postBodyText, isRtl && styles.postBodyTextRtl]}>
@@ -925,6 +957,33 @@ export default function CommunityScreen({
                 </Text>
               </View>
             </TouchableOpacity>
+
+            {/* Loading Indicator */}
+            {isLoading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#003514" />
+              </View>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && displayedPosts.length === 0 && (
+              <View style={styles.noPostsCardShadow}>
+                <View style={styles.noPostsCardSurface}>
+                  <View style={styles.noPostsIconCircle}>
+                    <Ionicons name="pricetags-outline" size={30} color="#003514" />
+                  </View>
+                  <Text style={[styles.noPostsCardTitle, isRtl && styles.noPostsCardTitleRtl]}>
+                    {isRtl ? 'لا توجد معروضات حتى الآن' : 'No items listed yet'}
+                  </Text>
+                  <Text style={[styles.noPostsCardSubtitle, isRtl && styles.noPostsCardSubtitleRtl]}>
+                    {isRtl ? 'كن أول من يعرض منتجاً أو سيارة للبيع في السوق!' : 'Be the first to list an item or car for sale in Souq!'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Marketplace Items Feed */}
+            {!isLoading && displayedPosts.map(renderPostCard)}
           </View>
         )}
       </ScrollView>
@@ -1498,6 +1557,50 @@ const styles = StyleSheet.create({
   listItemButtonTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
     fontSize: 17,
+  },
+  marketMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  marketMetaRowRtl: {
+    flexDirection: 'row-reverse',
+  },
+  marketPriceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 53, 20, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  marketPriceText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#003514',
+    letterSpacing: -0.2,
+  },
+  marketPriceTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  marketLocationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAEFF2',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  marketLocationText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#5C6A72',
+  },
+  marketLocationTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
   },
   profileCardShadow: {
     width: '100%',
