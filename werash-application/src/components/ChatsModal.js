@@ -19,6 +19,8 @@ import {
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
+import ImageViewerModal from './ImageViewerModal';
+import ChatImageGrid from './ChatImageGrid';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -167,6 +169,10 @@ export default function ChatsModal({
 
   // Menus and simulation states
   const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImages, setViewerImages] = useState([]);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
   
@@ -402,12 +408,30 @@ export default function ChatsModal({
             audioDuration = extractDuration(m.text, m.voice_duration);
           }
 
+          let msgImages = null;
+          if (m.media_type === 'images' || m.media_type === 'image') {
+            if (m.media_url) {
+              if (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[') && m.media_url.trim().endsWith(']')) {
+                try {
+                  const parsed = JSON.parse(m.media_url);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    msgImages = parsed;
+                  }
+                } catch (_) {}
+              }
+              if (!msgImages) {
+                msgImages = [m.media_url];
+              }
+            }
+          }
+
           return {
             id: m.id,
             sender: isUser ? 'user' : 'contact',
             text: isAudio ? '' : (m.text || ''),
             textAr: isAudio ? '' : (m.text || ''),
-            image: m.media_type === 'image' ? m.media_url : null,
+            image: msgImages ? msgImages[0] : null,
+            images: msgImages,
             voiceDuration: audioDuration,
             audioUri: isAudio ? m.media_url : null,
             time: formatTimeAgo(m.created_at, isRTL),
@@ -494,12 +518,30 @@ export default function ChatsModal({
               audioDuration = extractDuration(m.text, m.voice_duration);
             }
 
+            let msgImages = null;
+            if (m.media_type === 'images' || m.media_type === 'image') {
+              if (m.media_url) {
+                if (typeof m.media_url === 'string' && m.media_url.trim().startsWith('[') && m.media_url.trim().endsWith(']')) {
+                  try {
+                    const parsed = JSON.parse(m.media_url);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                      msgImages = parsed;
+                    }
+                  } catch (_) {}
+                }
+                if (!msgImages) {
+                  msgImages = [m.media_url];
+                }
+              }
+            }
+
             const newMsg = {
               id: m.id,
               sender: isUser ? 'user' : 'contact',
               text: isAudio ? '' : (m.text || ''),
               textAr: isAudio ? '' : (m.text || ''),
-              image: m.media_type === 'image' ? m.media_url : null,
+              image: msgImages ? msgImages[0] : null,
+              images: msgImages,
               voiceDuration: audioDuration,
               audioUri: isAudio ? m.media_url : null,
               time: formatTimeAgo(m.created_at, isRTL),
@@ -748,10 +790,13 @@ export default function ChatsModal({
 
         const lastMsg = updatedList.length > 0 ? updatedList[updatedList.length - 1] : null;
         if (lastMsg) {
+          const hasImages = (lastMsg?.images && lastMsg.images.length > 0) || Boolean(lastMsg?.image);
           newLastText = (lastMsg.voiceDuration || lastMsg.audioUri) 
             ? (isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message') 
-            : (lastMsg.image 
-                ? (isRTL ? '📷 صورة' : '📷 Image') 
+            : (hasImages
+                ? (lastMsg?.images && lastMsg.images.length > 1
+                    ? (isRTL ? `📷 ${lastMsg.images.length} صور` : `📷 ${lastMsg.images.length} Photos`)
+                    : (isRTL ? '📷 صورة' : '📷 Photo')) 
                 : cleanLastMessageText(lastMsg.text, isRTL));
           newLastTime = lastMsg.time || 'Just now';
           newLastAt = lastMsg.created_at || new Date().toISOString();
@@ -826,6 +871,11 @@ export default function ChatsModal({
   };
 
   const handleSendMessage = async () => {
+    if (selectedImages.length > 0) {
+      handleSendImages(selectedImages, newMessageText);
+      return;
+    }
+
     if (!newMessageText.trim() || !activeChatId) return;
 
     const text = newMessageText.trim();
@@ -894,108 +944,207 @@ export default function ChatsModal({
     }
   };
 
-  const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        isRTL ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
-        isRTL 
-          ? 'نحتاج إلى إذن للوصول إلى معرض الصور الخاص بك لإرسال الصور.' 
-          : 'We need permission to access your gallery to send images.'
-      );
-      return;
+  const handlePickImages = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRTL ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+          isRTL 
+            ? 'نحتاج إلى إذن للوصول إلى معرض الصور الخاص بك لإرسال الصور.' 
+            : 'We need permission to access your gallery to send images.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uris = result.assets.map(a => a.uri).filter(Boolean);
+        setSelectedImages(prev => [...prev, ...uris]);
+      }
+    } catch (err) {
+      console.warn('handlePickImages error:', err);
     }
+  };
 
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+  const handleSendImages = async (imagesToSend, captionText = '') => {
+    if (!imagesToSend || imagesToSend.length === 0 || !activeChatId) return;
+    const targetChat = chats.find(c => c.id === activeChatId);
+    const tempId = `m_${Date.now()}`;
+    const count = imagesToSend.length;
+    const caption = captionText ? captionText.trim() : '';
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedImageUri = result.assets[0].uri;
-      const targetChat = chats.find(c => c.id === activeChatId);
-      const tempId = `m_${Date.now()}`;
-      const newMsg = {
-        id: tempId,
-        sender: 'user',
-        image: selectedImageUri,
-        time: isRTL ? 'الآن' : 'Just now',
-        created_at: new Date().toISOString(),
-      };
+    const newMsg = {
+      id: tempId,
+      sender: 'user',
+      text: caption,
+      textAr: caption,
+      images: [...imagesToSend],
+      image: imagesToSend[0],
+      time: isRTL ? 'الآن' : 'Just now',
+      created_at: new Date().toISOString(),
+      uploading: true,
+      uploadProgress: 0,
+      uploadError: false,
+    };
 
+    // Reset composer state immediately
+    setSelectedImages([]);
+    setNewMessageText('');
+
+    const snippet = count > 1 
+      ? (isRTL ? `📷 ${count} صور` : `📷 ${count} Photos`)
+      : (isRTL ? '📷 صورة' : '📷 Photo');
+
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        return {
+          ...c,
+          lastMessageText: snippet,
+          lastTime: 'Just now',
+          lastTimeAr: 'الآن',
+          messages: [...(c.messages || []), newMsg],
+        };
+      }
+      return c;
+    }));
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+
+    performUpload(tempId, imagesToSend, caption, targetChat?.otherUserId);
+  };
+
+  const performUpload = async (msgId, imagesToUpload, caption, otherUserId) => {
+    if (!activeUser?.id || !activeChatId) return;
+
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        return {
+          ...c,
+          messages: (c.messages || []).map(m => m.id === msgId ? { ...m, uploading: true, uploadError: false, uploadProgress: 5 } : m)
+        };
+      }
+      return c;
+    }));
+
+    try {
+      const uploadedUrls = [];
+      for (let i = 0; i < imagesToUpload.length; i++) {
+        const localUri = imagesToUpload[i];
+        if (localUri.startsWith('http://') || localUri.startsWith('https://')) {
+          uploadedUrls.push(localUri);
+          continue;
+        }
+
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+        const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const fileName = `messages/${activeChatId}/${activeUser.id}_${Date.now()}_${i}.${ext}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+            upsert: true,
+          });
+
+        if (uploadErr) {
+          throw uploadErr;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from('community-media')
+          .getPublicUrl(fileName);
+
+        const publicUrl = publicData?.publicUrl || localUri;
+        uploadedUrls.push(publicUrl);
+
+        const progress = Math.round(((i + 1) / imagesToUpload.length) * 100);
+        setChats(prev => prev.map(c => {
+          if (c.id === activeChatId) {
+            return {
+              ...c,
+              messages: (c.messages || []).map(m => m.id === msgId ? { ...m, uploadProgress: progress } : m)
+            };
+          }
+          return c;
+        }));
+      }
+
+      const mediaUrlPayload = uploadedUrls.length === 1 ? uploadedUrls[0] : JSON.stringify(uploadedUrls);
+      const mediaTypePayload = uploadedUrls.length === 1 ? 'image' : 'images';
+
+      const { data: insertedMsg, error: insertErr } = await supabase
+        .from('direct_messages')
+        .insert([{
+          conversation_id: activeChatId,
+          sender_id: activeUser.id,
+          receiver_id: otherUserId,
+          text: caption || null,
+          media_url: mediaUrlPayload,
+          media_type: mediaTypePayload,
+        }])
+        .select()
+        .single();
+
+      if (insertErr) throw insertErr;
+
+      if (insertedMsg) {
+        setChats(prev => prev.map(c => {
+          if (c.id === activeChatId) {
+            return {
+              ...c,
+              messages: (c.messages || []).map(m => m.id === msgId ? {
+                ...m,
+                id: insertedMsg.id,
+                images: uploadedUrls,
+                image: uploadedUrls[0],
+                uploading: false,
+                uploadProgress: 100,
+                uploadError: false,
+              } : m)
+            };
+          }
+          return c;
+        }));
+      }
+
+      const count = uploadedUrls.length;
+      const snippet = count > 1 
+        ? (isRTL ? `📷 ${count} صور` : `📷 ${count} Photos`)
+        : (isRTL ? '📷 صورة' : '📷 Photo');
+
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_text: snippet,
+          last_message_at: new Date().toISOString(),
+          last_sender_id: activeUser.id,
+        })
+        .eq('id', activeChatId);
+
+    } catch (err) {
+      console.warn('performUpload error:', err);
       setChats(prev => prev.map(c => {
         if (c.id === activeChatId) {
           return {
             ...c,
-            lastTime: 'Just now',
-            lastTimeAr: 'الآن',
-            messages: [...(c.messages || []), newMsg]
+            messages: (c.messages || []).map(m => m.id === msgId ? {
+              ...m,
+              uploading: false,
+              uploadError: true,
+            } : m)
           };
         }
         return c;
       }));
-      setAttachmentMenuVisible(false);
-
-      if (activeUser?.id && activeChatId) {
-        try {
-          const response = await fetch(selectedImageUri);
-          const blob = await response.blob();
-          const ext = selectedImageUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-          const fileName = `messages/${activeChatId}/${activeUser.id}_${Date.now()}.${ext}`;
-
-          const { data: uploadData, error: uploadErr } = await supabase.storage
-            .from('community-media')
-            .upload(fileName, blob, {
-              contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
-              upsert: true,
-            });
-
-          let publicUrl = selectedImageUri;
-          if (!uploadErr && uploadData) {
-            const { data: publicData } = supabase.storage
-              .from('community-media')
-              .getPublicUrl(fileName);
-            publicUrl = publicData?.publicUrl || selectedImageUri;
-          }
-
-          const { data: insertedMsg } = await supabase
-            .from('direct_messages')
-            .insert([{
-              conversation_id: activeChatId,
-              sender_id: activeUser.id,
-              receiver_id: targetChat?.otherUserId,
-              text: null,
-              media_url: publicUrl,
-              media_type: 'image',
-            }])
-            .select()
-            .single();
-
-          if (insertedMsg) {
-            setChats(prev => prev.map(c => {
-              if (c.id === activeChatId) {
-                return {
-                  ...c,
-                  messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id, image: publicUrl } : m)
-                };
-              }
-              return c;
-            }));
-          }
-
-          await supabase
-            .from('conversations')
-            .update({
-              last_message_text: isRTL ? '📷 صورة' : '📷 Image',
-              last_message_at: new Date().toISOString(),
-              last_sender_id: activeUser.id,
-            })
-            .eq('id', activeChatId);
-        } catch (mediaErr) {
-          console.warn('handlePickImage cloud error:', mediaErr);
-        }
-      }
     }
   };
 
@@ -1438,9 +1587,12 @@ export default function ChatsModal({
     if (!query) return true;
     const nameToSearch = isRTL ? (c.nameAr || c.name || '') : (c.name || c.nameAr || '');
     const lastMsg = (Array.isArray(c.messages) && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
+    const hasImages = (lastMsg?.images && lastMsg.images.length > 0) || Boolean(lastMsg?.image);
     const lastMsgText = lastMsg 
-      ? (lastMsg?.image 
-          ? (isRTL ? 'صورة' : 'Photo') 
+      ? (hasImages 
+          ? (lastMsg?.images && lastMsg.images.length > 1
+              ? (isRTL ? `📷 ${lastMsg.images.length} صور` : `📷 ${lastMsg.images.length} Photos`)
+              : (isRTL ? '📷 صورة' : '📷 Photo')) 
           : (lastMsg?.voiceDuration || lastMsg?.audioUri) 
             ? (isRTL ? 'رسالة صوتية' : 'Voice message') 
             : cleanLastMessageText(lastMsg?.text, isRTL)) 
@@ -1604,7 +1756,7 @@ export default function ChatsModal({
                       style={[
                         styles.msgBubble,
                         isUser ? styles.userMsgBubble : styles.contactMsgBubble,
-                        msg?.image && styles.imageMsgBubble,
+                        ((msg?.images && msg.images.length > 0) || msg?.image) && styles.imageMsgBubble,
                         isAudioMsg && styles.voiceMsgBubble,
                         isSelected && styles.msgBubbleSelected,
                         !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
@@ -1617,25 +1769,37 @@ export default function ChatsModal({
                         </View>
                       )}
                       
-                      {msg?.image ? (
-                        /* Render Image Message */
-                        <TouchableOpacity
-                          activeOpacity={isSelectionMode ? 0.75 : 0.9}
-                          delayLongPress={300}
-                          onPress={() => {
-                            if (isSelectionMode) {
-                              handleToggleSelectMessage(msg);
-                            }
-                          }}
-                          onLongPress={() => handleLongPressMessage(msg)}
-                          style={styles.imageMsgContainer}
-                        >
-                          <Image 
-                            source={typeof msg.image === 'string' ? { uri: msg.image } : msg.image} 
-                            style={styles.imageMsgContent} 
-                            resizeMode="cover" 
+                      {((msg?.images && msg.images.length > 0) || msg?.image) ? (
+                        /* Render Multi-Image Grid */
+                        <View style={{ position: 'relative' }}>
+                          <ChatImageGrid
+                            images={msg.images || [msg.image]}
+                            onImagePress={(tappedIndex) => {
+                              if (isSelectionMode) {
+                                handleToggleSelectMessage(msg);
+                                return;
+                              }
+                              setViewerImages(msg.images || [msg.image]);
+                              setViewerInitialIndex(tappedIndex);
+                              setViewerVisible(true);
+                            }}
+                            isRTL={isRTL}
+                            uploading={Boolean(msg.uploading)}
+                            uploadProgress={msg.uploadProgress || 0}
+                            uploadError={Boolean(msg.uploadError)}
+                            onRetry={() => performUpload(msg.id, msg.images || [msg.image], msg.text, targetChat?.otherUserId)}
                           />
-                        </TouchableOpacity>
+                          {Boolean(msg?.text) && (
+                            <Text style={[
+                              styles.msgText,
+                              isUser ? styles.userMsgText : styles.contactMsgText,
+                              { marginTop: 6, marginHorizontal: 4 },
+                              isRTL && { fontFamily: 'AlkhalilArabic-Regular', fontSize: 13.0, textAlign: 'right' }
+                            ]}>
+                              {msg.text}
+                            </Text>
+                          )}
+                        </View>
                       ) : isAudioMsg ? (
                         /* Render Voice Record Player Message with Interactive Touch/Drag Scrubber */
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -1756,7 +1920,7 @@ export default function ChatsModal({
                         styles.msgTime,
                         isUser ? styles.userMsgTime : styles.contactMsgTime,
                         isRTL ? { textAlign: 'left' } : { textAlign: 'right' },
-                        msg?.image && styles.imageMsgTime,
+                        ((msg?.images && msg.images.length > 0) || msg?.image) && styles.imageMsgTime,
                         isAudioMsg && styles.voiceMsgTime
                       ]}>
                         {msg?.time}
@@ -1766,6 +1930,53 @@ export default function ChatsModal({
                 );
               }))}
             </ScrollView>
+
+            {/* Selected Images Preview Dock */}
+            {selectedImages.length > 0 && (
+              <View style={[styles.imagePreviewDock, isRTL && { flexDirection: 'row-reverse' }]}>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[styles.imagePreviewScroll, isRTL && { flexDirection: 'row-reverse' }]}
+                >
+                  {selectedImages.map((uri, idx) => (
+                    <View key={`preview_${idx}`} style={styles.imagePreviewThumbContainer}>
+                      <Image source={{ uri }} style={styles.imagePreviewThumb} resizeMode="cover" />
+                      <TouchableOpacity
+                        style={styles.imagePreviewRemoveBtn}
+                        onPress={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons name="close" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+
+                  {/* Add more button */}
+                  <TouchableOpacity
+                    style={styles.imagePreviewAddBtn}
+                    onPress={handlePickImages}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add" size={20} color={colors.forestGreen} />
+                    <Text style={[styles.imagePreviewAddText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11 }]}>
+                      {isRTL ? 'إضافة' : 'Add'}
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+
+                {/* Clear all button */}
+                <TouchableOpacity
+                  style={styles.imagePreviewClearBtn}
+                  onPress={() => setSelectedImages([])}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="trash-outline" size={17} color="#D32F2F" />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Input Bar (Universal: Standard Composer + Voice Recording Controller) */}
             <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -1850,15 +2061,20 @@ export default function ChatsModal({
                 <View style={{ flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' }}>
                   <TouchableOpacity 
                     style={styles.attachBtn} 
-                    onPress={() => setAttachmentMenuVisible(true)}
+                    onPress={handlePickImages}
                     activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="add" size={24} color={colors.primaryText} />
+                    <Ionicons name="images-outline" size={23} color={colors.primaryText} />
                   </TouchableOpacity>
                   
                   <TextInput
                     style={[styles.inputField, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}
-                    placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'}
+                    placeholder={
+                      selectedImages.length > 0
+                        ? (isRTL ? 'أضف تعليقاً...' : 'Add a caption...')
+                        : (isRTL ? 'اكتب رسالة...' : 'Type a message...')
+                    }
                     placeholderTextColor={colors.secondaryText}
                     value={newMessageText}
                     onChangeText={setNewMessageText}
@@ -1878,7 +2094,7 @@ export default function ChatsModal({
                 >
                   <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
-              ) : newMessageText.trim().length > 0 ? (
+              ) : (newMessageText.trim().length > 0 || selectedImages.length > 0) ? (
                 <TouchableOpacity 
                   style={styles.sendBtn}
                   onPress={handleSendMessage}
@@ -1998,10 +2214,13 @@ export default function ChatsModal({
                   const lastMsg = (Array.isArray(chat?.messages) && chat.messages.length > 0) 
                     ? chat.messages[chat.messages.length - 1] 
                     : null;
+                  const hasImages = (lastMsg?.images && lastMsg.images.length > 0) || Boolean(lastMsg?.image);
                   const isLastAudio = Boolean(lastMsg?.voiceDuration || lastMsg?.audioUri);
                   const lastMsgText = lastMsg 
-                    ? (lastMsg?.image 
-                        ? (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo') 
+                    ? (hasImages 
+                        ? (lastMsg?.images && lastMsg.images.length > 1
+                            ? (isRTL ? `📷 ${lastMsg.images.length} صور` : `📷 ${lastMsg.images.length} Photos`)
+                            : (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo')) 
                         : isLastAudio 
                           ? (isRTL ? '🎵 رسالة صوتية' : '🎵 Voice message') 
                           : cleanLastMessageText(isRTL ? (lastMsg?.textAr || lastMsg?.text) : (lastMsg?.text || lastMsg?.textAr), isRTL))
@@ -2091,7 +2310,10 @@ export default function ChatsModal({
                 {/* Photo Library Option */}
                 <TouchableOpacity
                   style={styles.sheetOptionBtn}
-                  onPress={handlePickImage}
+                  onPress={() => {
+                    setAttachmentMenuVisible(false);
+                    handlePickImages();
+                  }}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.sheetIconCircle, { backgroundColor: isDarkMode ? 'rgba(48, 87, 52, 0.25)' : '#E8F5E9' }]}>
@@ -2138,6 +2360,15 @@ export default function ChatsModal({
             </View>
           </View>
         )}
+
+        {/* Full-Screen Multi-Image Viewer Gallery */}
+        <ImageViewerModal
+          visible={viewerVisible}
+          images={viewerImages}
+          initialIndex={viewerInitialIndex}
+          onClose={() => setViewerVisible(false)}
+          isRTL={isRTL}
+        />
       </View>
     </Modal>
   );
@@ -2610,6 +2841,73 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   voiceMsgTime: {
     marginTop: 2,
     alignSelf: 'flex-end',
+  },
+  imagePreviewDock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: isDarkMode ? colors.cardBg : '#F4F7F5',
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? colors.cardBorder : '#E2E6E9',
+    gap: 10,
+  },
+  imagePreviewScroll: {
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 6,
+  },
+  imagePreviewThumbContainer: {
+    position: 'relative',
+    width: 62,
+    height: 62,
+    borderRadius: 12,
+    overflow: 'visible',
+  },
+  imagePreviewThumb: {
+    width: 62,
+    height: 62,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? colors.surface : '#EFEFEF',
+  },
+  imagePreviewRemoveBtn: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    zIndex: 10,
+  },
+  imagePreviewAddBtn: {
+    width: 62,
+    height: 62,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.forestGreen,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDarkMode ? 'rgba(0, 53, 20, 0.25)' : 'rgba(0, 53, 20, 0.06)',
+  },
+  imagePreviewAddText: {
+    color: colors.forestGreen,
+    fontSize: 10.5,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  imagePreviewClearBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDarkMode ? 'rgba(211, 47, 47, 0.2)' : '#FFEBEE',
   },
   inputBar: {
     flexDirection: 'row',
