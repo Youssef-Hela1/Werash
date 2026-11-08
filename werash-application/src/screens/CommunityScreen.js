@@ -321,6 +321,107 @@ export default function CommunityScreen({
   const profileAvatar = currentUser?.avatarUrl || currentUser?.avatar || null;
   const profileBanner = currentUser?.bannerUrl || null;
 
+  // Render single post card matching signature premium aesthetic
+  const renderPostCard = (post) => (
+    <View key={post.id} style={styles.postCardShadow}>
+      <View style={styles.postCardSurface}>
+        {/* Post Header: Avatar, Name, Handle, Time & 3-Dots */}
+        <View style={[styles.postHeaderRow, isRtl && styles.postHeaderRowRtl]}>
+          <View style={[styles.postHeaderLeft, isRtl && styles.postHeaderLeftRtl]}>
+            {post.avatar ? (
+              <Image
+                source={typeof post.avatar === 'string' ? { uri: post.avatar } : post.avatar}
+                style={styles.postAuthorAvatar}
+              />
+            ) : (
+              <View style={styles.postAuthorAvatarPlaceholder}>
+                <Ionicons name="person" size={18} color="#FFFFFF" />
+              </View>
+            )}
+            <View style={[styles.postAuthorMeta, isRtl && styles.postAuthorMetaRtl]}>
+              <Text style={[styles.postAuthorName, isRtl && styles.postAuthorNameRtl]}>
+                {post.author}
+              </Text>
+              <Text style={[styles.postAuthorHandle, isRtl && styles.postAuthorHandleRtl]}>
+                {post.handle} • {isRtl ? (post.timeAr || post.time) : post.time}
+              </Text>
+            </View>
+          </View>
+
+          {/* More 3-Dots Button */}
+          <TouchableOpacity
+            style={styles.moreOptionsButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color="#8A959E" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Post Body Text */}
+        {Boolean(post.content) && (
+          <Text style={[styles.postBodyText, isRtl && styles.postBodyTextRtl]}>
+            {isRtl ? (post.contentAr || post.content) : post.content}
+          </Text>
+        )}
+
+        {/* Post Attached Media Image (Social media 4:3 ratio, unrounded edges) */}
+        {post.postImage && (
+          <View style={styles.postImageContainer}>
+            <Image
+              source={typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage}
+              style={styles.postImage}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+
+        {/* Post Engagement Footer: Likes & Comments */}
+        <View style={[styles.postEngagementRow, isRtl && styles.postEngagementRowRtl]}>
+          {/* Likes Counter */}
+          <TouchableOpacity
+            style={[styles.engagementItem, isRtl && styles.engagementItemRtl]}
+            activeOpacity={0.7}
+            onPress={() => handleToggleLike(post.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={post.liked ? 'heart' : 'heart-outline'}
+              size={20}
+              color={post.liked ? '#E0245E' : '#8A959E'}
+            />
+            <Text style={[
+              styles.engagementCount,
+              post.liked && { color: '#E0245E', fontWeight: '700' },
+              isRtl ? { marginRight: 6 } : { marginLeft: 6 }
+            ]}>
+              {post.likes}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Comments Counter */}
+          <TouchableOpacity
+            style={[
+              styles.engagementItem,
+              isRtl ? { marginRight: 18 } : { marginLeft: 18 },
+              isRtl && styles.engagementItemRtl,
+            ]}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chatbubble-outline" size={19} color="#8A959E" />
+            <Text style={[
+              styles.engagementCount,
+              isRtl ? { marginRight: 6 } : { marginLeft: 6 }
+            ]}>
+              {post.comments}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {/* Scrollable Feed List with Non-Fixed Header & Tabs */}
@@ -410,105 +511,7 @@ export default function CommunityScreen({
 
         {/* Post Cards Feed */}
         <View style={styles.postsListWrapper}>
-          {displayedPosts.map((post) => (
-            <View key={post.id} style={styles.postCardShadow}>
-              <View style={styles.postCardSurface}>
-                {/* Post Header: Avatar, Name, Handle, Time & 3-Dots */}
-                <View style={[styles.postHeaderRow, isRtl && styles.postHeaderRowRtl]}>
-                  <View style={[styles.postHeaderLeft, isRtl && styles.postHeaderLeftRtl]}>
-                    {post.avatar ? (
-                      <Image
-                        source={typeof post.avatar === 'string' ? { uri: post.avatar } : post.avatar}
-                        style={styles.postAuthorAvatar}
-                      />
-                    ) : (
-                      <View style={styles.postAuthorAvatarPlaceholder}>
-                        <Ionicons name="person" size={18} color="#FFFFFF" />
-                      </View>
-                    )}
-                    <View style={[styles.postAuthorMeta, isRtl && styles.postAuthorMetaRtl]}>
-                      <Text style={[styles.postAuthorName, isRtl && styles.postAuthorNameRtl]}>
-                        {post.author}
-                      </Text>
-                      <Text style={[styles.postAuthorHandle, isRtl && styles.postAuthorHandleRtl]}>
-                        {post.handle} • {isRtl ? (post.timeAr || post.time) : post.time}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* More 3-Dots Button */}
-                  <TouchableOpacity
-                    style={styles.moreOptionsButton}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#8A959E" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Post Body Text */}
-                {Boolean(post.content) && (
-                  <Text style={[styles.postBodyText, isRtl && styles.postBodyTextRtl]}>
-                    {isRtl ? (post.contentAr || post.content) : post.content}
-                  </Text>
-                )}
-
-                {/* Post Attached Media Image (16:9 rounded banner) */}
-                {post.postImage && (
-                  <View style={styles.postImageContainer}>
-                    <Image
-                      source={typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage}
-                      style={styles.postImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                )}
-
-                {/* Post Engagement Footer: Likes & Comments */}
-                <View style={[styles.postEngagementRow, isRtl && styles.postEngagementRowRtl]}>
-                  {/* Likes Counter */}
-                  <TouchableOpacity
-                    style={[styles.engagementItem, isRtl && styles.engagementItemRtl]}
-                    activeOpacity={0.7}
-                    onPress={() => handleToggleLike(post.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons
-                      name={post.liked ? 'heart' : 'heart-outline'}
-                      size={20}
-                      color={post.liked ? '#E0245E' : '#8A959E'}
-                    />
-                    <Text style={[
-                      styles.engagementCount,
-                      post.liked && { color: '#E0245E', fontWeight: '700' },
-                      isRtl ? { marginRight: 6 } : { marginLeft: 6 }
-                    ]}>
-                      {post.likes}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Comments Counter */}
-                  <TouchableOpacity
-                    style={[
-                      styles.engagementItem,
-                      isRtl ? { marginRight: 18 } : { marginLeft: 18 },
-                      isRtl && styles.engagementItemRtl,
-                    ]}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="chatbubble-outline" size={19} color="#8A959E" />
-                    <Text style={[
-                      styles.engagementCount,
-                      isRtl ? { marginRight: 6 } : { marginLeft: 6 }
-                    ]}>
-                      {post.comments}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          ))}
+          {displayedPosts.map(renderPostCard)}
         </View>
         </>
         )}
@@ -581,6 +584,21 @@ export default function CommunityScreen({
                 </View>
               </View>
             </View>
+
+            {/* My Posts Section */}
+            {userPosts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="create-outline" size={36} color="#A0AAB0" />
+                <Text style={[styles.emptyTitle, isRtl && styles.emptyTitleRtl]}>
+                  {isRtl ? 'لا توجد منشورات حتى الآن' : 'No posts yet'}
+                </Text>
+                <Text style={[styles.emptySubtitle, isRtl && styles.emptySubtitleRtl]}>
+                  {isRtl ? 'المنشورات التي تشاركها ستظهر هنا في ملفك الشخصي' : 'Posts you share will appear here on your profile'}
+                </Text>
+              </View>
+            ) : (
+              userPosts.map(renderPostCard)
+            )}
           </View>
         )}
       </ScrollView>
