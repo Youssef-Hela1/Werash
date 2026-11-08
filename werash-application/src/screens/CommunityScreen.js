@@ -78,17 +78,27 @@ export default function CommunityScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef(null);
 
-  // Hardware back button dismisses blank search page
+  // Blank white create post page state
+  const [isCreatePostActive, setIsCreatePostActive] = useState(false);
+
+  // Hardware back button dismisses blank search & create post pages
   useEffect(() => {
-    if (!isSearchActive) return;
+    if (!isSearchActive && !isCreatePostActive) return;
     const backAction = () => {
-      setIsSearchActive(false);
-      setSearchQuery('');
-      return true;
+      if (isCreatePostActive) {
+        setIsCreatePostActive(false);
+        return true;
+      }
+      if (isSearchActive) {
+        setIsSearchActive(false);
+        setSearchQuery('');
+        return true;
+      }
+      return false;
     };
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [isSearchActive]);
+  }, [isSearchActive, isCreatePostActive]);
 
   useEffect(() => {
     if (currentUser?.avatarUrl || currentUser?.avatar) {
@@ -888,7 +898,7 @@ export default function CommunityScreen({
             activeOpacity={0.85}
             style={styles.postBarShadow}
             onPress={() => {
-              // Open post creation modal/screen
+              setIsCreatePostActive(true);
             }}
           >
             <View style={[styles.postBarSurface, isRtl && styles.postBarSurfaceRtl]}>
@@ -1472,6 +1482,32 @@ export default function CommunityScreen({
               )}
             </ScrollView>
           )}
+        </View>
+      </Modal>
+
+      {/* Blank White Page Modal on Share Update Click */}
+      <Modal
+        visible={isCreatePostActive}
+        animationType="fade"
+        transparent={false}
+        statusBarTranslucent={true}
+        onRequestClose={() => setIsCreatePostActive(false)}
+      >
+        <View style={styles.blankPageContainer}>
+          <View style={[styles.blankPageHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRowRtl]}>
+            <TouchableOpacity
+              onPress={() => setIsCreatePostActive(false)}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.7}
+              style={styles.blankPageBackButton}
+            >
+              <Ionicons
+                name={isRtl ? 'arrow-forward' : 'arrow-back'}
+                size={26}
+                color="#003514"
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
