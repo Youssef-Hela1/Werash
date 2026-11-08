@@ -36,20 +36,68 @@ const parseDurationSeconds = (str) => {
   return isNaN(parsed) || parsed <= 0 ? 10 : parsed;
 };
 
-const sanitizeDuration = (dur) => {
-  if (!dur) return '0:03';
-  const str = String(dur).trim();
-  if (str === '0:00' || str === '00:00' || str === '0' || str === '0:0' || str === '00:0') {
-    return '0:03';
-  }
-  return str;
-};
-
 const formatSecondsToTime = (totalSecs) => {
   const secs = Math.max(1, Math.round(totalSecs || 0));
   const mins = Math.floor(secs / 60);
   const remainingSecs = secs % 60;
   return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
+};
+
+const sanitizeDuration = (dur) => {
+  if (!dur) return '0:03';
+  const str = String(dur).trim();
+  const pureMatch = str.match(/^(\d{1,2}:\d{2})$/);
+  if (pureMatch) {
+    return (pureMatch[1] === '0:00' || pureMatch[1] === '00:00') ? '0:03' : pureMatch[1];
+  }
+  const parenMatch = str.match(/\((\d{1,2}:\d{2})\)/);
+  if (parenMatch) {
+    return (parenMatch[1] === '0:00' || parenMatch[1] === '00:00') ? '0:03' : parenMatch[1];
+  }
+  const anyMatch = str.match(/(\d{1,2}:\d{2})/);
+  if (anyMatch) {
+    return (anyMatch[1] === '0:00' || anyMatch[1] === '00:00') ? '0:03' : anyMatch[1];
+  }
+  const numSecs = parseInt(str, 10);
+  if (!isNaN(numSecs) && numSecs > 0) {
+    return formatSecondsToTime(numSecs);
+  }
+  return '0:03';
+};
+
+const extractDuration = (text, fallback) => {
+  if (text) {
+    const parenthesized = String(text).match(/\((\d+:\d+)\)/);
+    if (parenthesized && parenthesized[1]) {
+      const sanitized = sanitizeDuration(parenthesized[1]);
+      if (sanitized) return sanitized;
+    }
+    const pureDuration = String(text).trim().match(/^(\d+:\d+)$/);
+    if (pureDuration && pureDuration[1]) {
+      const sanitized = sanitizeDuration(pureDuration[1]);
+      if (sanitized) return sanitized;
+    }
+    const anyDuration = String(text).match(/(\d+:\d+)/);
+    if (anyDuration && anyDuration[1]) {
+      const sanitized = sanitizeDuration(anyDuration[1]);
+      if (sanitized) return sanitized;
+    }
+  }
+  return sanitizeDuration(fallback) || '0:03';
+};
+
+const cleanLastMessageText = (txt, isRtl) => {
+  if (!txt) return isRtl ? 'لا توجد رسائل بعد' : 'No messages yet';
+  const str = String(txt).trim();
+  const lower = str.toLowerCase();
+  if (
+    lower.includes('voice message') ||
+    str.includes('تسجيل صوتي') ||
+    str.includes('رسالة صوتية')
+  ) {
+    return isRtl ? '🎙️ رسالة صوتية' : '🎙️ Voice message';
+  }
+  return str;
 };
 
 const getAvatarSource = (avatar) => {
@@ -242,7 +290,7 @@ export default function ChatsModal({
             unread: isUnread,
             lastTime,
             lastTimeAr,
-            lastMessageText: c.last_message_text || '',
+            lastMessageText: cleanLastMessageText(c.last_message_text, isRTL),
             messages: [],
           };
         });
@@ -286,22 +334,26 @@ export default function ChatsModal({
       const formatted = (data || [])
         .filter((m) => {
           if (deletedIds.has(m.id)) return false;
-          // Filter out any corrupted test message that literally says "voice message (0:00)"
+          // Filter out any empty/corrupted voice recording placeholder that has no audio file
           const rawText = String(m.text || '').toLowerCase().trim();
-          if (rawText === 'voice message (0:00)' || rawText === 'voice message' || rawText === '🎙️ voice message') {
+          if (rawText.includes('voice message') || rawText.includes('تسجيل صوتي') || rawText.includes('رسالة صوتية')) {
             if (!m.media_url && m.media_type !== 'audio') return false;
           }
           return true;
         })
         .map((m) => {
           const isUser = activeUser?.id ? m.sender_id === activeUser.id : m.sender === 'user';
+          const textLower = String(m.text || '').toLowerCase();
           const isAudio = m.media_type === 'audio' 
-            || (m.media_url && (m.media_url.includes('/voice/') || m.media_url.endsWith('.m4a') || m.media_url.endsWith('.wav')));
+            || Boolean(m.voice_duration)
+            || (m.media_url && (m.media_url.includes('/voice/') || m.media_url.endsWith('.m4a') || m.media_url.endsWith('.wav') || m.media_url.endsWith('.mp3')))
+            || textLower.includes('voice message')
+            || textLower.includes('تسجيل صوتي')
+            || textLower.includes('رسالة صوتية');
           
           let audioDuration = null;
           if (isAudio) {
-            const rawDur = (m.text && m.text.includes(':')) ? m.text : (m.voice_duration || '0:03');
-            audioDuration = sanitizeDuration(rawDur);
+            audioDuration = extractDuration(m.text, m.voice_duration);
           }
 
           return {
@@ -378,18 +430,22 @@ export default function ChatsModal({
             const m = payload.new;
             if (deletedForMeIdsRef.current.has(m.id)) return;
             const rawText = String(m.text || '').toLowerCase().trim();
-            if (rawText === 'voice message (0:00)' || rawText === 'voice message' || rawText === '🎙️ voice message') {
+            if (rawText.includes('voice message') || rawText.includes('تسجيل صوتي') || rawText.includes('رسالة صوتية')) {
               if (!m.media_url && m.media_type !== 'audio') return;
             }
 
             const isUser = m.sender_id === activeUser.id;
+            const textLower = String(m.text || '').toLowerCase();
             const isAudio = m.media_type === 'audio'
-              || (m.media_url && (m.media_url.includes('/voice/') || m.media_url.endsWith('.m4a') || m.media_url.endsWith('.wav')));
+              || Boolean(m.voice_duration)
+              || (m.media_url && (m.media_url.includes('/voice/') || m.media_url.endsWith('.m4a') || m.media_url.endsWith('.wav') || m.media_url.endsWith('.mp3')))
+              || textLower.includes('voice message')
+              || textLower.includes('تسجيل صوتي')
+              || textLower.includes('رسالة صوتية');
             
             let audioDuration = null;
             if (isAudio) {
-              const rawDur = (m.text && m.text.includes(':')) ? m.text : (m.voice_duration || '0:03');
-              audioDuration = sanitizeDuration(rawDur);
+              audioDuration = extractDuration(m.text, m.voice_duration);
             }
 
             const newMsg = {
@@ -646,7 +702,11 @@ export default function ChatsModal({
 
         const lastMsg = updatedList.length > 0 ? updatedList[updatedList.length - 1] : null;
         if (lastMsg) {
-          newLastText = lastMsg.text || (lastMsg.voiceDuration ? (isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message') : (lastMsg.image ? (isRTL ? '📷 صورة' : '📷 Image') : ''));
+          newLastText = (lastMsg.voiceDuration || lastMsg.audioUri) 
+            ? (isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message') 
+            : (lastMsg.image 
+                ? (isRTL ? '📷 صورة' : '📷 Image') 
+                : cleanLastMessageText(lastMsg.text, isRTL));
           newLastTime = lastMsg.time || 'Just now';
           newLastAt = lastMsg.created_at || new Date().toISOString();
           newLastSenderId = lastMsg.sender === 'user' ? activeUser?.id : targetChat?.otherUserId;
@@ -1180,7 +1240,13 @@ export default function ChatsModal({
     if (!query) return true;
     const nameToSearch = isRTL ? (c.nameAr || c.name || '') : (c.name || c.nameAr || '');
     const lastMsg = (Array.isArray(c.messages) && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
-    const lastMsgText = lastMsg ? (lastMsg?.image ? (isRTL ? 'صورة' : 'Photo') : lastMsg?.voiceDuration ? (isRTL ? 'رسالة صوتية' : 'Voice message') : (lastMsg?.text || '')) : (c.lastMessageText || '');
+    const lastMsgText = lastMsg 
+      ? (lastMsg?.image 
+          ? (isRTL ? 'صورة' : 'Photo') 
+          : (lastMsg?.voiceDuration || lastMsg?.audioUri) 
+            ? (isRTL ? 'رسالة صوتية' : 'Voice message') 
+            : cleanLastMessageText(lastMsg?.text, isRTL)) 
+      : cleanLastMessageText(c.lastMessageText, isRTL);
     return nameToSearch.toLowerCase().includes(query) || lastMsgText.toLowerCase().includes(query);
   });
 
@@ -1307,8 +1373,12 @@ export default function ChatsModal({
                 (activeChat?.messages || []).map((msg, index) => {
                   if (!msg) return null;
                   const isUser = msg?.sender === 'user';
-                  const msgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
-                  const effectiveVoiceDuration = sanitizeDuration(audioDurations[msg?.id] || msg?.voiceDuration) || '0:03';
+                  const rawMsgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
+                  const msgText = (rawMsgText && (rawMsgText.includes('Voice message') || rawMsgText.includes('voice message') || rawMsgText.includes('تسجيل صوتي') || rawMsgText.includes('رسالة صوتية')))
+                    ? ''
+                    : rawMsgText;
+                  const isAudioMsg = Boolean(msg?.voiceDuration || msg?.audioUri || (rawMsgText && (rawMsgText.includes('Voice message') || rawMsgText.includes('voice message') || rawMsgText.includes('تسجيل صوتي') || rawMsgText.includes('رسالة صوتية'))));
+                  const effectiveVoiceDuration = sanitizeDuration(audioDurations[msg?.id]) || sanitizeDuration(msg?.voiceDuration) || '0:03';
                   const isSelected = Boolean(selectedMessages[msg?.id]);
 
                   return (
@@ -1337,7 +1407,7 @@ export default function ChatsModal({
                         styles.msgBubble,
                         isUser ? styles.userMsgBubble : styles.contactMsgBubble,
                         msg?.image && styles.imageMsgBubble,
-                        msg?.voiceDuration && styles.voiceMsgBubble,
+                        isAudioMsg && styles.voiceMsgBubble,
                         isSelected && styles.msgBubbleSelected,
                         !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
                       ]}
@@ -1368,7 +1438,7 @@ export default function ChatsModal({
                             resizeMode="cover" 
                           />
                         </TouchableOpacity>
-                      ) : msg?.voiceDuration ? (
+                      ) : isAudioMsg ? (
                         /* Render Voice Record Player Message with Interactive Touch/Drag Scrubber */
                         <View style={[styles.voicePlayerContainer, isRTL && { flexDirection: 'row-reverse' }]}>
                           <TouchableOpacity
@@ -1489,7 +1559,7 @@ export default function ChatsModal({
                         isUser ? styles.userMsgTime : styles.contactMsgTime,
                         isRTL ? { textAlign: 'left' } : { textAlign: 'right' },
                         msg?.image && styles.imageMsgTime,
-                        msg?.voiceDuration && styles.voiceMsgTime
+                        isAudioMsg && styles.voiceMsgTime
                       ]}>
                         {msg?.time}
                       </Text>
@@ -1652,13 +1722,14 @@ export default function ChatsModal({
                   const lastMsg = (Array.isArray(chat?.messages) && chat.messages.length > 0) 
                     ? chat.messages[chat.messages.length - 1] 
                     : null;
+                  const isLastAudio = Boolean(lastMsg?.voiceDuration || lastMsg?.audioUri);
                   const lastMsgText = lastMsg 
                     ? (lastMsg?.image 
                         ? (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo') 
-                        : lastMsg?.voiceDuration 
+                        : isLastAudio 
                           ? (isRTL ? '🎵 رسالة صوتية' : '🎵 Voice message') 
-                          : (isRTL ? (lastMsg?.textAr || lastMsg?.text) : (lastMsg?.text || lastMsg?.textAr)))
-                    : (chat?.lastMessageText || (isRTL ? 'لا توجد رسائل بعد' : 'No messages yet'));
+                          : cleanLastMessageText(isRTL ? (lastMsg?.textAr || lastMsg?.text) : (lastMsg?.text || lastMsg?.textAr), isRTL))
+                    : cleanLastMessageText(chat?.lastMessageText, isRTL);
                   const timeText = isRTL ? (chat?.lastTimeAr || chat?.lastTime || '') : (chat?.lastTime || chat?.lastTimeAr || '');
                   const nameText = isRTL ? (chat?.nameAr || chat?.name || 'مستخدم') : (chat?.name || chat?.nameAr || 'User');
 
