@@ -1903,7 +1903,11 @@ export default function CommunityScreen({
                 </View>
               </View>
             ) : (
-              userPosts.map(renderPostCard)
+              userPosts.map((post) =>
+                post.isMarketplace
+                  ? renderSearchMarketplaceCard(post)
+                  : renderPostCard(post)
+              )
             )}
           </View>
         )}
@@ -2278,7 +2282,11 @@ export default function CommunityScreen({
                   </View>
                 </View>
               ) : (
-                otherUserPosts.map(renderPostCard)
+                otherUserPosts.map((post) =>
+                  post.isMarketplace
+                    ? renderSearchMarketplaceCard(post)
+                    : renderPostCard(post)
+                )
               )}
             </ScrollView>
           </View>
