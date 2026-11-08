@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
@@ -92,11 +92,25 @@ function NavItem({ tab, isActive, onPress, colors, styles, badgeCount = 0 }) {
   );
 }
 
-export default function BottomNavBar({ activeTab = 'home', onTabPress, unreadNotificationsCount = 0 }) {
+export default function BottomNavBar({ 
+  activeTab = 'home', 
+  onTabPress, 
+  unreadNotificationsCount = 0,
+  hidden = false,
+}) {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
   const { width } = useWindowDimensions();
   const [barHeight, setBarHeight] = useState(80);
+  const translateYAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(translateYAnim, {
+      toValue: hidden ? 130 : 0,
+      duration: hidden ? 220 : 200,
+      useNativeDriver: true,
+    }).start();
+  }, [hidden]);
 
   const tabs = [
     { id: 'garage', label: 'My Warsha', icon: 'car-outline', activeIcon: 'car-sharp', size: 24 },
@@ -157,7 +171,13 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress, unreadNot
   }, [width, barHeight]);
 
   return (
-    <View style={styles.navWrapper} pointerEvents="box-none">
+    <Animated.View 
+      style={[
+        styles.navWrapper,
+        { transform: [{ translateY: translateYAnim }] }
+      ]} 
+      pointerEvents={hidden ? 'none' : 'box-none'}
+    >
       {/* 1. Concentric Dipped SVG Background Bar */}
       <View style={styles.svgBackground} pointerEvents="none">
         <Svg width={width} height={barHeight} viewBox={`0 0 ${width} ${barHeight}`}>
@@ -203,7 +223,7 @@ export default function BottomNavBar({ activeTab = 'home', onTabPress, unreadNot
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

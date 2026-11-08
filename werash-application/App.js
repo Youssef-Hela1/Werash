@@ -200,6 +200,7 @@ const createRegisteredCar = (user) => ({
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState('home');
+  const [isCommunityNavHidden, setIsCommunityNavHidden] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [expandedSpecialistId, setExpandedSpecialistId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -627,6 +628,12 @@ function AppContent() {
 
   const resolvedActiveVehicleId = activeVehicle?.id || null;
 
+  useEffect(() => {
+    if (currentTab !== 'community') {
+      setIsCommunityNavHidden(false);
+    }
+  }, [currentTab]);
+
   const handleNavigate = (tab, targetSpecialistId = null) => {
     homeTranslateY.setValue(0);
     isHomeAtTopRef.current = true;
@@ -712,6 +719,7 @@ function AppContent() {
             activeVehicleId={resolvedActiveVehicleId}
             onOpenSignIn={() => setSignInVisible(true)}
             onUpdateCurrentUser={handleSetCurrentUser}
+            onToggleNavBar={setIsCommunityNavHidden}
           />
         );
       case 'more':
@@ -762,6 +770,7 @@ function AppContent() {
       {!activeSpecialist && !activeAd && currentTab !== 'more' && (
         <BottomNavBar 
           activeTab={currentTab} 
+          hidden={currentTab === 'community' && isCommunityNavHidden}
           unreadNotificationsCount={notifications.filter(n => !n.read).length}
           onTabPress={(tab) => {
             if (tab === 'notifications') {
@@ -773,6 +782,7 @@ function AppContent() {
             }
             homeTranslateY.setValue(0);
             isHomeAtTopRef.current = true;
+            setIsCommunityNavHidden(false);
             setCurrentTab(tab);
             setExpandedSpecialistId(null);
           }} 

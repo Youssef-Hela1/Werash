@@ -58,6 +58,8 @@ export default function CommunityScreen({
   selectedLanguage,
   onOpenSignIn,
   onUpdateCurrentUser,
+  scrollToTopTrigger,
+  onToggleNavBar,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -184,6 +186,22 @@ export default function CommunityScreen({
   const [headerHeight, setHeaderHeight] = useState(topInset + 115);
   const headerTranslateAnim = useRef(new Animated.Value(0)).current;
   const isHeaderHidden = useRef(false);
+  const isNavHidden = useRef(false);
+
+  useEffect(() => {
+    if (scrollToTopTrigger) {
+      handleScrollToTop();
+    }
+  }, [scrollToTopTrigger]);
+
+  useEffect(() => {
+    return () => {
+      if (onToggleNavBar && isNavHidden.current) {
+        isNavHidden.current = false;
+        onToggleNavBar(false);
+      }
+    };
+  }, [onToggleNavBar]);
 
   const onHeaderLayout = (event) => {
     const { height } = event.nativeEvent.layout;
@@ -206,11 +224,15 @@ export default function CommunityScreen({
           useNativeDriver: true,
         }).start();
       }
+      if (onToggleNavBar && isNavHidden.current) {
+        isNavHidden.current = false;
+        onToggleNavBar(false);
+      }
       lastOffsetY.current = currentY;
       return;
     }
 
-    // When scrolling down past initial top zone: hide header off-screen
+    // When scrolling down past initial top zone: hide header off-screen & hide navbar
     if (currentY > 60 && diff > 8) {
       if (!isHeaderHidden.current) {
         isHeaderHidden.current = true;
@@ -220,8 +242,12 @@ export default function CommunityScreen({
           useNativeDriver: true,
         }).start();
       }
+      if (onToggleNavBar && !isNavHidden.current) {
+        isNavHidden.current = true;
+        onToggleNavBar(true);
+      }
     }
-    // When scrolling up (diff < -8) or at the top: immediately slide down and click header at the top
+    // When scrolling up (diff < -8) or at the top: immediately slide down and click header at the top & show navbar
     else if (diff < -8 || currentY <= 15) {
       if (isHeaderHidden.current || currentY <= 15) {
         isHeaderHidden.current = false;
@@ -230,6 +256,10 @@ export default function CommunityScreen({
           duration: 200,
           useNativeDriver: true,
         }).start();
+      }
+      if (onToggleNavBar && isNavHidden.current) {
+        isNavHidden.current = false;
+        onToggleNavBar(false);
       }
     }
 
@@ -267,6 +297,11 @@ export default function CommunityScreen({
       duration: 180,
       useNativeDriver: true,
     }).start();
+
+    if (onToggleNavBar && isNavHidden.current) {
+      isNavHidden.current = false;
+      onToggleNavBar(false);
+    }
 
     setShowBackToTop(false);
     Animated.timing(backToTopAnim, {
@@ -624,6 +659,10 @@ export default function CommunityScreen({
       duration: 180,
       useNativeDriver: true,
     }).start();
+    if (onToggleNavBar && isNavHidden.current) {
+      isNavHidden.current = false;
+      onToggleNavBar(false);
+    }
     if (showBackToTop) {
       setShowBackToTop(false);
       backToTopAnim.setValue(0);
