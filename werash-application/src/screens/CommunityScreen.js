@@ -14,6 +14,7 @@ import {
   TextInput,
   Keyboard,
   BackHandler,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -1211,9 +1212,15 @@ export default function CommunityScreen({
         selectedLanguage={selectedLanguage}
       />
 
-      {/* Blank White Page on Search Icon Click */}
-      {isSearchActive && (
-        <View style={styles.searchFullScreen}>
+      {/* Blank White Page Modal on Search Icon Click */}
+      <Modal
+        visible={isSearchActive}
+        animationType="fade"
+        transparent={false}
+        statusBarTranslucent={true}
+        onRequestClose={() => setIsSearchActive(false)}
+      >
+        <View style={styles.blankPageContainer}>
           <View style={[styles.blankPageHeader, { paddingTop: topInset + 6 }, isRtl && styles.blankPageHeaderRtl]}>
             <TouchableOpacity
               onPress={() => setIsSearchActive(false)}
@@ -1229,7 +1236,7 @@ export default function CommunityScreen({
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      </Modal>
     </View>
   );
 }
@@ -2064,10 +2071,9 @@ const styles = StyleSheet.create({
   noPostsCardSubtitleRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
-  searchFullScreen: {
-    ...StyleSheet.absoluteFillObject,
+  blankPageContainer: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    zIndex: 9999,
   },
   blankPageHeader: {
     paddingHorizontal: 16,
