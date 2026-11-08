@@ -62,6 +62,7 @@ export default function CommunityScreen({
   const [chatsVisible, setChatsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
+  const [allProfiles, setAllProfiles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isRtl = selectedLanguage === 'Arabic';
@@ -433,6 +434,7 @@ export default function CommunityScreen({
           .from('profiles')
           .select('id, full_name, avatar_url, banner_url');
         if (profs && Array.isArray(profs)) {
+          setAllProfiles(profs);
           profs.forEach((pr) => {
             if (pr.id) profMap[pr.id] = pr;
           });
@@ -596,6 +598,57 @@ export default function CommunityScreen({
     : (currentUser?.fullName ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}` : '@werash_driver');
   const resolvedAvatar = myAvatarUrl || currentUser?.avatarUrl || currentUser?.avatar || null;
   const resolvedBanner = myBannerUrl || currentUser?.bannerUrl || null;
+
+  // Derive search matching people and content
+  const trimmedSearchQuery = searchQuery.trim().toLowerCase();
+  const searchKeywords = trimmedSearchQuery.split(/\s+/).filter(Boolean);
+
+  // Derive unique people from current user, cloud profiles, and post authors
+  const peopleMap = new Map();
+  if (currentUser?.fullName) {
+    peopleMap.set(currentUser.id || currentUser.fullName, {
+      id: currentUser.id || 'current_user',
+      name: currentUser.fullName,
+      avatar: myAvatarUrl || currentUser.avatarUrl || currentUser.avatar || null,
+      handle: currentUser.email ? `@${currentUser.email.split('@')[0]}` : null,
+    });
+  }
+  allProfiles.forEach((prof) => {
+    if (prof.full_name && !peopleMap.has(prof.id || prof.full_name)) {
+      peopleMap.set(prof.id || prof.full_name, {
+        id: prof.id,
+        name: prof.full_name,
+        avatar: prof.avatar_url || null,
+        handle: null,
+      });
+    }
+  });
+  posts.forEach((p) => {
+    const key = p.userId || p.author;
+    if (key && !peopleMap.has(key)) {
+      peopleMap.set(key, {
+        id: key,
+        name: p.author,
+        avatar: p.avatar,
+        handle: p.handle,
+      });
+    }
+  });
+  const allPeople = Array.from(peopleMap.values());
+
+  const matchingPeople = trimmedSearchQuery.length === 0 ? [] : allPeople.filter((person) => {
+    const name = (person.name || '').toLowerCase();
+    const handle = (person.handle || '').toLowerCase();
+    return searchKeywords.some((kw) => name.includes(kw) || handle.includes(kw));
+  });
+
+  const matchingPosts = trimmedSearchQuery.length === 0 ? [] : posts.filter((post) => {
+    const content = (post.content || '').toLowerCase();
+    const vehicle = (post.vehicle || '').toLowerCase();
+    const author = (post.author || '').toLowerCase();
+    const location = (post.location || '').toLowerCase();
+    return searchKeywords.some((kw) => content.includes(kw) || vehicle.includes(kw) || author.includes(kw) || location.includes(kw));
+  });
 
 
   // Render single post card matching signature premium aesthetic
@@ -1267,6 +1320,76 @@ export default function CommunityScreen({
               </View>
             </View>
           </View>
+
+          {/* Relevant Search Content (Keywords and People) */}
+          {trimmedSearchQuery.length > 0 && (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.searchResultsScroll}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* If search brings up a person: create a small card that has the person's profile picture and name */}
+              {matchingPeople.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
+                    {isRtl ? 'الأشخاص' : 'People'}
+                  </Text>
+                  {matchingPeople.map((person) => (
+                    <View key={person.id} style={styles.personCardShadow}>
+                      <View style={[styles.personCardSurface, isRtl && styles.personCardSurfaceRtl]}>
+                        {person.avatar ? (
+                          <Image
+                            source={typeof person.avatar === 'string' ? { uri: person.avatar } : person.avatar}
+                            style={styles.personAvatar}
+                          />
+                        ) : (
+                          <View style={styles.personAvatarPlaceholder}>
+                            <Ionicons name="person" size={20} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View style={[styles.personInfo, isRtl && styles.personInfoRtl]}>
+                          <Text style={[styles.personName, isRtl && styles.personNameRtl]} numberOfLines={1}>
+                            {person.name}
+                          </Text>
+                          {Boolean(person.handle) && (
+                            <Text style={[styles.personHandle, isRtl && styles.personHandleRtl]} numberOfLines={1}>
+                              {person.handle}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Relevant Posts / Content */}
+              {matchingPosts.length > 0 && (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionHeading, isRtl && styles.searchSectionHeadingRtl]}>
+                    {isRtl ? 'المحتوى والمنشورات' : 'Posts & Content'}
+                  </Text>
+                  {matchingPosts.map((post) => renderPostCard(post))}
+                </View>
+              )}
+
+              {/* No Results Found State */}
+              {matchingPeople.length === 0 && matchingPosts.length === 0 && (
+                <View style={styles.searchEmptyContainer}>
+                  <Ionicons name="search-outline" size={42} color="#B5BDC2" />
+                  <Text style={[styles.searchEmptyTitle, isRtl && styles.searchEmptyTitleRtl]}>
+                    {isRtl ? `لا توجد نتائج لـ "${searchQuery}"` : `No results for "${searchQuery}"`}
+                  </Text>
+                  <Text style={[styles.searchEmptySubtitle, isRtl && styles.searchEmptySubtitleRtl]}>
+                    {isRtl
+                      ? 'تأكد من كتابة الكلمات بشكل صحيح أو ابحث عن موضوع آخر'
+                      : 'Check for typos or try searching for a different keyword'}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
         </View>
       </Modal>
     </View>
@@ -2169,6 +2292,126 @@ const styles = StyleSheet.create({
     color: '#1A211B',
   },
   blankPageTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  searchResultsScroll: {
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  searchSection: {
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  searchSectionHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8A959E',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  searchSectionHeadingRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+    textAlign: 'right',
+  },
+  personCardShadow: {
+    width: '100%',
+    borderRadius: 18,
+    backgroundColor: '#F2F4F5',
+    marginBottom: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.07,
+        shadowRadius: 3.5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  personCardSurface: {
+    backgroundColor: '#F2F4F5',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  personCardSurfaceRtl: {
+    flexDirection: 'row-reverse',
+  },
+  personAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E0E5E8',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  personAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#003514',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  personInfo: {
+    marginLeft: 12,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  personInfoRtl: {
+    marginLeft: 0,
+    marginRight: 12,
+    alignItems: 'flex-end',
+  },
+  personName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A211B',
+  },
+  personNameRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  personHandle: {
+    fontSize: 12.5,
+    color: '#8A959E',
+    marginTop: 2,
+  },
+  personHandleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  searchEmptyContainer: {
+    paddingTop: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 36,
+  },
+  searchEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A211B',
+    marginTop: 14,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  searchEmptyTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  searchEmptySubtitle: {
+    fontSize: 13.5,
+    color: '#8A959E',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  searchEmptySubtitleRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
   },
 });
