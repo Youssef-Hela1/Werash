@@ -1025,23 +1025,17 @@ export default function CommunityScreen({
   };
 
   const handleOpenPostMenu = (post, e) => {
-    const isMine = Boolean(
-      (currentUser?.id && (post.userId === currentUser.id || post.user_id === currentUser.id)) ||
-      (currentUser?.fullName && post.author === currentUser.fullName)
-    );
-    const bubbleHeight = isMine ? 135 : 92;
-
-    const pageY = e?.nativeEvent?.pageY || 250;
-    let isAbove = true;
-    let top = pageY - bubbleHeight - 10;
-    if (top < 70) {
-      top = pageY + 16;
-      isAbove = false;
+    if (activeMenuPost?.id === post.id) {
+      setActiveMenuPost(null);
+      return;
     }
+    const pageY = e?.nativeEvent?.pageY || 250;
+    // Always appear below the dots
+    const top = pageY + 12;
 
     setMenuPosition({
       top,
-      isAbove,
+      isAbove: false,
     });
     setActiveMenuPost(post);
   };
@@ -2631,11 +2625,14 @@ export default function CommunityScreen({
         statusBarTranslucent={true}
         onRequestClose={() => setActiveMenuPost(null)}
       >
-        <TouchableOpacity
-          style={styles.postMenuOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveMenuPost(null)}
-        >
+        <View style={styles.postMenuOverlay}>
+          {/* Full-screen backdrop touch target: clicking anywhere outside closes the bubble */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setActiveMenuPost(null)}
+          />
+
           <View
             style={[
               styles.postMenuBubble,
@@ -2710,7 +2707,7 @@ export default function CommunityScreen({
               </Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Report Post Modal */}
@@ -4452,9 +4449,8 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
 
   /* ── Post Options Menu Bubble Styles ── */
   postMenuOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    zIndex: 9999,
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
   postMenuBubble: {
     position: 'absolute',
