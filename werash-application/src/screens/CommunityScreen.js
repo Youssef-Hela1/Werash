@@ -47,6 +47,18 @@ export default function CommunityScreen({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isRtl = selectedLanguage === 'Arabic';
 
+  // Filter user posts for profile tab and scroll lock check
+  const userPosts = posts.filter(p => {
+    if (currentUser?.id) {
+      return p.userId === currentUser.id;
+    }
+    if (currentUser?.fullName) {
+      return p.author === currentUser.fullName;
+    }
+    return false;
+  });
+  const userPostsCount = userPosts.length;
+
   // "Back to top" floating pill button state & animations
   const [showBackToTop, setShowBackToTop] = useState(false);
   const backToTopAnim = useRef(new Animated.Value(0)).current;
@@ -68,6 +80,20 @@ export default function CommunityScreen({
   const handleScroll = (event) => {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastOffsetY.current;
+
+    // If on profile tab and has no posts, NEVER hide the header at the top
+    if (activeTab === 'profile' && userPosts.length === 0) {
+      if (isHeaderHidden.current) {
+        isHeaderHidden.current = false;
+        Animated.timing(headerTranslateAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }).start();
+      }
+      lastOffsetY.current = currentY;
+      return;
+    }
 
     // When scrolling down past initial top zone: hide header off-screen
     if (currentY > 60 && diff > 8) {
@@ -301,17 +327,7 @@ export default function CommunityScreen({
     return !post.isMarketplace;
   });
 
-  // User stats for profile card
-  const userPosts = posts.filter(p => {
-    if (currentUser?.id) {
-      return p.userId === currentUser.id;
-    }
-    if (currentUser?.fullName) {
-      return p.author === currentUser.fullName;
-    }
-    return false;
-  });
-  const userPostsCount = userPosts.length;
+  // User likes count for profile stats
   const userLikesCount = userPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
 
   const profileName = currentUser?.fullName || (isRtl ? 'حساب زائر' : 'Guest User');
@@ -587,14 +603,18 @@ export default function CommunityScreen({
 
             {/* My Posts Section */}
             {userPosts.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="create-outline" size={36} color="#A0AAB0" />
-                <Text style={[styles.emptyTitle, isRtl && styles.emptyTitleRtl]}>
-                  {isRtl ? 'لا توجد منشورات حتى الآن' : 'No posts yet'}
-                </Text>
-                <Text style={[styles.emptySubtitle, isRtl && styles.emptySubtitleRtl]}>
-                  {isRtl ? 'المنشورات التي تشاركها ستظهر هنا في ملفك الشخصي' : 'Posts you share will appear here on your profile'}
-                </Text>
+              <View style={styles.noPostsCardShadow}>
+                <View style={styles.noPostsCardSurface}>
+                  <View style={styles.noPostsIconCircle}>
+                    <Ionicons name="document-text-outline" size={30} color="#003514" />
+                  </View>
+                  <Text style={[styles.noPostsCardTitle, isRtl && styles.noPostsCardTitleRtl]}>
+                    {isRtl ? 'لا توجد منشورات' : 'No posts'}
+                  </Text>
+                  <Text style={[styles.noPostsCardSubtitle, isRtl && styles.noPostsCardSubtitleRtl]}>
+                    {isRtl ? 'لم تقم بنشر أي منشورات بعد' : "You haven't shared any posts yet"}
+                  </Text>
+                </View>
               </View>
             ) : (
               userPosts.map(renderPostCard)
@@ -1265,5 +1285,62 @@ const styles = StyleSheet.create({
     width: 1,
     height: 22,
     backgroundColor: '#D7DEE2',
+  },
+  // "No Posts" Card Styles (Premium card design)
+  noPostsCardShadow: {
+    width: '100%',
+    borderRadius: 22,
+    backgroundColor: '#F2F4F5',
+    marginBottom: 20,
+    overflow: 'visible',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2.5 },
+        shadowOpacity: 0.08,
+        shadowRadius: 5.5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  noPostsCardSurface: {
+    backgroundColor: '#F2F4F5',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+  },
+  noPostsIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0, 53, 20, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  noPostsCardTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#003514',
+    textAlign: 'center',
+  },
+  noPostsCardTitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  noPostsCardSubtitle: {
+    fontSize: 13,
+    color: '#7E8B93',
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  noPostsCardSubtitleRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
   },
 });
