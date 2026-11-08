@@ -294,22 +294,38 @@ export default function CommunityScreen({
   const handlePickAndUploadAvatar = async () => {
     if (!requireAuth()) return;
     try {
-      setIsUploadingAvatar(true);
       await ensureMediaPermissions();
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.65,
+        allowsEditing: false, // Bypasses slow native cropping activity for instant selection
+        quality: 0.6,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
-        setIsUploadingAvatar(false);
         return;
       }
 
       const localUri = result.assets[0].uri;
+
+      // 1. Instant Optimistic UI Update (0ms delay for user)
+      setMyAvatarUrl(localUri);
+      if (typeof onUpdateCurrentUser === 'function') {
+        onUpdateCurrentUser({
+          ...currentUser,
+          avatar: localUri,
+          avatarUrl: localUri,
+        });
+      }
+      setPosts(prev => prev.map(p => {
+        if (p.userId === currentUser.id || p.author === currentUser.fullName) {
+          return { ...p, avatar: { uri: localUri } };
+        }
+        return p;
+      }));
+
+      // 2. Background Cloud Sync
+      setIsUploadingAvatar(true);
 
       const response = await fetch(localUri);
       const blob = await response.blob();
@@ -332,23 +348,7 @@ export default function CommunityScreen({
       const publicUrl = publicData?.publicUrl;
 
       if (publicUrl) {
-        try {
-          await supabase
-            .from('profiles')
-            .update({ avatar_url: publicUrl })
-            .eq('id', currentUser.id);
-        } catch (e) {
-          console.warn('Error updating profile avatar_url:', e);
-        }
-
-        try {
-          await supabase.auth.updateUser({
-            data: { avatar_url: publicUrl }
-          });
-        } catch (e) {
-          console.warn('Error updating auth metadata avatar_url:', e);
-        }
-
+        setMyAvatarUrl(publicUrl);
         if (typeof onUpdateCurrentUser === 'function') {
           onUpdateCurrentUser({
             ...currentUser,
@@ -356,9 +356,6 @@ export default function CommunityScreen({
             avatarUrl: publicUrl,
           });
         }
-
-        setMyAvatarUrl(publicUrl);
-
         setPosts(prev => prev.map(p => {
           if (p.userId === currentUser.id || p.author === currentUser.fullName) {
             return { ...p, avatar: { uri: publicUrl } };
@@ -366,10 +363,15 @@ export default function CommunityScreen({
           return p;
         }));
 
-        Alert.alert(
-          isRtl ? 'تم بنجاح' : 'Success',
-          isRtl ? 'تم تحديث الصورة الشخصية بنجاح.' : 'Profile picture updated successfully.'
-        );
+        supabase
+          .from('profiles')
+          .update({ avatar_url: publicUrl })
+          .eq('id', currentUser.id)
+          .catch(e => console.warn('Error updating profile avatar_url:', e));
+
+        supabase.auth
+          .updateUser({ data: { avatar_url: publicUrl } })
+          .catch(e => console.warn('Error updating auth metadata avatar_url:', e));
       }
     } catch (err) {
       console.warn('handlePickAndUploadAvatar error:', err);
@@ -386,22 +388,34 @@ export default function CommunityScreen({
   const handlePickAndUploadBanner = async () => {
     if (!requireAuth()) return;
     try {
-      setIsUploadingBanner(true);
       await ensureMediaPermissions();
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.65,
+        allowsEditing: false, // Bypasses slow native cropping activity for instant selection
+        quality: 0.6,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
-        setIsUploadingBanner(false);
         return;
       }
 
       const localUri = result.assets[0].uri;
+
+      // 1. Instant Optimistic UI Update (0ms delay for user)
+      setMyBannerUrl(localUri);
+      if (typeof onUpdateCurrentUser === 'function') {
+        onUpdateCurrentUser({
+          ...currentUser,
+          bannerUrl: localUri,
+        });
+      }
+      try {
+        await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, localUri);
+      } catch (e) {}
+
+      // 2. Background Cloud Sync
+      setIsUploadingBanner(true);
 
       const response = await fetch(localUri);
       const blob = await response.blob();
@@ -424,42 +438,26 @@ export default function CommunityScreen({
       const publicUrl = publicData?.publicUrl;
 
       if (publicUrl) {
-        try {
-          await supabase
-            .from('profiles')
-            .update({ banner_url: publicUrl })
-            .eq('id', currentUser.id);
-        } catch (e) {
-          console.warn('Error updating profile banner_url:', e);
-        }
-
-        try {
-          await supabase.auth.updateUser({
-            data: { banner_url: publicUrl }
-          });
-        } catch (e) {
-          console.warn('Error updating auth metadata banner_url:', e);
-        }
-
-        try {
-          await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
-        } catch (e) {
-          console.warn('Error saving banner to storage:', e);
-        }
-
+        setMyBannerUrl(publicUrl);
         if (typeof onUpdateCurrentUser === 'function') {
           onUpdateCurrentUser({
             ...currentUser,
             bannerUrl: publicUrl,
           });
         }
+        try {
+          await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+        } catch (e) {}
 
-        setMyBannerUrl(publicUrl);
+        supabase
+          .from('profiles')
+          .update({ banner_url: publicUrl })
+          .eq('id', currentUser.id)
+          .catch(e => console.warn('Error updating profile banner_url:', e));
 
-        Alert.alert(
-          isRtl ? 'تم بنجاح' : 'Success',
-          isRtl ? 'تم تحديث صورة الغلاف بنجاح.' : 'Banner updated successfully.'
-        );
+        supabase.auth
+          .updateUser({ data: { banner_url: publicUrl } })
+          .catch(e => console.warn('Error updating auth metadata banner_url:', e));
       }
     } catch (err) {
       console.warn('handlePickAndUploadBanner error:', err);

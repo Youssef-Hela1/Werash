@@ -39,28 +39,33 @@ export default function ProfileScreen({
   }, [currentUser, visible]);
 
   const pickImage = async () => {
-    // Request permission first
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
-        isRtl 
-          ? 'نحتاج إلى إذن للوصول إلى معرض الصور الخاص بك لتحديث صورة الملف الشخصي.' 
-          : 'We need permission to access your gallery to update your profile picture.'
-      );
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        const req = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (req.status !== 'granted') {
+          Alert.alert(
+            isRtl ? 'مطلوب إذن المعرض' : 'Gallery Permission Required',
+            isRtl 
+              ? 'نحتاج إلى إذن للوصول إلى معرض الصور الخاص بك لتحديث صورة الملف الشخصي.' 
+              : 'We need permission to access your gallery to update your profile picture.'
+          );
+          return;
+        }
+      }
 
-    // Launch image picker
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
+      // Launch image picker without heavy cropping activity for instant selection
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.6,
+      });
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setAvatar(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAvatar(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('pickImage error:', err);
     }
   };
 
