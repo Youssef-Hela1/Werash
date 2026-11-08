@@ -83,6 +83,7 @@ export default function CommunityScreen({
   const [isCreatePostActive, setIsCreatePostActive] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
   const [postImageUri, setPostImageUri] = useState(null);
+  const [isPosting, setIsPosting] = useState(false);
   const createPostInputRef = useRef(null);
 
   // Pick image for new post
@@ -641,6 +642,125 @@ export default function CommunityScreen({
     : (currentUser?.fullName ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}` : '@werash_driver');
   const resolvedAvatar = myAvatarUrl || currentUser?.avatarUrl || currentUser?.avatar || null;
   const resolvedBanner = myBannerUrl || currentUser?.bannerUrl || null;
+
+  // Create new post in Supabase cloud
+  const handleCreatePost = async () => {
+    if (!newPostContent.trim() && !postImageUri) {
+      Alert.alert(
+        isRtl ? 'محتوى فارغ' : 'Empty Content',
+        isRtl ? 'يرجى كتابة محتوى أو إضافة صورة للمنشور.' : 'Please enter some text or add an image before posting.'
+      );
+      return;
+    }
+
+    if (!currentUser?.id) {
+      Alert.alert(
+        isRtl ? 'تسجيل الدخول مطلوب' : 'Sign In Required',
+        isRtl ? 'يرجى تسجيل الدخول لنشر تحديث في المجتمع.' : 'Please sign in to publish a post in the community.',
+        [
+          { text: isRtl ? 'إلغاء' : 'Cancel', style: 'cancel' },
+          {
+            text: isRtl ? 'تسجيل الدخول' : 'Sign In',
+            onPress: () => {
+              setIsCreatePostActive(false);
+              if (typeof onOpenSignIn === 'function') onOpenSignIn();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    try {
+      setIsPosting(true);
+
+      let uploadedMediaUrl = null;
+      if (postImageUri) {
+        const response = await fetch(postImageUri);
+        const blob = await response.blob();
+        const ext = postImageUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const fileName = `${currentUser.id}/post_${Date.now()}.${ext}`;
+
+        const { error: uploadErr } = await supabase.storage
+          .from('community-media')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadErr) {
+          console.warn('Post image upload error:', uploadErr.message);
+          throw uploadErr;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from('community-media')
+          .getPublicUrl(fileName);
+        uploadedMediaUrl = publicData?.publicUrl || null;
+      }
+
+      const postPayload = {
+        user_id: currentUser.id,
+        author_name: currentUser.fullName || (isRtl ? 'عضو في المجتمع' : 'Community Member'),
+        author_handle: profileHandle,
+        author_avatar: (typeof resolvedAvatar === 'string' ? resolvedAvatar : null),
+        vehicle: currentUser.activeVehicleName || currentUser.vehicle || 'General',
+        content: newPostContent.trim(),
+        media_url: uploadedMediaUrl,
+        media_type: uploadedMediaUrl ? 'image' : null,
+        is_marketplace: false,
+        likes_count: 0,
+        comments_count: 0,
+      };
+
+      const { data: insertedPost, error: insertErr } = await supabase
+        .from('community_posts')
+        .insert([postPayload])
+        .select()
+        .single();
+
+      if (insertErr) {
+        throw insertErr;
+      }
+
+      if (insertedPost) {
+        const finalPost = {
+          id: insertedPost.id,
+          userId: insertedPost.user_id,
+          author: insertedPost.author_name,
+          handle: insertedPost.author_handle,
+          avatar: insertedPost.author_avatar ? { uri: insertedPost.author_avatar } : null,
+          time: formatTimeAgo(insertedPost.created_at, isRtl),
+          content: insertedPost.content,
+          postImage: insertedPost.media_url ? { uri: insertedPost.media_url } : null,
+          likes: 0,
+          comments: 0,
+          liked: false,
+          vehicle: insertedPost.vehicle || 'General',
+          isMarketplace: false,
+          price: null,
+          location: null,
+        };
+        setPosts((prev) => [finalPost, ...prev]);
+      }
+
+      setIsCreatePostActive(false);
+      setNewPostContent('');
+      setPostImageUri(null);
+
+      // Re-fetch in background to ensure sync
+      fetchCloudPosts();
+    } catch (err) {
+      console.warn('handleCreatePost error:', err);
+      Alert.alert(
+        isRtl ? 'خطأ في النشر' : 'Posting Failed',
+        isRtl ? 'تعذر نشر المنشور. يرجى المحاولة مرة أخرى.' : 'Failed to publish post. Please try again.'
+      );
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   // Derive search matching people and content
   const trimmedSearchQuery = searchQuery.trim().toLowerCase();
@@ -1553,14 +1673,20 @@ export default function CommunityScreen({
 
             <TouchableOpacity
               activeOpacity={0.85}
-              style={styles.createPostSubmitButton}
-              onPress={() => {
-                // Post handler
-              }}
+              style={[
+                styles.createPostSubmitButton,
+                (!newPostContent.trim() && !postImageUri || isPosting) && styles.createPostSubmitButtonDisabled,
+              ]}
+              disabled={isPosting || (!newPostContent.trim() && !postImageUri)}
+              onPress={handleCreatePost}
             >
-              <Text style={[styles.createPostSubmitButtonText, isRtl && styles.createPostSubmitButtonTextRtl]}>
-                {isRtl ? 'نشر' : 'Post'}
-              </Text>
+              {isPosting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.createPostSubmitButtonText, isRtl && styles.createPostSubmitButtonTextRtl]}>
+                  {isRtl ? 'نشر' : 'Post'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -2791,6 +2917,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  createPostSubmitButtonDisabled: {
+    opacity: 0.45,
   },
   createPostSubmitButtonText: {
     color: '#FFFFFF',
