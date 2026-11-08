@@ -15,6 +15,7 @@ import {
   Keyboard,
   BackHandler,
   Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -81,7 +82,34 @@ export default function CommunityScreen({
   // Blank white create post page state
   const [isCreatePostActive, setIsCreatePostActive] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
+  const [postImageUri, setPostImageUri] = useState(null);
   const createPostInputRef = useRef(null);
+
+  // Pick image for new post
+  const handlePickPostImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isRtl ? 'إذن المعرض مطلوب' : 'Gallery Permission Required',
+          isRtl ? 'يرجى منح إذن الوصول لمعرض الصور لإرفاق صورة بالمنشور.' : 'Please allow access to your gallery to attach a photo to your post.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setPostImageUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('handlePickPostImage error:', err);
+    }
+  };
 
   // Hardware back button dismisses blank search & create post pages
   useEffect(() => {
@@ -90,6 +118,7 @@ export default function CommunityScreen({
       if (isCreatePostActive) {
         setIsCreatePostActive(false);
         setNewPostContent('');
+        setPostImageUri(null);
         return true;
       }
       if (isSearchActive) {
@@ -1494,14 +1523,22 @@ export default function CommunityScreen({
         animationType="fade"
         transparent={false}
         statusBarTranslucent={true}
-        onRequestClose={() => setIsCreatePostActive(false)}
+        onRequestClose={() => {
+          setIsCreatePostActive(false);
+          setNewPostContent('');
+          setPostImageUri(null);
+        }}
       >
-        <View style={styles.blankPageContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.blankPageContainer}
+        >
           <View style={[styles.createPostHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.createPostHeaderRowRtl]}>
             <TouchableOpacity
               onPress={() => {
                 setIsCreatePostActive(false);
                 setNewPostContent('');
+                setPostImageUri(null);
               }}
               hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               activeOpacity={0.7}
@@ -1528,7 +1565,11 @@ export default function CommunityScreen({
           </View>
 
           {/* Multiline Input to type in post */}
-          <View style={[styles.createPostPromptContainer, isRtl && styles.createPostPromptContainerRtl]}>
+          <ScrollView
+            style={styles.createPostInputScroll}
+            contentContainerStyle={styles.createPostInputScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
             <TextInput
               ref={createPostInputRef}
               style={[styles.createPostInput, isRtl && styles.createPostInputRtl]}
@@ -1540,8 +1581,45 @@ export default function CommunityScreen({
               autoFocus={true}
               textAlignVertical="top"
             />
+
+            {/* Attached Image Preview if selected */}
+            {postImageUri && (
+              <View style={styles.createPostImagePreviewContainer}>
+                <Image source={{ uri: postImageUri }} style={styles.createPostImagePreview} />
+                <TouchableOpacity
+                  style={styles.createPostImageRemoveBtn}
+                  onPress={() => setPostImageUri(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Bottom Bar: "Add to your post" on left, Image icon on right (moves with keyboard) */}
+          <View
+            style={[
+              styles.createPostBottomBar,
+              { paddingBottom: Math.max(insets?.bottom || 0, 12) },
+              isRtl && styles.createPostBottomBarRtl,
+            ]}
+          >
+            <Text style={[styles.createPostBottomBarText, isRtl && styles.createPostBottomBarTextRtl]}>
+              {isRtl ? 'إضافة إلى منشورك' : 'Add to your post'}
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.createPostImageIconBtn}
+              onPress={handlePickPostImage}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Add Image"
+            >
+              <Ionicons name="images-outline" size={24} color="#003514" />
+            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -2721,5 +2799,67 @@ const styles = StyleSheet.create({
   },
   createPostSubmitButtonTextRtl: {
     fontFamily: 'AlkhalilArabic-Bold',
+  },
+  createPostInputScroll: {
+    flex: 1,
+  },
+  createPostInputScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 24,
+  },
+  createPostBottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EAEFF2',
+    backgroundColor: '#FFFFFF',
+  },
+  createPostBottomBarRtl: {
+    flexDirection: 'row-reverse',
+  },
+  createPostBottomBarText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1A211B',
+  },
+  createPostBottomBarTextRtl: {
+    fontFamily: 'AlkhalilArabic-Bold',
+  },
+  createPostImageIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F2F4F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createPostImagePreviewContainer: {
+    marginTop: 16,
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#E2E6E9',
+  },
+  createPostImagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  createPostImageRemoveBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
