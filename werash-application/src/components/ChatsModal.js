@@ -3,7 +3,7 @@ import {
   StyleSheet, View, Text, TextInput, TouchableOpacity, 
   Image, ScrollView, StatusBar, Modal,
   KeyboardAvoidingView, Platform, Alert, Animated,
-  Dimensions, PanResponder, ActivityIndicator
+  Dimensions, PanResponder, ActivityIndicator, Keyboard
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -1000,6 +1000,7 @@ export default function ChatsModal({
   };
 
   const startVoiceRecording = async () => {
+    try { Keyboard.dismiss(); } catch (_) {}
     setAttachmentMenuVisible(false);
     recordStartTimeRef.current = Date.now();
     try {
@@ -1766,60 +1767,86 @@ export default function ChatsModal({
               }))}
             </ScrollView>
 
-            {isRecording && isRecordingLocked ? (
-              /* Hands-Free Voice Recording Controller Panel (Locked) */
-              <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
-                <TouchableOpacity 
-                  style={styles.trashBtn} 
-                  onPress={cancelVoiceRecording}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#D32F2F" />
-                </TouchableOpacity>
+            {/* Input Bar (Universal: Standard Composer + Voice Recording Controller) */}
+            <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
+              {isRecording ? (
+                /* Left & Middle during Recording (Both Locked and Holding: Trash button + Waveform container) */
+                <>
+                  <TouchableOpacity 
+                    style={styles.trashBtn} 
+                    onPress={cancelVoiceRecording}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#D32F2F" />
+                  </TouchableOpacity>
 
-                <View style={[styles.recordingWaveformWrapper, isRTL && { flexDirection: 'row-reverse' }]}>
-                  <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
-                    {formatRecordTime(recordTime)}
-                  </Text>
+                  <View style={[styles.recordingWaveformWrapper, isRTL && { flexDirection: 'row-reverse' }]}>
+                    <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
+                      {formatRecordTime(recordTime)}
+                    </Text>
 
-                  {/* 60fps Native Waveform Animation */}
-                  <View style={[styles.waveformContainerMini, isRTL && { flexDirection: 'row-reverse' }]}>
-                    {[0.35, 0.75, 1.0, 0.5, 0.85, 0.4, 0.9, 1.0, 0.65, 0.35].map((factor, idx) => {
-                      const scale = waveAnim.interpolate({
-                        inputRange: [0, 0.5, 1],
-                        outputRange: [0.35 + factor * 0.2, factor, 0.35 + (1 - factor) * 0.4],
-                      });
-                      return (
-                        <Animated.View 
-                          key={idx} 
-                          style={[
-                            styles.waveformBarMini, 
-                            { 
-                              height: 18, 
-                              transform: [{ scaleY: scale }],
-                              backgroundColor: colors.forestGreen,
-                            }
-                          ]} 
+                    {/* 60fps Native Waveform Animation */}
+                    <View style={[styles.waveformContainerMini, isRTL && { flexDirection: 'row-reverse' }, !isRecordingLocked && { marginHorizontal: 6 }]}>
+                      {[0.35, 0.75, 1.0, 0.5, 0.85, 0.4, 0.9, 1.0, 0.65, 0.35].map((factor, idx) => {
+                        const scale = waveAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0.35 + factor * 0.2, factor, 0.35 + (1 - factor) * 0.4],
+                        });
+                        return (
+                          <Animated.View 
+                            key={idx} 
+                            style={[
+                              styles.waveformBarMini, 
+                              { 
+                                height: 18, 
+                                transform: [{ scaleY: scale }],
+                                backgroundColor: colors.forestGreen,
+                              }
+                            ]} 
+                          />
+                        );
+                      })}
+                    </View>
+
+                    {/* Slide to Cancel Text & Chevron (visible during long-press holding) */}
+                    {!isRecordingLocked && (
+                      <Animated.View 
+                        style={[
+                          styles.slideToCancelGroup, 
+                          isRTL && { flexDirection: 'row-reverse' },
+                          {
+                            opacity: voiceDragX.interpolate({
+                              inputRange: isRTL ? [0, 20] : [-20, 0],
+                              outputRange: isRTL ? [0, 1] : [1, 0],
+                              extrapolate: 'clamp',
+                            }),
+                            transform: [
+                              {
+                                translateX: voiceDragX.interpolate({
+                                  inputRange: isRTL ? [0, 60] : [-60, 0],
+                                  outputRange: isRTL ? [16, 0] : [-16, 0],
+                                  extrapolate: 'clamp',
+                                })
+                              }
+                            ]
+                          }
+                        ]}
+                      >
+                        <Ionicons
+                          name={isRTL ? "chevron-forward" : "chevron-back"}
+                          size={15}
+                          color={colors.forestGreen}
                         />
-                      );
-                    })}
+                        <Text style={[styles.slideToCancelText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+                          {isRTL ? "اسحب للإلغاء" : "Slide to cancel"}
+                        </Text>
+                      </Animated.View>
+                    )}
                   </View>
-                </View>
-
-                <TouchableOpacity 
-                  style={styles.sendRecordBtn}
-                  onPress={handleSendVoice}
-                  activeOpacity={0.8}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              /* Standard Input Bar with Hold-to-Record & Slide-to-Cancel Overlay */
-              <View style={[styles.inputBar, isRTL && { flexDirection: 'row-reverse' }]}>
-                {/* Always-mounted Composer Field (Zero Keyboard Jump or Layout Stutter) */}
+                </>
+              ) : (
+                /* Standard Composer Field (Attach button + TextInput) */
                 <View style={{ flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' }}>
                   <TouchableOpacity 
                     style={styles.attachBtn} 
@@ -1838,109 +1865,68 @@ export default function ChatsModal({
                     multiline={true}
                     editable={!isRecording}
                   />
-
-                  {/* Smooth Holding Overlay placed directly on top without unmounting TextInput */}
+                </View>
+              )}
+              
+              {/* Right Button: Locked checkmark, Send button, or Mic with PanResponder */}
+              {isRecording && isRecordingLocked ? (
+                <TouchableOpacity 
+                  style={styles.sendRecordBtn}
+                  onPress={handleSendVoice}
+                  activeOpacity={0.8}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : newMessageText.trim().length > 0 ? (
+                <TouchableOpacity 
+                  style={styles.sendBtn}
+                  onPress={handleSendMessage}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="send" size={16} color="#FFFFFF" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', marginLeft: isRTL ? 0 : 12, marginRight: isRTL ? 12 : 0 }}>
+                  {/* Floating Lock indicator: ONLY VISIBLE WHILE ACTIVELY HOLDING */}
                   {isRecording && !isRecordingLocked && (
-                    <View 
+                    <Animated.View
                       style={[
-                        styles.holdingOverlay, 
-                        isRTL ? { flexDirection: 'row-reverse', paddingLeft: 28, paddingRight: 14 } : { paddingLeft: 14, paddingRight: 28 }
-                      ]} 
+                        styles.lockIndicatorContainer,
+                        { transform: [{ translateY: voiceDragY }] }
+                      ]}
                       pointerEvents="none"
                     >
-                      <View style={[styles.holdingContentRow, isRTL && { flexDirection: 'row-reverse' }]}>
-                        {/* Same clean time display as when locked (no red dot) */}
-                        <Text style={[styles.recordingTimer, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0, marginRight: 6, marginLeft: 0 }]}>
-                          {formatRecordTime(recordTime)}
-                        </Text>
-
-                        {/* Slide to cancel directly next to time */}
-                        <Animated.View 
-                          style={[
-                            styles.slideToCancelGroup, 
-                            isRTL && { flexDirection: 'row-reverse' },
-                            {
-                              opacity: voiceDragX.interpolate({
-                                inputRange: isRTL ? [0, 20] : [-20, 0],
-                                outputRange: isRTL ? [0, 1] : [1, 0],
-                                extrapolate: 'clamp',
-                              }),
-                              transform: [
-                                {
-                                  translateX: voiceDragX.interpolate({
-                                    inputRange: isRTL ? [0, 60] : [-60, 0],
-                                    outputRange: isRTL ? [16, 0] : [-16, 0],
-                                    extrapolate: 'clamp',
-                                  })
-                                }
-                              ]
-                            }
-                          ]}
-                        >
-                          <Ionicons
-                            name={isRTL ? "chevron-forward" : "chevron-back"}
-                            size={16}
-                            color={colors.forestGreen}
-                          />
-                          <Text style={[styles.slideToCancelText, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 12.0 }]}>
-                            {isRTL ? "اسحب للإلغاء" : "Slide to cancel"}
-                          </Text>
-                        </Animated.View>
+                      <View style={styles.lockBubble}>
+                        <Ionicons name="lock-closed" size={16} color={colors.forestGreen} />
+                        <Ionicons name="chevron-up" size={13} color={colors.forestGreen} style={{ marginTop: 2, opacity: 0.7 }} />
                       </View>
-                    </View>
-                  )}
-                </View>
-                
-                {newMessageText.trim().length > 0 ? (
-                  <TouchableOpacity 
-                    style={styles.sendBtn}
-                    onPress={handleSendMessage}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="send" size={16} color="#FFFFFF" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', marginLeft: isRTL ? 0 : 12, marginRight: isRTL ? 12 : 0 }}>
-                    {/* Floating Lock indicator: ONLY VISIBLE WHILE ACTIVELY HOLDING */}
-                    {isRecording && !isRecordingLocked && (
-                      <Animated.View
-                        style={[
-                          styles.lockIndicatorContainer,
-                          { transform: [{ translateY: voiceDragY }] }
-                        ]}
-                        pointerEvents="none"
-                      >
-                        <View style={styles.lockBubble}>
-                          <Ionicons name="lock-closed" size={16} color={colors.forestGreen} />
-                          <Ionicons name="chevron-up" size={13} color={colors.forestGreen} style={{ marginTop: 2, opacity: 0.7 }} />
-                        </View>
-                      </Animated.View>
-                    )}
-
-                    {/* Mic Button with panHandlers for Hold-to-Record, Release-to-Send, and Tap-to-Lock */}
-                    <Animated.View
-                      {...voicePanResponder.panHandlers}
-                      style={[
-                        styles.sendBtn,
-                        isRecording && styles.micBtnActive,
-                        {
-                          transform: [
-                            { scale: micScaleAnim },
-                            { translateX: voiceDragX },
-                          ]
-                        }
-                      ]}
-                    >
-                      <Ionicons
-                        name="mic"
-                        size={19}
-                        color="#FFFFFF"
-                      />
                     </Animated.View>
-                  </View>
-                )}
-              </View>
-            )}
+                  )}
+
+                  {/* Mic Button with panHandlers for Hold-to-Record, Release-to-Send, and Tap-to-Lock */}
+                  <Animated.View
+                    {...voicePanResponder.panHandlers}
+                    style={[
+                      styles.sendBtn,
+                      isRecording && styles.micBtnActive,
+                      {
+                        transform: [
+                          { scale: micScaleAnim },
+                          { translateX: voiceDragX },
+                        ]
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="mic"
+                      size={19}
+                      color="#FFFFFF"
+                    />
+                  </Animated.View>
+                </View>
+              )}
+            </View>
           </KeyboardAvoidingView>
           </View>
         ) : (
@@ -2741,32 +2727,16 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
       },
     }),
   },
-  holdingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 14,
-    paddingRight: 28,
-    backgroundColor: isDarkMode ? colors.cardBg : '#F2F5F3',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: isDarkMode ? colors.cardBorder : 'rgba(0, 53, 20, 0.1)',
-    zIndex: 2,
-  },
-  holdingContentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
   slideToCancelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 6,
   },
   slideToCancelText: {
-    fontSize: 12.5,
+    fontSize: 12.0,
     fontWeight: '700',
     color: colors.secondaryText,
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   lockIndicatorContainer: {
     position: 'absolute',
