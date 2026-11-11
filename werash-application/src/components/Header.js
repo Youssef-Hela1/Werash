@@ -56,12 +56,15 @@ export default function Header({
   onSetSignInVisible,
   selectedLanguage: propSelectedLanguage,
   onSelectLanguage,
-  onOpenSettings
+  onOpenSettings,
+  onOpenChats,
+  unreadChatsCount: propUnreadChatsCount,
 }) {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [notifications, setNotifications] = useState(BASE_NOTIFICATIONS);
 
   const [chatsVisible, setChatsVisible] = useState(false);
+  const unreadChatsCount = propUnreadChatsCount !== undefined ? propUnreadChatsCount : 0;
 
   const [localLanguage, setLocalLanguage] = useState('English');
   const selectedLanguage = propSelectedLanguage || localLanguage;
@@ -96,12 +99,6 @@ export default function Header({
           setNotifications={setNotifications}
           selectedLanguage={selectedLanguage}
         />
-        <ChatsModal 
-          visible={chatsVisible}
-          onClose={() => setChatsVisible(false)}
-          selectedLanguage={selectedLanguage}
-          currentUser={currentUser}
-        />
       </View>
     );
   }
@@ -120,12 +117,6 @@ export default function Header({
         notifications={notifications}
         setNotifications={setNotifications}
         selectedLanguage={selectedLanguage}
-      />
-      <ChatsModal 
-        visible={chatsVisible}
-        onClose={() => setChatsVisible(false)}
-        selectedLanguage={selectedLanguage}
-        currentUser={currentUser}
       />
       
       {/* Top Solid Green Block (Hidden on Home) */}
@@ -211,12 +202,12 @@ export default function Header({
             <TouchableOpacity 
               style={[styles.messagesButton, { position: 'relative' }]} 
               activeOpacity={0.8}
-              onPress={() => setChatsVisible(true)}
+              onPress={() => onOpenChats ? onOpenChats() : setChatsVisible(true)}
             >
               <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textCream} />
-              {currentUser && unreadCount > 0 && (
+              {currentUser && unreadChatsCount > 0 && (
                 <View style={[styles.badgeContainer, { right: -6 }]}>
-                  <Text style={styles.badgeText}>{unreadCount}</Text>
+                  <Text style={styles.badgeText}>{unreadChatsCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -336,7 +327,7 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   greetingTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 24,
     fontWeight: '700',
     color: colors.bgBrand,
@@ -351,14 +342,14 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: 0.1,
   },
   taglineTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 13,
     color: 'rgba(77, 110, 79, 0.75)',
     marginTop: 2,
     textAlign: 'right',
   },
   brandName: {
-    fontFamily: 'GuiltyTreasure',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 42,
     color: colors.textCream,
     letterSpacing: 0.5,
@@ -377,7 +368,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 130,
   },
   brandNameArabic: {
-    fontFamily: 'ZafranArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 74,
     color: colors.textCream,
     letterSpacing: 0,

@@ -277,7 +277,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   drawerTitle: {
-    fontFamily: 'GuiltyTreasure',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 28,
     color: colors.bgBrand,
     marginTop: 2,

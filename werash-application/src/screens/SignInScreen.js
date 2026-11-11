@@ -960,7 +960,7 @@ const createStyles = (colors, isDarkMode) => {
     paddingHorizontal: 24,
   },
   cardTitle: {
-    fontFamily: 'GuiltyTreasure',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 36,
     color: isDarkMode ? colors.textDark : DARK_GREEN,
     textAlign: 'center',
@@ -1111,7 +1111,7 @@ const createStyles = (colors, isDarkMode) => {
     paddingHorizontal: 24,
   },
   bottomTitle: {
-    fontFamily: 'GuiltyTreasure',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 25,
     color: CREAM,
     marginBottom: 6,

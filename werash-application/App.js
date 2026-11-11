@@ -12,10 +12,14 @@ import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
 import NotificationsModal from './src/components/NotificationsModal';
+import ChatsModal from './src/components/ChatsModal';
+import ChatRecipientPickerModal from './src/components/ChatRecipientPickerModal';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { ThemeProvider, useThemeStyles, useTheme } from './src/styles/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { supabase, getUserProfile } from './src/services/supabase';
+import { registerForPushNotificationsAsync } from './src/services/notificationService';
 
 const STORAGE_KEY_USER_VEHICLES = '@werash_user_vehicles';
 const STORAGE_KEY_ACTIVE_VEHICLE_ID = '@werash_active_vehicle_id';
@@ -208,6 +212,13 @@ function AppContent() {
   const [signInVisible, setSignInVisible] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
   const [activeSpecialist, setActiveSpecialist] = useState(null);
+  const [pendingSharedSpecialist, setPendingSharedSpecialist] = useState(null);
+  const [chatsVisible, setChatsVisible] = useState(false);
+  const [chatInitialUser, setChatInitialUser] = useState(null);
+  const [chatPendingSpecialist, setChatPendingSpecialist] = useState(null);
+  const [recipientPickerVisible, setRecipientPickerVisible] = useState(false);
+  const [specialistForRecipientPicker, setSpecialistForRecipientPicker] = useState(null);
+  const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [activeAd, setActiveAd] = useState(null);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -312,19 +323,36 @@ function AppContent() {
   const styles = useThemeStyles(createStyles);
 
   const [fontsLoaded] = useFonts({
-    'GuiltyTreasure': require('./assets/fonts/GuiltyTreasure.otf'),
-    'ZafranArabic-Bold': require('./assets/fonts/zafran-arabic-bold.otf'),
-    'ZafranArabic-Regular': require('./assets/fonts/zafran-arabic-regular.otf'),
-    'ZafranArabic-Black': require('./assets/fonts/zafran-arabic-black.otf'),
-    'AlkhalilArabic-Bold': require('./assets/fonts/Janna LT Bold.ttf'),
+    // Plus Jakarta Sans font family weights
+    'PlusJakartaSans-Regular': require('./assets/fonts/PlusJakartaSans-Regular.ttf'),
+    'PlusJakartaSans-Medium': require('./assets/fonts/PlusJakartaSans-Medium.ttf'),
+    'PlusJakartaSans-SemiBold': require('./assets/fonts/PlusJakartaSans-SemiBold.ttf'),
+    'PlusJakartaSans-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
+    'PlusJakartaSans-ExtraBold': require('./assets/fonts/PlusJakartaSans-ExtraBold.ttf'),
+    'PlusJakartaSans-Italic': require('./assets/fonts/PlusJakartaSans-Italic.ttf'),
+
+    // IBM Plex Sans Arabic font family weights
+    'IBMPlexSansArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    'IBMPlexSansArabic-Medium': require('./assets/fonts/IBMPlexSansArabic-Medium.ttf'),
+    'IBMPlexSansArabic-SemiBold': require('./assets/fonts/IBMPlexSansArabic-SemiBold.ttf'),
+    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+
+    // Backward compatibility aliases mapped to new fonts
+    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'IBMPlexSansArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'IBMPlexSansArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'PlusJakartaSans-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
+    'PlusJakartaSans-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
+    'Fastup-Regular': require('./assets/fonts/PlusJakartaSans-Regular.ttf'),
+    'Airstrike-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
+    'Airstrike-Regular': require('./assets/fonts/PlusJakartaSans-Regular.ttf'),
+    'Janna-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+
+    // Preserved handwriting fonts for Notes section
     'Caveat-Regular': require('./assets/fonts/Caveat-Regular.ttf'),
     'ArefRuqaa-Regular': require('./assets/fonts/ArefRuqaa-Regular.ttf'),
-    'Fastup-Regular': require('./assets/fonts/Fastup-Regular.ttf'),
-    'Fastup-Bold': require('./assets/fonts/Fastup-Bold.ttf'),
-    'Airstrike-Regular': require('./assets/fonts/airstrike.ttf'),
-    'Airstrike-Bold': require('./assets/fonts/airstrikebold.ttf'),
-    'Janna-Bold': require('./assets/fonts/Janna LT Bold.ttf'),
-    'OriginalBurger': require('./assets/fonts/Original Burger.otf'),
   });
 
   useEffect(() => {
@@ -364,6 +392,10 @@ function AppContent() {
           const { data: { session } } = await supabase.auth.getSession();
           if (session && session.user) {
             const profile = await getUserProfile(session.user.id);
+            const cachedAvatar = await AsyncStorage.getItem(`@werash_user_avatar_${session.user.id}`).catch(() => null);
+            const resolvedAvatar = cachedAvatar || profile?.avatar_url || session.user.user_metadata?.avatar_url || null;
+            const cachedBanner = await AsyncStorage.getItem(`@werash_user_banner_${session.user.id}`).catch(() => null);
+            const resolvedBanner = cachedBanner || profile?.banner_url || session.user.user_metadata?.banner_url || null;
             loadedUser = {
               id: session.user.id,
               email: session.user.email,
@@ -377,9 +409,9 @@ function AppContent() {
               plateNumberArabic: profile?.plate_number_arabic || null,
               cc: profile?.cc || null,
               odometer: profile?.odometer || 0,
-              avatar: profile?.avatar_url || session.user.user_metadata?.avatar_url || null,
-              avatarUrl: profile?.avatar_url || session.user.user_metadata?.avatar_url || null,
-              bannerUrl: profile?.banner_url || session.user.user_metadata?.banner_url || null,
+              avatar: resolvedAvatar,
+              avatarUrl: resolvedAvatar,
+              bannerUrl: resolvedBanner,
             };
             setCurrentUser(loadedUser);
           }
@@ -634,6 +666,74 @@ function AppContent() {
     }
   }, [currentTab]);
 
+  // Global Realtime Subscription for incoming messages unread counter
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setUnreadChatsCount(0);
+      return;
+    }
+
+    const fetchGlobalUnreadCount = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('direct_messages')
+          .select('conversation_id')
+          .eq('receiver_id', currentUser.id)
+          .eq('is_read', false);
+
+        if (!error && data) {
+          const uniqueConvIds = new Set(data.map(m => m.conversation_id).filter(Boolean));
+          setUnreadChatsCount(uniqueConvIds.size);
+        }
+      } catch (_) {}
+    };
+
+    fetchGlobalUnreadCount();
+
+    const globalDmChannel = supabase
+      .channel(`global_unread_dms_${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${currentUser.id}`,
+        },
+        () => {
+          fetchGlobalUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(globalDmChannel);
+    };
+  }, [currentUser?.id]);
+
+  // Push Notifications: Register device token and handle notification banner tap
+  useEffect(() => {
+    if (currentUser?.id) {
+      registerForPushNotificationsAsync(currentUser.id);
+    }
+
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data && (data.conversationId || data.senderId)) {
+        setChatInitialUser({
+          conversationId: data.conversationId || null,
+          userId: data.senderId || null,
+          name: data.senderName || null,
+        });
+        setChatsVisible(true);
+      }
+    });
+
+    return () => {
+      responseSubscription.remove();
+    };
+  }, [currentUser?.id]);
+
   const handleNavigate = (tab, targetSpecialistId = null) => {
     homeTranslateY.setValue(0);
     isHomeAtTopRef.current = true;
@@ -641,6 +741,35 @@ function AppContent() {
     if (targetSpecialistId) {
       setExpandedSpecialistId(targetSpecialistId);
     }
+  };
+
+  const handleShareToFeed = (specialist) => {
+    setActiveSpecialist(null);
+    setPendingSharedSpecialist(specialist);
+    setCurrentTab('community');
+  };
+
+  const handleShareInMessage = (specialist) => {
+    setActiveSpecialist(null);
+    setSpecialistForRecipientPicker(specialist);
+    setRecipientPickerVisible(true);
+  };
+
+  const handleSelectChatRecipient = (recipient) => {
+    setRecipientPickerVisible(false);
+    setChatPendingSpecialist(specialistForRecipientPicker);
+    setSpecialistForRecipientPicker(null);
+    if (recipient.type === 'user') {
+      setChatInitialUser(recipient);
+    } else if (recipient.type === 'conversation') {
+      setChatInitialUser({
+        conversationId: recipient.conversationId,
+        otherUserId: recipient.otherUserId,
+        name: recipient.name,
+        avatar: recipient.avatar,
+      });
+    }
+    setChatsVisible(true);
   };
 
   if (!fontsLoaded || !splashFinished || !isStorageReady) {
@@ -658,7 +787,7 @@ function AppContent() {
             style={styles.splashWordmark} 
             resizeMode="contain" 
           />
-          <Text style={[styles.splashTextArabic, fontsLoaded && { fontFamily: 'ZafranArabic-Bold' }]}>
+          <Text style={[styles.splashTextArabic, fontsLoaded && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
             وِرَش
           </Text>
         </View>
@@ -720,6 +849,10 @@ function AppContent() {
             onOpenSignIn={() => setSignInVisible(true)}
             onUpdateCurrentUser={handleSetCurrentUser}
             onToggleNavBar={setIsCommunityNavHidden}
+            onSelectSpecialist={setActiveSpecialist}
+            pendingSharedSpecialist={pendingSharedSpecialist}
+            onClearPendingSharedSpecialist={() => setPendingSharedSpecialist(null)}
+            unreadChatsCount={unreadChatsCount}
           />
         );
       case 'more':
@@ -760,6 +893,8 @@ function AppContent() {
           selectedLanguage={selectedLanguage}
           onSelectLanguage={handleSelectLanguage}
           onOpenSettings={() => setCurrentTab('more')}
+          onOpenChats={() => setChatsVisible(true)}
+          unreadChatsCount={unreadChatsCount}
         />
 
         {/* Core Page Layout switches underneath */}
@@ -767,7 +902,7 @@ function AppContent() {
       </Animated.View>
 
       {/* Custom Floating Bottom Navigation Bar */}
-      {!activeSpecialist && !activeAd && currentTab !== 'more' && (
+      {currentTab !== 'more' && (
         <BottomNavBar 
           activeTab={currentTab} 
           hidden={currentTab === 'community' && isCommunityNavHidden}
@@ -798,6 +933,41 @@ function AppContent() {
         selectedLanguage={selectedLanguage}
       />
 
+      {/* Specialist Recipient Picker Modal */}
+      <ChatRecipientPickerModal
+        visible={recipientPickerVisible}
+        onClose={() => {
+          setRecipientPickerVisible(false);
+          setSpecialistForRecipientPicker(null);
+        }}
+        specialist={specialistForRecipientPicker}
+        currentUser={currentUser}
+        selectedLanguage={selectedLanguage}
+        onSelectRecipient={handleSelectChatRecipient}
+      />
+
+      {/* Global Chats Drawer Modal */}
+      <ChatsModal 
+        visible={chatsVisible}
+        onClose={() => {
+          setChatsVisible(false);
+          setChatInitialUser(null);
+          setChatPendingSpecialist(null);
+        }}
+        selectedLanguage={selectedLanguage}
+        currentUser={currentUser}
+        initialUser={chatInitialUser}
+        pendingSpecialist={chatPendingSpecialist}
+        onClearPendingSpecialist={() => setChatPendingSpecialist(null)}
+        onSelectSpecialist={setActiveSpecialist}
+        onUnreadCountChange={(count) => {
+          setUnreadChatsCount(prev => (prev !== count ? count : prev));
+        }}
+        activeVehicle={activeVehicle}
+        onShareToFeed={handleShareToFeed}
+        onShareInMessage={handleShareInMessage}
+      />
+
       {/* Specialist Detail Modal */}
       {activeSpecialist && (
         <SpecialistDetailModal 
@@ -805,6 +975,8 @@ function AppContent() {
           onClose={() => setActiveSpecialist(null)} 
           selectedLanguage={selectedLanguage}
           activeVehicle={activeVehicle}
+          onShareToFeed={handleShareToFeed}
+          onShareInMessage={handleShareInMessage}
         />
       )}
 
@@ -891,7 +1063,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 90,
   },
   placeholderText: {
-    fontFamily: 'Fastup-Bold',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 24,
     color: 'rgba(77, 110, 79, 0.3)',
   }

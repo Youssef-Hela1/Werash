@@ -21,6 +21,17 @@ import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
 import ImageViewerModal from './ImageViewerModal';
 import ChatImageGrid from './ChatImageGrid';
+import ChatMessageSpecialistCard from './ChatMessageSpecialistCard';
+import SpecialistDetailModal from './SpecialistDetailModal';
+import { ALL_MECHANICS } from '../data/mechanicsData';
+import { 
+  getOrCreateConversation, 
+  sendDirectMessage, 
+  markConversationMessagesRead, 
+  recordConversationDeletedLocally, 
+  getLocalDeletedTimestamps 
+} from '../services/chatService';
+import { sendChatMessagePushNotification } from '../services/notificationService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -99,6 +110,13 @@ const cleanLastMessageText = (txt, isRtl) => {
   ) {
     return isRtl ? '🎙️ رسالة صوتية' : '🎙️ Voice message';
   }
+  if (
+    lower.includes('specialist') ||
+    str.includes('شارك فني') ||
+    str.includes('فني')
+  ) {
+    return isRtl ? 'شارك فني' : 'Shared a specialist';
+  }
   return str;
 };
 
@@ -137,7 +155,14 @@ export default function ChatsModal({
   selectedLanguage,
   currentUser,
   initialUser,
+  pendingSpecialist,
+  onClearPendingSpecialist,
+  onSelectSpecialist,
   onOpenProfile,
+  onUnreadCountChange,
+  activeVehicle,
+  onShareToFeed,
+  onShareInMessage,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -151,6 +176,14 @@ export default function ChatsModal({
   const [activeChatId, setActiveChatId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
+  const [localPendingSpecialist, setLocalPendingSpecialist] = useState(pendingSpecialist || null);
+  const [activeSpecialistModal, setActiveSpecialistModal] = useState(null);
+
+  useEffect(() => {
+    if (pendingSpecialist) {
+      setLocalPendingSpecialist(pendingSpecialist);
+    }
+  }, [pendingSpecialist]);
 
   // Real-time user presence tracking
   const [onlineUsers, setOnlineUsers] = useState(new Set());
@@ -298,10 +331,7 @@ export default function ChatsModal({
 
   const activeChat = chats.find(c => c.id === activeChatId);
   const otherUserId = activeChat?.otherUserId;
-  const isOtherUserOnline = Boolean(
-    (otherUserId && onlineUsers.has(otherUserId)) ||
-    (onlineUsers.size === 0 && Boolean(activeChat?.isOnline))
-  );
+  const isOtherUserOnline = Boolean(otherUserId && onlineUsers.has(otherUserId));
 
   // 1. Global User Presence Channel
   useEffect(() => {
@@ -491,7 +521,27 @@ export default function ChatsModal({
     if (!activeUser?.id) return;
     try {
       setIsLoadingChats(true);
-      const { data, error } = await supabase
+
+      // Clean up any stale legacy blacklists
+      const legacyKey = `@werash_deleted_conversations_${activeUser.id}`;
+      AsyncStorage.removeItem(legacyKey).catch(() => {});
+
+      // Load deletion timestamps map
+      const deletedTimestamps = await getLocalDeletedTimestamps(activeUser.id);
+
+      // Fetch unread messages for active user
+      const { data: unreadMsgData } = await supabase
+        .from('direct_messages')
+        .select('conversation_id')
+        .eq('receiver_id', activeUser.id)
+        .eq('is_read', false);
+
+      const unreadConvIds = new Set(
+        (unreadMsgData || []).map(m => m.conversation_id).filter(Boolean)
+      );
+
+      // Fetch conversations involving activeUser
+      const { data: convData, error } = await supabase
         .from('conversations')
         .select('*')
         .or(`participant_1.eq.${activeUser.id},participant_2.eq.${activeUser.id}`)
@@ -499,46 +549,59 @@ export default function ChatsModal({
 
       if (error) {
         console.warn('Error fetching cloud conversations:', error.message);
-        return;
       }
 
-      if (data && data.length > 0) {
-        const mapped = data.map((c) => {
-          const isP1 = c.participant_1 === activeUser.id;
-          const otherUserId = isP1 ? c.participant_2 : c.participant_1;
-          const otherName = isP1 ? (c.participant_2_name || 'User') : (c.participant_1_name || 'User');
-          const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
-          const resolvedAvatar = getAvatarSource(otherAvatar);
+      const allConversations = convData || [];
 
-          const lastTime = formatTimeAgo(c.last_message_at, false);
-          const lastTimeAr = formatTimeAgo(c.last_message_at, true);
-          const isUnread = Boolean(c.last_sender_id && c.last_sender_id !== activeUser.id);
+      // Filter out conversations that were deleted locally, UNLESS they have unread messages OR new messages since deletion
+      const activeConversations = allConversations.filter(c => {
+        const deletedAt = deletedTimestamps[c.id];
+        if (!deletedAt) return true;
+        if (unreadConvIds.has(c.id)) return true;
+        if (c.last_message_at && new Date(c.last_message_at).getTime() > deletedAt) return true;
+        return false;
+      });
 
+      const mapped = activeConversations.map(c => {
+        const isP1 = c.participant_1 === activeUser.id;
+        const otherUserId = isP1 ? c.participant_2 : c.participant_1;
+        const otherName = isP1 ? (c.participant_2_name || 'User') : (c.participant_1_name || 'User');
+        const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
+        const resolvedAvatar = getAvatarSource(otherAvatar);
+
+        const lastTime = formatTimeAgo(c.last_message_at, false);
+        const lastTimeAr = formatTimeAgo(c.last_message_at, true);
+        const isUnread = unreadConvIds.has(c.id);
+
+        return {
+          id: c.id,
+          otherUserId,
+          name: otherName,
+          nameAr: otherName,
+          avatar: resolvedAvatar,
+          unread: isUnread,
+          lastTime,
+          lastTimeAr,
+          lastMessageText: cleanLastMessageText(c.last_message_text, isRTL),
+          messages: [],
+        };
+      });
+
+      setChats(prev => {
+        return mapped.map(newC => {
+          const existing = prev.find(p => p.id === newC.id || (p.otherUserId && p.otherUserId === newC.otherUserId));
           return {
-            id: c.id,
-            otherUserId,
-            name: otherName,
-            nameAr: otherName,
-            avatar: resolvedAvatar,
-            unread: isUnread,
-            lastTime,
-            lastTimeAr,
-            lastMessageText: cleanLastMessageText(c.last_message_text, isRTL),
-            messages: [],
+            ...newC,
+            messages: existing?.messages?.length ? existing.messages : [],
           };
         });
+      });
 
-        setChats(prev => {
-          return mapped.map(newC => {
-            const existing = prev.find(p => p.id === newC.id);
-            return {
-              ...newC,
-              messages: existing?.messages?.length ? existing.messages : [],
-            };
-          });
-        });
-      } else {
-        setChats([]);
+      const totalUnread = mapped.filter(c => c.unread).length;
+      if (typeof onUnreadCountChange === 'function') {
+        setTimeout(() => {
+          onUnreadCountChange(totalUnread);
+        }, 0);
       }
     } catch (err) {
       console.warn('fetchConversations error:', err);
@@ -551,15 +614,34 @@ export default function ChatsModal({
   const fetchMessagesForConversation = async (convId) => {
     if (!convId) return;
     try {
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select('*')
-        .eq('conversation_id', convId)
-        .order('created_at', { ascending: true });
+      const targetChat = chats.find(c => c.id === convId);
+      const otherId = targetChat?.otherUserId;
+
+      let query = supabase.from('direct_messages').select('*');
+      if (otherId && activeUser?.id) {
+        query = query.or(`conversation_id.eq.${convId},and(sender_id.eq.${otherId},receiver_id.eq.${activeUser.id}),and(sender_id.eq.${activeUser.id},receiver_id.eq.${otherId})`);
+      } else {
+        query = query.eq('conversation_id', convId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: true });
 
       if (error) {
         console.warn('Error fetching direct_messages from cloud:', error.message);
         return;
+      }
+
+      // Re-link any mismatched conversation_ids to the active canonical convId
+      if (data && data.length > 0) {
+        const mismatched = data.filter(m => m.conversation_id !== convId);
+        if (mismatched.length > 0) {
+          const mIds = mismatched.map(m => m.id);
+          supabase
+            .from('direct_messages')
+            .update({ conversation_id: convId })
+            .in('id', mIds)
+            .then(() => {}).catch(() => {});
+        }
       }
 
       const deletedIds = await loadPersistedDeletedIds();
@@ -614,6 +696,17 @@ export default function ChatsModal({
             }
           }
 
+          let specialistData = null;
+          const isSpecialist = m.media_type === 'specialist' ||
+            (m.media_url && typeof m.media_url === 'string' && m.media_url.includes('specialist_id'));
+
+          if (isSpecialist && m.media_url) {
+            try {
+              const parsed = typeof m.media_url === 'string' ? JSON.parse(m.media_url) : m.media_url;
+              specialistData = parsed.specialist_data || parsed;
+            } catch (_) {}
+          }
+
           return {
             id: m.id,
             sender: isUser ? 'user' : 'contact',
@@ -623,17 +716,29 @@ export default function ChatsModal({
             images: msgImages,
             voiceDuration: audioDuration,
             audioUri: isAudio ? m.media_url : null,
+            specialist: specialistData,
+            media_type: m.media_type,
+            is_read: Boolean(m.is_read),
             time: formatTimeAgo(m.created_at, isRTL),
             created_at: m.created_at,
           };
         });
+
+      // Deduplicate formatted messages by ID
+      const seenMsgIds = new Set();
+      const dedupedFormatted = [];
+      for (const item of formatted) {
+        if (item.id && seenMsgIds.has(item.id)) continue;
+        if (item.id) seenMsgIds.add(item.id);
+        dedupedFormatted.push(item);
+      }
 
       setChats(prev => prev.map(c => {
         if (c.id === convId) {
           return {
             ...c,
             unread: false,
-            messages: formatted,
+            messages: dedupedFormatted,
           };
         }
         return c;
@@ -656,6 +761,18 @@ export default function ChatsModal({
           event: '*',
           schema: 'public',
           table: 'conversations',
+        },
+        () => {
+          fetchConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${activeUser.id}`,
         },
         () => {
           fetchConversations();
@@ -732,6 +849,17 @@ export default function ChatsModal({
               }
             }
 
+            let specialistData = null;
+            const isSpecialist = m.media_type === 'specialist' ||
+              (m.media_url && typeof m.media_url === 'string' && m.media_url.includes('specialist_id'));
+
+            if (isSpecialist && m.media_url) {
+              try {
+                const parsed = typeof m.media_url === 'string' ? JSON.parse(m.media_url) : m.media_url;
+                specialistData = parsed.specialist_data || parsed;
+              } catch (_) {}
+            }
+
             const newMsg = {
               id: m.id,
               sender: isUser ? 'user' : 'contact',
@@ -741,6 +869,9 @@ export default function ChatsModal({
               images: msgImages,
               voiceDuration: audioDuration,
               audioUri: isAudio ? m.media_url : null,
+              specialist: specialistData,
+              media_type: m.media_type,
+              is_read: Boolean(m.is_read),
               time: formatTimeAgo(m.created_at, isRTL),
               created_at: m.created_at,
             };
@@ -749,6 +880,23 @@ export default function ChatsModal({
               if (c.id === activeChatId) {
                 if (c.messages.some(existing => existing.id === m.id)) {
                   return c;
+                }
+                if (isUser) {
+                  const tempIndex = (c.messages || []).findIndex(existing =>
+                    typeof existing.id === 'string' &&
+                    existing.id.startsWith('m_') &&
+                    (
+                      (m.text && existing.text === m.text) ||
+                      (m.media_type && existing.media_type === m.media_type) ||
+                      (m.media_type === 'images' && existing.images?.length > 0) ||
+                      (m.media_type === 'specialist' && existing.specialist)
+                    )
+                  );
+                  if (tempIndex !== -1) {
+                    const nextMsgs = [...c.messages];
+                    nextMsgs[tempIndex] = newMsg;
+                    return { ...c, messages: nextMsgs };
+                  }
                 }
                 return {
                   ...c,
@@ -790,10 +938,99 @@ export default function ChatsModal({
     };
   }, [activeChatId, activeUser?.id, isRTL]);
 
-  // Handle initial user passed from user profile page
+  const markConversationAsRead = (id) => {
+    if (!id) return;
+    let remainingUnread = 0;
+    setChats(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, unread: false } : c);
+      remainingUnread = updated.filter(c => c.unread).length;
+      return updated;
+    });
+    if (typeof onUnreadCountChange === 'function') {
+      setTimeout(() => {
+        onUnreadCountChange(remainingUnread);
+      }, 0);
+    }
+    if (activeUser?.id) {
+      supabase
+        .from('direct_messages')
+        .update({ is_read: true })
+        .eq('conversation_id', id)
+        .eq('receiver_id', activeUser.id)
+        .eq('is_read', false)
+        .then(() => {})
+        .catch(() => {});
+    }
+  };
+
+  const handlePromptDeleteConversation = (chat) => {
+    if (!chat || !chat.id) return;
+    const contactName = isRTL ? (chat.nameAr || chat.name || 'المحادثة') : (chat.name || chat.nameAr || 'Conversation');
+
+    Alert.alert(
+      isRTL ? 'حذف المحادثة' : 'Delete Conversation',
+      isRTL 
+        ? `هل أنت متأكد من رغبتك في حذف المحادثة مع "${contactName}"؟ سيتم حذف جميع الرسائل.`
+        : `Are you sure you want to delete the conversation with "${contactName}"? All messages will be removed.`,
+      [
+        {
+          text: isRTL ? 'إلغاء' : 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: isRTL ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: () => performDeleteConversation(chat.id),
+        },
+      ]
+    );
+  };
+
+  const performDeleteConversation = async (convId) => {
+    if (!convId) return;
+
+    let unreadCount = 0;
+    setChats(prev => {
+      const remaining = prev.filter(c => c.id !== convId);
+      unreadCount = remaining.filter(c => c.unread).length;
+      return remaining;
+    });
+
+    if (typeof onUnreadCountChange === 'function') {
+      setTimeout(() => {
+        onUnreadCountChange(unreadCount);
+      }, 0);
+    }
+
+    if (activeChatId === convId) {
+      stopCurrentPlayer();
+      setActiveChatId(null);
+    }
+
+    if (activeUser?.id) {
+      await recordConversationDeletedLocally(convId, activeUser.id);
+      try {
+        await supabase
+          .from('direct_messages')
+          .delete()
+          .eq('conversation_id', convId)
+          .eq('sender_id', activeUser.id);
+      } catch (err) {
+        console.warn('Cloud delete messages error:', err);
+      }
+    }
+  };
+
+  // Handle initial user passed from user profile page or recipient picker
   useEffect(() => {
     if (visible && initialUser && activeUser?.id) {
-      handleOpenOrStartChatWithUser(initialUser);
+      if (initialUser.conversationId) {
+        setActiveChatId(initialUser.conversationId);
+        markConversationAsRead(initialUser.conversationId);
+        fetchMessagesForConversation(initialUser.conversationId);
+      } else {
+        handleOpenOrStartChatWithUser(initialUser);
+      }
     }
   }, [visible, initialUser, activeUser?.id]);
 
@@ -802,60 +1039,8 @@ export default function ChatsModal({
     const theirId = targetUser.userId || targetUser.user_id || targetUser.id;
     if (!theirId || theirId === activeUser.id) return;
 
-    const existingInState = chats.find(c => c.otherUserId === theirId);
-    if (existingInState) {
-      setActiveChatId(existingInState.id);
-      fetchMessagesForConversation(existingInState.id);
-      return;
-    }
-
     try {
-      const myId = activeUser.id;
-      const [p1, p2] = [myId, theirId].sort();
-      const isP1 = myId === p1;
-
-      const { data: existingConv } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('participant_1', p1)
-        .eq('participant_2', p2)
-        .maybeSingle();
-
-      let conv = existingConv;
-      if (!conv) {
-        const myName = activeUser.fullName || activeUser.name || 'User';
-        const myHandle = `@${myName.toLowerCase().replace(/[\s\W]+/g, '')}`;
-        const myAvatar = activeUser.avatarUrl || activeUser.avatar || null;
-
-        const theirName = targetUser.author || targetUser.fullName || targetUser.name || 'User';
-        const theirHandle = targetUser.handle || `@${theirName.toLowerCase().replace(/[\s\W]+/g, '')}`;
-        const theirAvatar = typeof targetUser.avatar === 'string' ? targetUser.avatar : (targetUser.avatar?.uri || null);
-
-        const newRow = {
-          participant_1: p1,
-          participant_2: p2,
-          participant_1_name: isP1 ? myName : theirName,
-          participant_1_handle: isP1 ? myHandle : theirHandle,
-          participant_1_avatar: isP1 ? myAvatar : theirAvatar,
-          participant_2_name: isP1 ? theirName : myName,
-          participant_2_handle: isP1 ? theirHandle : myHandle,
-          participant_2_avatar: isP1 ? theirAvatar : myAvatar,
-          last_message_text: '',
-          last_message_at: new Date().toISOString(),
-          last_sender_id: myId,
-        };
-
-        const { data: createdConv, error: createErr } = await supabase
-          .from('conversations')
-          .insert([newRow])
-          .select()
-          .single();
-
-        if (!createErr && createdConv) {
-          conv = createdConv;
-        }
-      }
-
+      const conv = await getOrCreateConversation(activeUser, targetUser);
       if (conv) {
         await fetchConversations();
         setActiveChatId(conv.id);
@@ -933,7 +1118,7 @@ export default function ChatsModal({
     stopCurrentPlayer();
     setSelectedMessages({});
     setActiveChatId(id);
-    setChats(prev => prev.map(c => c.id === id ? { ...c, unread: false } : c));
+    markConversationAsRead(id);
     if (activeUser?.id) {
       fetchMessagesForConversation(id);
     }
@@ -1068,6 +1253,16 @@ export default function ChatsModal({
   };
 
   const handleSendMessage = async () => {
+    if (localPendingSpecialist) {
+      const specialistToSend = localPendingSpecialist;
+      const captionText = newMessageText.trim();
+      setLocalPendingSpecialist(null);
+      if (onClearPendingSpecialist) onClearPendingSpecialist();
+      setNewMessageText('');
+      handleSendSpecialist(specialistToSend, captionText);
+      return;
+    }
+
     if (selectedImages.length > 0) {
       handleSendImages(selectedImages, newMessageText);
       return;
@@ -1079,7 +1274,7 @@ export default function ChatsModal({
     setNewMessageText('');
 
     const targetChat = chats.find(c => c.id === activeChatId);
-    const tempId = `m_${Date.now()}`;
+    const tempId = 'm_' + Date.now();
     const newMsg = {
       id: tempId,
       sender: 'user',
@@ -1101,23 +1296,49 @@ export default function ChatsModal({
       return c;
     }));
 
-    if (activeUser?.id && targetChat?.otherUserId) {
+    let recipientId = targetChat?.otherUserId;
+    if (!recipientId && targetChat?.isSelfChat) {
+      recipientId = activeUser.id;
+    }
+    if (!recipientId && activeChatId) {
       try {
-        const { data: insertedMsg } = await supabase
-          .from('direct_messages')
-          .insert([{
-            conversation_id: activeChatId,
-            sender_id: activeUser.id,
-            receiver_id: targetChat.otherUserId,
-            text: text,
-            media_type: 'text'
-          }])
-          .select()
-          .single();
+        const { data: convData } = await supabase
+          .from('conversations')
+          .select('participant_1, participant_2')
+          .eq('id', activeChatId)
+          .maybeSingle();
+        if (convData) {
+          recipientId = convData.participant_1 === activeUser.id ? convData.participant_2 : convData.participant_1;
+        }
+      } catch (_) {}
+    }
+    recipientId = recipientId || activeUser.id;
+
+    if (activeUser?.id && recipientId) {
+      try {
+        const currentSenderName = isRTL 
+          ? (activeUser.full_name || activeUser.fullName || activeUser.name || 'مستخدم')
+          : (activeUser.full_name || activeUser.fullName || activeUser.name || 'User');
+
+        const insertedMsg = await sendDirectMessage({
+          conversationId: activeChatId,
+          senderId: activeUser.id,
+          receiverId: recipientId,
+          text: text,
+          mediaType: 'text',
+          senderName: currentSenderName,
+        });
 
         if (insertedMsg) {
           setChats(prev => prev.map(c => {
             if (c.id === activeChatId) {
+              const alreadyHasReal = (c.messages || []).some(m => m.id === insertedMsg.id);
+              if (alreadyHasReal) {
+                return {
+                  ...c,
+                  messages: (c.messages || []).filter(m => m.id !== tempId)
+                };
+              }
               return {
                 ...c,
                 messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id } : m)
@@ -1126,17 +1347,103 @@ export default function ChatsModal({
             return c;
           }));
         }
-
-        await supabase
-          .from('conversations')
-          .update({
-            last_message_text: text,
-            last_message_at: new Date().toISOString(),
-            last_sender_id: activeUser.id,
-          })
-          .eq('id', activeChatId);
       } catch (err) {
         console.warn('handleSendMessage cloud error:', err);
+      }
+    }
+  };
+
+  const handleSendSpecialist = async (specialist, captionText = '') => {
+    if (!specialist || !activeChatId) return;
+
+    const payload = JSON.stringify({
+      specialist_id: specialist.id,
+      specialist_data: specialist,
+    });
+
+    const targetChat = chats.find(c => c.id === activeChatId);
+    const tempId = 'm_' + Date.now();
+    const newMsg = {
+      id: tempId,
+      sender: 'user',
+      text: captionText,
+      textAr: captionText,
+      media_type: 'specialist',
+      media_url: payload,
+      specialist: specialist,
+      time: isRTL ? 'الآن' : 'Just now',
+      created_at: new Date().toISOString(),
+      is_read: false,
+    };
+
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        return {
+          ...c,
+          lastTime: 'Just now',
+          lastTimeAr: 'الآن',
+          lastMessageText: isRTL ? 'شارك فني' : 'Shared a specialist',
+          messages: [...(c.messages || []), newMsg],
+        };
+      }
+      return c;
+    }));
+
+    let recipientId = targetChat?.otherUserId;
+    if (!recipientId && targetChat?.isSelfChat) {
+      recipientId = activeUser.id;
+    }
+    if (!recipientId && activeChatId) {
+      try {
+        const { data: convData } = await supabase
+          .from('conversations')
+          .select('participant_1, participant_2')
+          .eq('id', activeChatId)
+          .maybeSingle();
+        if (convData) {
+          recipientId = convData.participant_1 === activeUser.id ? convData.participant_2 : convData.participant_1;
+        }
+      } catch (_) {}
+    }
+    recipientId = recipientId || activeUser.id;
+
+    if (activeUser?.id && recipientId) {
+      try {
+        const currentSenderName = isRTL 
+          ? (activeUser.full_name || activeUser.fullName || activeUser.name || 'مستخدم')
+          : (activeUser.full_name || activeUser.fullName || activeUser.name || 'User');
+
+        const insertedMsg = await sendDirectMessage({
+          conversationId: activeChatId,
+          senderId: activeUser.id,
+          receiverId: recipientId,
+          text: captionText,
+          mediaType: 'specialist',
+          mediaUrl: payload,
+          metadata: { specialist_id: specialist.id },
+          senderName: currentSenderName,
+        });
+
+        if (insertedMsg) {
+          setChats(prev => prev.map(c => {
+            if (c.id === activeChatId) {
+              const alreadyHasReal = (c.messages || []).some(m => m.id === insertedMsg.id);
+              if (alreadyHasReal) {
+                return {
+                  ...c,
+                  messages: (c.messages || []).filter(m => m.id !== tempId)
+                };
+              }
+              return {
+                ...c,
+                messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id } : m)
+              };
+            }
+            return c;
+          }));
+        }
+      } catch (err) {
+        console.warn('handleSendSpecialist cloud error:', err);
       }
     }
   };
@@ -1319,6 +1626,13 @@ export default function ChatsModal({
       if (insertedMsg) {
         setChats(prev => prev.map(c => {
           if (c.id === activeChatId) {
+            const alreadyHasReal = (c.messages || []).some(m => m.id === insertedMsg.id);
+            if (alreadyHasReal) {
+              return {
+                ...c,
+                messages: (c.messages || []).filter(m => m.id !== msgId)
+              };
+            }
             return {
               ...c,
               messages: (c.messages || []).map(m => m.id === msgId ? {
@@ -1341,14 +1655,22 @@ export default function ChatsModal({
         ? (isRTL ? `📷 ${count} صور` : `📷 ${count} Photos`)
         : (isRTL ? '📷 صورة' : '📷 Photo');
 
-      await supabase
-        .from('conversations')
-        .update({
-          last_message_text: snippet,
-          last_message_at: new Date().toISOString(),
-          last_sender_id: activeUser.id,
-        })
-        .eq('id', activeChatId);
+      await ensureConversationRowExists(activeChatId, targetRecipientId, snippet, activeUser.id);
+
+      // Dispatch push notification for images
+      if (targetRecipientId) {
+        const senderDisplayName = isRTL 
+          ? (activeUser.full_name || activeUser.fullName || activeUser.name || 'مستخدم')
+          : (activeUser.full_name || activeUser.fullName || activeUser.name || 'User');
+        sendChatMessagePushNotification({
+          recipientId: targetRecipientId,
+          senderName: senderDisplayName,
+          senderId: activeUser.id,
+          conversationId: activeChatId,
+          messageText: caption,
+          mediaType: 'images',
+        }).catch(() => {});
+      }
 
     } catch (err) {
       console.warn('performUpload error:', err);
@@ -1494,12 +1816,30 @@ export default function ChatsModal({
           }
         }
 
+        let recipientId = targetChat?.otherUserId;
+        if (!recipientId && targetChat?.isSelfChat) {
+          recipientId = activeUser.id;
+        }
+        if (!recipientId && activeChatId) {
+          try {
+            const { data: convData } = await supabase
+              .from('conversations')
+              .select('participant_1, participant_2')
+              .eq('id', activeChatId)
+              .maybeSingle();
+            if (convData) {
+              recipientId = convData.participant_1 === activeUser.id ? convData.participant_2 : convData.participant_1;
+            }
+          } catch (_) {}
+        }
+        recipientId = recipientId || activeUser.id;
+
         const { data: insertedMsg, error: insertErr } = await supabase
           .from('direct_messages')
           .insert([{
             conversation_id: activeChatId,
             sender_id: activeUser.id,
-            receiver_id: targetChat?.otherUserId,
+            receiver_id: recipientId,
             text: durationStr,
             media_url: publicAudioUrl,
             media_type: 'audio',
@@ -1515,6 +1855,13 @@ export default function ChatsModal({
           setAudioDurations(prev => ({ ...prev, [insertedMsg.id]: durationStr }));
           setChats(prev => prev.map(c => {
             if (c.id === activeChatId) {
+              const alreadyHasReal = (c.messages || []).some(m => m.id === insertedMsg.id);
+              if (alreadyHasReal) {
+                return {
+                  ...c,
+                  messages: (c.messages || []).filter(m => m.id !== tempId)
+                };
+              }
               return {
                 ...c,
                 messages: (c.messages || []).map(m => m.id === tempId ? { ...m, id: insertedMsg.id, audioUri: publicAudioUrl || recordedUri } : m)
@@ -1524,14 +1871,21 @@ export default function ChatsModal({
           }));
         }
 
-        await supabase
-          .from('conversations')
-          .update({
-            last_message_text: isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message',
-            last_message_at: new Date().toISOString(),
-            last_sender_id: activeUser.id,
-          })
-          .eq('id', activeChatId);
+        await ensureConversationRowExists(activeChatId, recipientId, isRTL ? '🎙️ رسالة صوتية' : '🎙️ Voice message', activeUser.id);
+
+        // Dispatch push notification for voice message
+        if (recipientId) {
+          const senderDisplayName = isRTL 
+            ? (activeUser.full_name || activeUser.fullName || activeUser.name || 'مستخدم')
+            : (activeUser.full_name || activeUser.fullName || activeUser.name || 'User');
+          sendChatMessagePushNotification({
+            recipientId,
+            senderName: senderDisplayName,
+            senderId: activeUser.id,
+            conversationId: activeChatId,
+            mediaType: 'audio',
+          }).catch(() => {});
+        }
       } catch (voiceErr) {
         console.warn('handleSendVoice cloud error:', voiceErr);
       }
@@ -1807,9 +2161,12 @@ export default function ChatsModal({
     if (!query) return true;
     const nameToSearch = isRTL ? (c.nameAr || c.name || '') : (c.name || c.nameAr || '');
     const lastMsg = (Array.isArray(c.messages) && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
+    const isSpecialistMsg = Boolean(lastMsg?.specialist || lastMsg?.media_type === 'specialist');
     const hasImages = (lastMsg?.images && lastMsg.images.length > 0) || Boolean(lastMsg?.image);
     const lastMsgText = lastMsg 
-      ? (hasImages 
+                    ? (isSpecialistMsg 
+                        ? (isRTL ? 'شارك فني' : 'Shared a specialist')
+                        : hasImages 
           ? (lastMsg?.images && lastMsg.images.length > 1
               ? (isRTL ? `📷 ${lastMsg.images.length} صور` : `📷 ${lastMsg.images.length} Photos`)
               : (isRTL ? '📷 صورة' : '📷 Photo')) 
@@ -1970,7 +2327,18 @@ export default function ChatsModal({
                   </Text>
                 </View>
               ) : (
-                (activeChat?.messages || []).map((msg, index) => {
+                (() => {
+                  const rawList = activeChat?.messages || [];
+                  const seenIds = new Set();
+                  const dedupedList = [];
+                  for (const item of rawList) {
+                    if (!item) continue;
+                    const itemId = item.id ? String(item.id) : null;
+                    if (itemId && seenIds.has(itemId)) continue;
+                    if (itemId) seenIds.add(itemId);
+                    dedupedList.push(item);
+                  }
+                  return dedupedList.map((msg, index) => {
                   if (!msg) return null;
                   const isUser = msg?.sender === 'user';
                   const rawMsgText = isRTL ? (msg?.textAr || msg?.text) : (msg?.text || msg?.textAr);
@@ -1981,9 +2349,131 @@ export default function ChatsModal({
                   const effectiveVoiceDuration = sanitizeDuration(audioDurations[msg?.id]) || sanitizeDuration(msg?.voiceDuration) || '0:03';
                   const isSelected = Boolean(selectedMessages[msg?.id]);
 
+                  const isSpecialistMsg = Boolean(
+                    msg?.specialist ||
+                    msg?.media_type === 'specialist' ||
+                    (msg?.media_url && typeof msg?.media_url === 'string' && msg.media_url.includes('specialist_id'))
+                  );
+                  let resolvedSpecialist = msg?.specialist || null;
+                  if (!resolvedSpecialist && msg?.media_url) {
+                    try {
+                      const parsed = typeof msg.media_url === 'string' ? JSON.parse(msg.media_url) : msg.media_url;
+                      resolvedSpecialist = parsed.specialist_data || parsed;
+                    } catch (_) {}
+                  }
+                  if (!resolvedSpecialist?.name && (resolvedSpecialist?.id || resolvedSpecialist?.specialist_id)) {
+                    const targetId = resolvedSpecialist.id || resolvedSpecialist.specialist_id;
+                    const found = ALL_MECHANICS.find(m => String(m.id) === String(targetId));
+                    if (found) {
+                      resolvedSpecialist = { ...found, ...resolvedSpecialist };
+                    }
+                  }
+
+                  if (isSpecialistMsg && resolvedSpecialist) {
+                    const hasCaption = Boolean(msgText && msgText.trim().length > 0);
+                    return (
+                      <View 
+                        key={msg?.id ? `${msg.id}_${index}` : `msg_${index}`}
+                        style={[
+                          styles.msgBubbleRow, 
+                          isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
+                          isRTL && { flexDirection: isUser ? 'row-reverse' : 'row' },
+                          { marginVertical: 4 }
+                        ]}
+                      >
+                        {!isUser && (
+                          <Image source={getAvatarSource(activeChat?.avatar)} style={[styles.msgAvatar, { alignSelf: 'flex-end', marginBottom: 8 }]} />
+                        )}
+
+                        <View style={[
+                          { maxWidth: '85%' },
+                          isUser ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' },
+                          !isUser && (isRTL ? { marginRight: 8 } : { marginLeft: 8 })
+                        ]}>
+                          {/* Optional Caption Bubble directly above the card */}
+                          {hasCaption && (
+                            <TouchableOpacity
+                              activeOpacity={isSelectionMode ? 0.75 : 1}
+                              delayLongPress={300}
+                              onPress={() => {
+                                if (isSelectionMode) {
+                                  handleToggleSelectMessage(msg);
+                                }
+                              }}
+                              onLongPress={() => handleLongPressMessage(msg)}
+                              style={[
+                                styles.msgBubble,
+                                isUser ? styles.userMsgBubble : styles.contactMsgBubble,
+                                isSelected && styles.msgBubbleSelected,
+                                { marginBottom: 6 }
+                              ]}
+                            >
+                              {isSelected && (
+                                <View style={[styles.msgSelectCheckBadge, isUser ? styles.msgSelectCheckBadgeMe : styles.msgSelectCheckBadgeThem]}>
+                                  <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                                </View>
+                              )}
+                              <Text style={[
+                                styles.msgText,
+                                isUser ? styles.userMsgText : styles.contactMsgText,
+                                isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0, lineHeight: 20 }
+                              ]}>
+                                {msgText}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {/* Dedicated Interactive Specialist Card */}
+                          <TouchableOpacity
+                            activeOpacity={isSelectionMode ? 0.75 : 0.96}
+                            delayLongPress={300}
+                            onPress={() => {
+                              if (isSelectionMode) {
+                                handleToggleSelectMessage(msg);
+                                return;
+                              }
+                              if (resolvedSpecialist) {
+                                setActiveSpecialistModal(resolvedSpecialist);
+                              }
+                            }}
+                            onLongPress={() => handleLongPressMessage(msg)}
+                            style={[
+                              isSelected && styles.msgBubbleSelected,
+                              isSelected && { borderRadius: 22 }
+                            ]}
+                          >
+                            {isSelected && !hasCaption && (
+                              <View style={[styles.msgSelectCheckBadge, isUser ? styles.msgSelectCheckBadgeMe : styles.msgSelectCheckBadgeThem]}>
+                                <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                              </View>
+                            )}
+                            <ChatMessageSpecialistCard
+                              specialist={resolvedSpecialist}
+                              isUser={isUser}
+                              isRead={Boolean(msg?.is_read)}
+                              createdAt={msg?.created_at}
+                              fallbackTime={msg?.time}
+                              isRtl={isRTL}
+                              isDarkMode={isDarkMode}
+                              onPress={() => {
+                                if (isSelectionMode) {
+                                  handleToggleSelectMessage(msg);
+                                  return;
+                                }
+                                if (resolvedSpecialist) {
+                                  setActiveSpecialistModal(resolvedSpecialist);
+                                }
+                              }}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  }
+
                   return (
                     <View 
-                      key={msg?.id || index}
+                      key={msg?.id ? `${msg.id}_${index}` : `msg_${index}`}
                       style={[
                         styles.msgBubbleRow, 
                         isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
@@ -2192,8 +2682,39 @@ export default function ChatsModal({
                     </TouchableOpacity>
                   </View>
                 );
-              }))}
+              });
+            })()
+          )}
             </ScrollView>
+
+            {/* Pending Specialist Attachment Dock */}
+            {localPendingSpecialist && (
+              <View style={[styles.pendingSpecialistDock, isRTL && { flexDirection: 'row-reverse' }]}>
+                <View style={styles.pendingSpecialistBadge}>
+                  <Ionicons name="build" size={14} color="#FFFFFF" />
+                </View>
+                <View style={[styles.pendingSpecialistInfo, isRTL && { alignItems: 'flex-end' }]}>
+                  <Text style={[styles.pendingSpecialistLabel, isRTL && styles.pendingSpecialistLabelRtl]}>
+                    {isRTL ? 'مرفق فني للمشاركة' : 'ATTACHED SPECIALIST'}
+                  </Text>
+                  <Text style={[styles.pendingSpecialistName, isRTL && styles.pendingSpecialistNameRtl]} numberOfLines={1}>
+                    {(isRTL ? (localPendingSpecialist.nameAr || localPendingSpecialist.name) : localPendingSpecialist.name) || 'Specialist'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.pendingSpecialistRemoveBtn}
+                  onPress={() => {
+                    setLocalPendingSpecialist(null);
+                    if (onClearPendingSpecialist) onClearPendingSpecialist();
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove attached specialist"
+                >
+                  <Ionicons name="close" size={15} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Selected Images Preview Dock */}
             {selectedImages.length > 0 && (
@@ -2335,7 +2856,9 @@ export default function ChatsModal({
                   <TextInput
                     style={[styles.inputField, isRTL && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}
                     placeholder={
-                      selectedImages.length > 0
+                      localPendingSpecialist
+                        ? (isRTL ? 'أضف رسالة اختيارية...' : 'Add an optional message...')
+                        : selectedImages.length > 0
                         ? (isRTL ? 'أضف تعليقاً...' : 'Add a caption...')
                         : (isRTL ? 'اكتب رسالة...' : 'Type a message...')
                     }
@@ -2358,7 +2881,7 @@ export default function ChatsModal({
                 >
                   <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
-              ) : (newMessageText.trim().length > 0 || selectedImages.length > 0) ? (
+              ) : (newMessageText.trim().length > 0 || selectedImages.length > 0 || Boolean(localPendingSpecialist)) ? (
                 <TouchableOpacity 
                   style={styles.sendBtn}
                   onPress={handleSendMessage}
@@ -2478,10 +3001,13 @@ export default function ChatsModal({
                   const lastMsg = (Array.isArray(chat?.messages) && chat.messages.length > 0) 
                     ? chat.messages[chat.messages.length - 1] 
                     : null;
+                  const isSpecialistMsg = Boolean(lastMsg?.specialist || lastMsg?.media_type === 'specialist');
                   const hasImages = (lastMsg?.images && lastMsg.images.length > 0) || Boolean(lastMsg?.image);
                   const isLastAudio = Boolean(lastMsg?.voiceDuration || lastMsg?.audioUri);
                   const lastMsgText = lastMsg 
-                    ? (hasImages 
+                    ? (isSpecialistMsg
+                        ? (isRTL ? 'شارك فني' : 'Shared a specialist')
+                        : hasImages 
                         ? (lastMsg?.images && lastMsg.images.length > 1
                             ? (isRTL ? `📷 ${lastMsg.images.length} صور` : `📷 ${lastMsg.images.length} Photos`)
                             : (isRTL ? '📷 أرسل صورة' : '📷 Sent a photo')) 
@@ -2491,6 +3017,8 @@ export default function ChatsModal({
                     : cleanLastMessageText(chat?.lastMessageText, isRTL);
                   const timeText = isRTL ? (chat?.lastTimeAr || chat?.lastTime || '') : (chat?.lastTime || chat?.lastTimeAr || '');
                   const nameText = isRTL ? (chat?.nameAr || chat?.name || 'مستخدم') : (chat?.name || chat?.nameAr || 'User');
+
+                  const isChatOnline = Boolean(chat.otherUserId && onlineUsers.has(chat.otherUserId));
 
                   return (
                     <TouchableOpacity
@@ -2504,12 +3032,14 @@ export default function ChatsModal({
                         }
                       ]}
                       activeOpacity={0.8}
+                      delayLongPress={280}
+                      onLongPress={() => handlePromptDeleteConversation(chat)}
                       onPress={() => handleOpenConversation(chat.id)}
                     >
                       {/* Contact Avatar Wrapper */}
                       <View style={styles.avatarWrapper}>
                         <Image source={getAvatarSource(chat.avatar)} style={styles.chatAvatar} />
-                        <View style={styles.onlineDot} />
+                        {isChatOnline && <View style={styles.onlineDot} />}
                       </View>
 
                       {/* Content Details */}
@@ -2522,9 +3052,20 @@ export default function ChatsModal({
                           ]}>
                             {nameText}
                           </Text>
-                          <Text style={[styles.chatTime, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]}>
-                            {timeText}
-                          </Text>
+                          <View style={[styles.chatCardTimeGroup, isRTL && { flexDirection: 'row-reverse' }]}>
+                            <Text style={[styles.chatTime, isRTL && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.5 }]}>
+                              {timeText}
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.chatCardDeleteBtn}
+                              onPress={() => handlePromptDeleteConversation(chat)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              accessibilityRole="button"
+                              accessibilityLabel="Delete conversation"
+                            >
+                              <Ionicons name="trash-outline" size={14} color={isDarkMode ? '#8E9C92' : '#8A9E8D'} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                         
                         <View style={[styles.snippetContainer, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -2842,12 +3383,102 @@ export default function ChatsModal({
           onClose={() => setViewerVisible(false)}
           isRTL={isRTL}
         />
+
+        {/* Full-Screen Specialist Detail Overlay (exact same as posts feed) */}
+        {activeSpecialistModal && (
+          <SpecialistDetailModal
+            specialist={activeSpecialistModal}
+            onClose={() => setActiveSpecialistModal(null)}
+            selectedLanguage={selectedLanguage}
+            activeVehicle={activeVehicle}
+            onShareToFeed={(spec) => {
+              setActiveSpecialistModal(null);
+              if (onClose) onClose();
+              if (onShareToFeed) onShareToFeed(spec);
+            }}
+            onShareInMessage={(spec) => {
+              setActiveSpecialistModal(null);
+              setLocalPendingSpecialist(spec);
+            }}
+          />
+        )}
       </View>
     </Modal>
   );
 }
 
 const createStyles = (colors, isDarkMode) => StyleSheet.create({
+  specialistMessageWrapper: {
+    width: '100%',
+    marginVertical: 4,
+    flexDirection: 'row',
+  },
+  specialistMessageGroup: {
+    maxWidth: '85%',
+  },
+  userSpecialistGroup: {
+    alignItems: 'flex-end',
+    marginLeft: 'auto',
+  },
+  contactSpecialistGroup: {
+    alignItems: 'flex-start',
+    marginRight: 'auto',
+  },
+  pendingSpecialistDock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E2D22' : '#EEF5F0',
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(74, 222, 128, 0.22)' : 'rgba(0, 53, 20, 0.12)',
+  },
+  pendingSpecialistBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDarkMode ? '#285834' : '#003514',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  pendingSpecialistInfo: {
+    flex: 1,
+  },
+  pendingSpecialistLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    color: isDarkMode ? '#68B97C' : '#4E7355',
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  pendingSpecialistLabelRtl: {
+    fontFamily: 'IBMPlexSansArabic-Bold',
+    fontSize: 10,
+  },
+  pendingSpecialistName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: isDarkMode ? '#D4E2D7' : '#0E2814',
+    fontFamily: 'PlusJakartaSans-Bold',
+    marginTop: 1,
+  },
+  pendingSpecialistNameRtl: {
+    fontFamily: 'IBMPlexSansArabic-Bold',
+    fontSize: 13.5,
+  },
+  pendingSpecialistRemoveBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: isDarkMode ? '#344838' : '#7A8C7E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.screenBg,
@@ -3244,6 +3875,15 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   chatDetails: {
     flex: 1,
+  },
+  chatCardTimeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  chatCardDeleteBtn: {
+    padding: 2,
+    opacity: 0.75,
   },
   chatCardTop: {
     flexDirection: 'row',

@@ -77,7 +77,7 @@ export default function SettingsScreen({
           color={colors.activeHighlight} 
           style={[styles.menuIcon, isRtl && styles.menuIconRtl]} 
         />
-        <Text style={[styles.menuLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14 }]}>
+        <Text style={[styles.menuLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14 }]}>
           {label}
         </Text>
       </View>
@@ -132,7 +132,7 @@ export default function SettingsScreen({
               </View>
             )}
             <View style={[styles.profileDetails, isRtl && styles.profileDetailsRtl]}>
-              <Text style={[styles.profileName, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+              <Text style={[styles.profileName, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                 {currentUser ? currentUser.fullName : (isRtl ? 'حساب زائر' : 'Guest User')}
               </Text>
               <Text style={styles.profileEmail}>
@@ -152,7 +152,7 @@ export default function SettingsScreen({
               'globe-outline',
               isRtl ? 'اللغة' : 'Language',
               () => setLanguageModalVisible(true),
-              <Text style={[styles.langValueText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+              <Text style={[styles.langValueText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                 {selectedLanguage === 'English' ? 'English' : 'العربية'}
               </Text>,
               true
@@ -251,7 +251,7 @@ export default function SettingsScreen({
             }}
           >
             <Ionicons name="log-out-outline" size={18} color="#FFFFFF" style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} />
-            <Text style={[styles.logoutText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+            <Text style={[styles.logoutText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
               {isRtl ? 'تسجيل الخروج' : 'Log Out'}
             </Text>
           </TouchableOpacity>
@@ -286,10 +286,10 @@ export default function SettingsScreen({
                 <View style={styles.alertIconBadge}>
                   <Ionicons name="globe-outline" size={24} color={colors.bgBrand} />
                 </View>
-                <Text style={[styles.alertTitle, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                <Text style={[styles.alertTitle, selectedLanguage === 'Arabic' && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                   {selectedLanguage === 'English' ? 'App Language' : 'لغة التطبيق'}
                 </Text>
-                <Text style={[styles.alertDesc, selectedLanguage === 'Arabic' && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                <Text style={[styles.alertDesc, selectedLanguage === 'Arabic' && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                   {selectedLanguage === 'English' ? 'Choose your interface language' : 'اختر لغة واجهة التطبيق'}
                 </Text>
               </View>
@@ -350,7 +350,7 @@ export default function SettingsScreen({
                     <Text
                       style={[
                         styles.langToggleLabelArabic,
-                        { fontFamily: 'AlkhalilArabic-Bold' },
+                        { fontFamily: 'IBMPlexSansArabic-Bold' },
                         selectedLanguage === 'Arabic' && styles.langToggleLabelActive,
                       ]}
                     >
@@ -409,7 +409,7 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: -0.4,
   },
   pageTitleArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 28,
     letterSpacing: 0,
     textAlign: 'right',

@@ -191,7 +191,7 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
 
           {/* Sponsored Label */}
           <View style={[styles.expandedBadge, isRtl ? { left: undefined, right: 16 } : { left: 16 }]}>
-            <Text style={[styles.expandedBadgeText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10 }]}>{labelSponsored}</Text>
+            <Text style={[styles.expandedBadgeText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 10 }]}>{labelSponsored}</Text>
           </View>
 
           {/* Card Content Area */}
@@ -199,18 +199,18 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
             {/* Top Details (Sponsor & Category) */}
             <View style={[styles.detailsHeader, isRtl && { flexDirection: 'row-reverse' }]}>
               <View style={[styles.titleGroup, isRtl && { alignItems: 'flex-end' }]}>
-                <Text style={[styles.sponsorName, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13 }]}>{ad.sponsor}</Text>
-                <Text style={[styles.adTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 18.0 }, isRtl && { textAlign: 'right' }]}>
+                <Text style={[styles.sponsorName, isRtl && { textAlign: 'right', fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 13 }]}>{ad.sponsor}</Text>
+                <Text style={[styles.adTitle, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 18.0 }, isRtl && { textAlign: 'right' }]}>
                   {ad.title}
                 </Text>
               </View>
               <View style={[styles.categoryBadge, { backgroundColor: ad.color + '1A', borderColor: ad.color }]}>
-                <Text style={[styles.categoryText, { color: ad.color }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11 }]}>{ad.badge}</Text>
+                <Text style={[styles.categoryText, { color: ad.color }, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11 }]}>{ad.badge}</Text>
               </View>
             </View>
 
             {/* Description Description */}
-            <Text style={[styles.expandedDescription, isRtl && { textAlign: 'right', fontFamily: 'AlkhalilArabic-Bold', fontSize: 13, lineHeight: 20 }]}>
+            <Text style={[styles.expandedDescription, isRtl && { textAlign: 'right', fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 13, lineHeight: 20 }]}>
               {ad.desc}
             </Text>
 
@@ -219,7 +219,7 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
 
             {/* Coupon Code Section */}
             <View style={[styles.couponRow, isRtl && { flexDirection: 'row-reverse' }]}>
-              <Text style={[styles.couponLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.5 }]}>{labelCoupon}</Text>
+              <Text style={[styles.couponLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 13.5 }]}>{labelCoupon}</Text>
               <View style={[styles.couponContainer, { borderColor: ad.color, backgroundColor: ad.color + '0F' }]}>
                 <Text style={[styles.couponText, { color: ad.color }]}>{ad.coupon}</Text>
               </View>
@@ -233,7 +233,7 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
                 onPress={handleCopyCode}
               >
                 <Ionicons name="copy-outline" size={18} color={colors.bgBrand} />
-                <Text style={[styles.actionButtonLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>{labelCopy}</Text>
+                <Text style={[styles.actionButtonLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>{labelCopy}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -242,7 +242,7 @@ export default function AdDetailModal({ ad, onClose, selectedLanguage }) {
                 onPress={handleVisitWebsite}
               >
                 <Ionicons name="globe-outline" size={18} color="#FFFFFF" />
-                <Text style={[styles.actionButtonLabelSolid, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>{labelVisit}</Text>
+                <Text style={[styles.actionButtonLabelSolid, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>{labelVisit}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -260,6 +260,7 @@ const createStyles = (colors) => StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 2000, // Make sure it renders above bottom nav and headers
+    elevation: 2000,
   },
   overlayCardContainer: {
     flex: 1,

@@ -24,12 +24,21 @@ export default function ChatImageGrid({
   uploadProgress = 0,
   uploadError = false,
   onRetry,
+  width,
+  borderRadius,
 }) {
   if (!images || images.length === 0) return null;
 
   const count = images.length;
+  const gridW = width || GRID_WIDTH;
+  const scale = width ? width / GRID_WIDTH : 1;
+  const resolvedRadius = borderRadius !== undefined ? borderRadius : RADIUS;
+  const h1 = width ? Math.round(195 * scale) : 195;
+  const h2 = width ? Math.round(155 * scale) : 155;
+  const h3 = width ? Math.round(190 * scale) : 190;
+  const h4 = width ? Math.round(200 * scale) : 200;
 
-  const renderThumbnail = (uri, index, width, height, isMoreOverlay = false, moreCount = 0) => {
+  const renderThumbnail = (uri, index, thumbW, thumbH, isMoreOverlay = false, moreCount = 0) => {
     return (
       <TouchableOpacity
         key={`thumb_${index}`}
@@ -37,7 +46,7 @@ export default function ChatImageGrid({
         onPress={() => onImagePress && onImagePress(index)}
         onLongPress={onLongPress}
         delayLongPress={280}
-        style={[styles.thumbTouchable, { width, height }]}
+        style={[styles.thumbTouchable, { width: thumbW, height: thumbH, borderRadius: resolvedRadius ? resolvedRadius : 0 }]}
       >
         <Image
           source={typeof uri === 'string' ? { uri } : uri}
@@ -59,7 +68,7 @@ export default function ChatImageGrid({
     // 1 image: large thumbnail
     if (count === 1) {
       return (
-        <View style={[styles.gridContainer, { width: GRID_WIDTH, height: 195 }]}>
+        <View style={[styles.gridContainer, { width: gridW, height: h1, borderRadius: resolvedRadius }]}>
           {renderThumbnail(images[0], 0, '100%', '100%')}
         </View>
       );
@@ -67,9 +76,9 @@ export default function ChatImageGrid({
 
     // 2 images: two side by side
     if (count === 2) {
-      const itemW = (GRID_WIDTH - GAP) / 2;
+      const itemW = (gridW - GAP) / 2;
       return (
-        <View style={[styles.gridContainer, styles.rowLayout, { width: GRID_WIDTH, height: 155 }, isRTL && styles.rowReverse]}>
+        <View style={[styles.gridContainer, styles.rowLayout, { width: gridW, height: h2, borderRadius: resolvedRadius }, isRTL && styles.rowReverse]}>
           {renderThumbnail(images[0], 0, itemW, '100%')}
           {renderThumbnail(images[1], 1, itemW, '100%')}
         </View>
@@ -78,14 +87,14 @@ export default function ChatImageGrid({
 
     // 3 images: one larger image + two smaller images column
     if (count === 3) {
-      const leftW = Math.round((GRID_WIDTH - GAP) * 0.62);
-      const rightW = GRID_WIDTH - GAP - leftW;
-      const smallH = (190 - GAP) / 2;
+      const leftW = Math.round((gridW - GAP) * 0.62);
+      const rightW = gridW - GAP - leftW;
+      const smallH = (h3 - GAP) / 2;
 
       return (
-        <View style={[styles.gridContainer, styles.rowLayout, { width: GRID_WIDTH, height: 190 }, isRTL && styles.rowReverse]}>
+        <View style={[styles.gridContainer, styles.rowLayout, { width: gridW, height: h3, borderRadius: resolvedRadius }, isRTL && styles.rowReverse]}>
           {renderThumbnail(images[0], 0, leftW, '100%')}
-          <View style={[styles.columnLayout, { width: rightW, height: 190 }]}>
+          <View style={[styles.columnLayout, { width: rightW, height: h3 }]}>
             {renderThumbnail(images[1], 1, '100%', smallH)}
             {renderThumbnail(images[2], 2, '100%', smallH)}
           </View>
@@ -94,13 +103,13 @@ export default function ChatImageGrid({
     }
 
     // 4 or more images: 2 x 2 grid (if > 4, fourth thumbnail has darkened +N overlay)
-    const itemW = (GRID_WIDTH - GAP) / 2;
-    const itemH = (200 - GAP) / 2;
+    const itemW = (gridW - GAP) / 2;
+    const itemH = (h4 - GAP) / 2;
     const hasMore = count > 4;
     const moreCount = count - 4;
 
     return (
-      <View style={[styles.gridContainer, styles.columnLayout, { width: GRID_WIDTH, height: 200 }]}>
+      <View style={[styles.gridContainer, styles.columnLayout, { width: gridW, height: h4, borderRadius: resolvedRadius }]}>
         <View style={[styles.rowLayout, { width: '100%', height: itemH }, isRTL && styles.rowReverse]}>
           {renderThumbnail(images[0], 0, itemW, '100%')}
           {renderThumbnail(images[1], 1, itemW, '100%')}
@@ -114,7 +123,7 @@ export default function ChatImageGrid({
   };
 
   return (
-    <View style={{ position: 'relative', borderRadius: RADIUS, overflow: 'hidden' }}>
+    <View style={{ position: 'relative', borderRadius: resolvedRadius, overflow: 'hidden', width: gridW }}>
       {renderContent()}
 
       {/* Uploading progress overlay */}

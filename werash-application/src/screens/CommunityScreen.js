@@ -19,12 +19,20 @@ import {
   Dimensions,
   PanResponder,
   StatusBar,
+  Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChatsModal from '../components/ChatsModal';
+import OtherUserProfileModal from '../components/OtherUserProfileModal';
+import ImageViewerModal from '../components/ImageViewerModal';
+import ChatImageGrid from '../components/ChatImageGrid';
+import ImageCropModal from '../components/ImageCropModal';
+import SharedSpecialistCard from '../components/SharedSpecialistCard';
+import { ALL_MECHANICS } from '../data/mechanicsData';
+import { toByteArray } from 'base64-js';
 import { supabase } from '../services/supabase';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 
@@ -34,9 +42,42 @@ const TABS = [
   { id: 'souq', label: 'Souq', labelAr: 'سوق' },
 ];
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const FEED_GRID_WIDTH = Math.round(SCREEN_WIDTH - 40);
 const DEFAULT_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.58);
 const EXPANDED_COMMENTS_HEIGHT = Math.round(SCREEN_HEIGHT * 0.94);
+
+// Unicode-aware character truncation without splitting emojis or combining graphemes
+export const truncatePostText = (str, limit = 120) => {
+  if (!str) return { isLong: false, truncated: '', full: '' };
+  let chars = [];
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    try {
+      const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      chars = Array.from(segmenter.segment(str), s => s.segment);
+    } catch (_) {
+      chars = Array.from(str);
+    }
+  } else {
+    chars = Array.from(str);
+  }
+  const isLong = chars.length > limit;
+  const truncated = isLong ? chars.slice(0, limit).join('').trimEnd() + '...' : str;
+  return { isLong, truncated, full: str };
+};
+
+// Detect paragraph direction using the first strong directional character (Unicode BiDi rule)
+export const getParagraphDirection = (text, fallbackIsRtl = false) => {
+  if (!text) return fallbackIsRtl ? 'rtl' : 'ltr';
+  const rtlRegex = /[\u0590-\u083F]|[\u08A0-\u08FF]|[\uFB1D-\uFDFF]|[\uFE70-\uFEFC]/;
+  const ltrRegex = /[A-Za-z\u00C0-\u024F\u1E00-\u1EFF]/;
+
+  for (const ch of text) {
+    if (rtlRegex.test(ch)) return 'rtl';
+    if (ltrRegex.test(ch)) return 'ltr';
+  }
+  return fallbackIsRtl ? 'rtl' : 'ltr';
+};
 
 const REPORT_REASONS = [
   { id: 'offensive', en: 'Inappropriate or offensive content', ar: 'محتوى غير لائق أو مسيء' },
@@ -68,6 +109,180 @@ const formatTimeAgo = (dateString, isRtl) => {
   }
 };
 
+const ProfileSegmentedControl = React.memo(function ProfileSegmentedControl({
+  activeTab,
+  onTabChange,
+  isRtl,
+  isDarkMode,
+}) {
+  const [containerWidth, setContainerWidth] = useState(SCREEN_WIDTH - 40);
+  const slideAnim = useRef(new Animated.Value(activeTab === 'my_posts' ? 0 : 1)).current;
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: activeTab === 'my_posts' ? 0 : 1,
+      duration: 200,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
+
+  const pillWidth = containerWidth > 0 ? (containerWidth - 7) / 2 : 0;
+  const pillTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: isRtl ? [0, -pillWidth] : [0, pillWidth],
+  });
+
+  const forestGreen = isDarkMode ? '#4ADE80' : '#003514';
+  const mutedGrey = isDarkMode ? '#8E9C93' : '#8A959E';
+
+  return (
+    <View
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        if (w > 0 && Math.abs(w - containerWidth) > 1) {
+          setContainerWidth(w);
+        }
+      }}
+      style={[
+        profileSegmentedStyles.container,
+        {
+          backgroundColor: isDarkMode ? '#1E2621' : '#ECEEF0',
+          borderColor: isDarkMode ? '#2D3A32' : '#E2E5E8',
+        },
+        isRtl && { flexDirection: 'row-reverse' },
+      ]}
+    >
+      {/* Smooth animated sliding pill */}
+      {pillWidth > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            profileSegmentedStyles.slider,
+            {
+              width: pillWidth,
+              backgroundColor: isDarkMode ? '#27352B' : '#FFFFFF',
+              transform: [{ translateX: pillTranslateX }],
+            },
+            isRtl ? { right: 3.5, left: undefined } : { left: 3.5 },
+          ]}
+        />
+      )}
+
+      {/* Tab 1: My Posts */}
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => onTabChange('my_posts')}
+        style={[
+          profileSegmentedStyles.tab,
+          isRtl && { flexDirection: 'row-reverse' },
+        ]}
+      >
+        <Ionicons
+          name="grid"
+          size={16}
+          color={activeTab === 'my_posts' ? forestGreen : mutedGrey}
+          style={isRtl ? { marginLeft: 7 } : { marginRight: 7 }}
+        />
+        <Text
+          style={[
+            profileSegmentedStyles.text,
+            activeTab === 'my_posts'
+              ? [profileSegmentedStyles.textActive, { color: forestGreen }]
+              : [profileSegmentedStyles.textInactive, { color: mutedGrey }],
+            isRtl && profileSegmentedStyles.textRtl,
+          ]}
+        >
+          {isRtl ? 'منشوراتي' : 'My posts'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Tab 2: Liked Posts */}
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => onTabChange('liked_posts')}
+        style={[
+          profileSegmentedStyles.tab,
+          isRtl && { flexDirection: 'row-reverse' },
+        ]}
+      >
+        <Ionicons
+          name="heart-outline"
+          size={17}
+          color={activeTab === 'liked_posts' ? forestGreen : mutedGrey}
+          style={isRtl ? { marginLeft: 7 } : { marginRight: 7 }}
+        />
+        <Text
+          style={[
+            profileSegmentedStyles.text,
+            activeTab === 'liked_posts'
+              ? [profileSegmentedStyles.textActive, { color: forestGreen }]
+              : [profileSegmentedStyles.textInactive, { color: mutedGrey }],
+            isRtl && profileSegmentedStyles.textRtl,
+          ]}
+        >
+          {isRtl ? 'الإعجابات' : 'Liked posts'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+const profileSegmentedStyles = StyleSheet.create({
+  container: {
+    width: '100%',
+    height: 42,
+    borderRadius: 21,
+    padding: 3.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  slider: {
+    position: 'absolute',
+    top: 3.5,
+    bottom: 3.5,
+    borderRadius: 17.5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1.5 },
+        shadowOpacity: 0.12,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  tab: {
+    flex: 1,
+    height: '100%',
+    borderRadius: 17.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  text: {
+    fontSize: 13,
+  },
+  textActive: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontWeight: '700',
+  },
+  textInactive: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontWeight: '600',
+  },
+  textRtl: {
+    fontFamily: 'IBMPlexSansArabic-Bold',
+    fontSize: 12.5,
+  },
+});
+
 export default function CommunityScreen({
   currentUser,
   selectedLanguage,
@@ -75,12 +290,18 @@ export default function CommunityScreen({
   onUpdateCurrentUser,
   scrollToTopTrigger,
   onToggleNavBar,
+  onSelectSpecialist,
+  pendingSharedSpecialist,
+  onClearPendingSharedSpecialist,
+  unreadChatsCount: propUnreadChatsCount,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 48 : 24);
   const [chatsVisible, setChatsVisible] = useState(false);
+  const [localUnreadChatsCount, setUnreadChatsCount] = useState(0);
+  const unreadChatsCount = propUnreadChatsCount !== undefined ? propUnreadChatsCount : localUnreadChatsCount;
   const [chatInitialUser, setChatInitialUser] = useState(null);
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -94,6 +315,8 @@ export default function CommunityScreen({
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState(currentUser?.avatarUrl || currentUser?.avatar || null);
   const [myBannerUrl, setMyBannerUrl] = useState(currentUser?.bannerUrl || null);
+  const myAvatarTsRef = useRef(0);
+  const myBannerTsRef = useRef(0);
 
   // Blank white search page state
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -103,16 +326,60 @@ export default function CommunityScreen({
   // Blank white create post page state
   const [isCreatePostActive, setIsCreatePostActive] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
-  const [postImageUri, setPostImageUri] = useState(null);
+  const [postImages, setPostImages] = useState([]);
+  const [attachedSpecialist, setAttachedSpecialist] = useState(null);
+  const postImageUri = postImages[0] || null;
   const [isPosting, setIsPosting] = useState(false);
   const [isPickingPostImage, setIsPickingPostImage] = useState(false);
   const createPostInputRef = useRef(null);
 
+  // Auto-attach specialist when triggered from "Share to feed"
+  useEffect(() => {
+    if (pendingSharedSpecialist) {
+      setAttachedSpecialist(pendingSharedSpecialist);
+      setIsCreatePostActive(true);
+      if (typeof onClearPendingSharedSpecialist === 'function') {
+        onClearPendingSharedSpecialist();
+      }
+    }
+  }, [pendingSharedSpecialist]);
+
   // Dedicated other user profile page modal state
   const [viewingOtherUser, setViewingOtherUser] = useState(null);
 
-  // Full-screen image preview state (for banner and avatar)
+  // Full-screen image preview state (for banner, avatar & posts - Same as Chat)
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImages, setViewerImages] = useState([]);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
   const [previewImage, setPreviewImage] = useState(null);
+
+  // Interactive Crop & Reposition Preview Modal State (for Avatar and Banner)
+  const [cropConfig, setCropConfig] = useState({
+    visible: false,
+    uri: null,
+    type: 'avatar', // 'avatar' | 'banner'
+  });
+
+  // Track expanded state for posts exceeding 120 characters limit
+  const [expandedPosts, setExpandedPosts] = useState({});
+
+  const handleOpenPostImage = (post, initialIdx = 0) => {
+    if (!post) return;
+    const img = post.postImage || post.image || post.media_url;
+    if (!img) return;
+
+    let imagesList = [];
+    if (Array.isArray(post.images) && post.images.length > 0) {
+      imagesList = post.images.map(item => (typeof item === 'string' ? item : (item.uri || item)));
+    } else {
+      const resolved = typeof img === 'string' ? img : (img.uri || img);
+      imagesList = [resolved];
+    }
+
+    setViewerImages(imagesList);
+    setViewerInitialIndex(initialIdx);
+    setViewerVisible(true);
+  };
 
   // Interactive Comments state & animations
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
@@ -164,7 +431,7 @@ export default function CommunityScreen({
     }
   };
 
-  // Pick image for new post (instantaneous, no cropping freeze)
+  // Pick images for new post (allows multiple selection, instant preview)
   const handlePickPostImage = async () => {
     try {
       setIsPickingPostImage(true);
@@ -172,13 +439,13 @@ export default function CommunityScreen({
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // Bypasses heavy cropping activity for instant selection
-        quality: 0.7,
-        selectionLimit: 1,
+        allowsMultipleSelection: true,
+        quality: 0.8,
       });
 
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        setPostImageUri(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uris = result.assets.map(a => a.uri).filter(Boolean);
+        setPostImages(prev => [...prev, ...uris]);
       }
     } catch (err) {
       console.warn('handlePickPostImage error:', err);
@@ -198,7 +465,8 @@ export default function CommunityScreen({
       if (isCreatePostActive) {
         setIsCreatePostActive(false);
         setNewPostContent('');
-        setPostImageUri(null);
+        setPostImages([]);
+        setAttachedSpecialist(null);
         return true;
       }
       if (isSearchActive) {
@@ -213,17 +481,53 @@ export default function CommunityScreen({
   }, [previewImage, isSearchActive, isCreatePostActive]);
 
   useEffect(() => {
-    if (currentUser?.avatarUrl || currentUser?.avatar) {
-      setMyAvatarUrl(currentUser.avatarUrl || currentUser.avatar);
-    }
-    if (currentUser?.bannerUrl) {
-      setMyBannerUrl(currentUser.bannerUrl);
-    } else if (currentUser?.id) {
-      AsyncStorage.getItem(`@werash_user_banner_${currentUser.id}`).then((val) => {
-        if (val) setMyBannerUrl(val);
+    if (currentUser?.id) {
+      AsyncStorage.getItem(`@werash_user_avatar_ts_${currentUser.id}`).then((val) => {
+        if (val) {
+          const ts = parseInt(val, 10);
+          if (ts > myAvatarTsRef.current) myAvatarTsRef.current = ts;
+        }
       }).catch(() => {});
+      AsyncStorage.getItem(`@werash_user_avatar_${currentUser.id}`).then((val) => {
+        if (val) {
+          setMyAvatarUrl(val);
+        } else if (currentUser.avatarUrl || currentUser.avatar) {
+          setMyAvatarUrl(currentUser.avatarUrl || currentUser.avatar);
+        }
+      }).catch(() => {
+        if (currentUser.avatarUrl || currentUser.avatar) {
+          setMyAvatarUrl(currentUser.avatarUrl || currentUser.avatar);
+        }
+      });
+      AsyncStorage.getItem(`@werash_user_banner_ts_${currentUser.id}`).then((val) => {
+        if (val) {
+          const ts = parseInt(val, 10);
+          if (ts > myBannerTsRef.current) myBannerTsRef.current = ts;
+        }
+      }).catch(() => {});
+      AsyncStorage.getItem(`@werash_user_banner_${currentUser.id}`).then((val) => {
+        if (val) {
+          setMyBannerUrl(val);
+        } else if (currentUser.bannerUrl) {
+          setMyBannerUrl(currentUser.bannerUrl);
+        }
+      }).catch(() => {
+        if (currentUser.bannerUrl) {
+          setMyBannerUrl(currentUser.bannerUrl);
+        }
+      });
+    } else {
+      if (currentUser?.avatarUrl || currentUser?.avatar) {
+        setMyAvatarUrl(currentUser.avatarUrl || currentUser.avatar);
+      }
+      if (currentUser?.bannerUrl) {
+        setMyBannerUrl(currentUser.bannerUrl);
+      }
     }
   }, [currentUser?.id, currentUser?.avatarUrl, currentUser?.avatar, currentUser?.bannerUrl]);
+
+  // Profile Sub-tab state: 'my_posts' or 'liked_posts'
+  const [profileSubTab, setProfileSubTab] = useState('my_posts');
 
   // Filter user posts for profile tab and scroll lock check
   const userPosts = posts.filter(p => {
@@ -237,6 +541,13 @@ export default function CommunityScreen({
     return false;
   });
   const userPostsCount = userPosts.length;
+
+  // Filter posts liked by the user (synchronized in real-time)
+  const likedPosts = posts.filter(p => {
+    if (reportedPostIds.includes(p.id) || notInterestedPostIds.includes(p.id)) return false;
+    return Boolean(p.liked);
+  });
+  const activeProfilePosts = profileSubTab === 'my_posts' ? userPosts : likedPosts;
 
   const scrollViewRef = useRef(null);
   const lastOffsetY = useRef(0);
@@ -285,7 +596,7 @@ export default function CommunityScreen({
     const diff = currentY - lastOffsetY.current;
 
     // If on profile tab and has no posts, NEVER hide the header at the top
-    if (activeTab === 'profile' && userPosts.length === 0) {
+    if (activeTab === 'profile' && activeProfilePosts.length === 0) {
       if (isHeaderHidden.current) {
         isHeaderHidden.current = false;
         Animated.timing(headerTranslateAnim, {
@@ -368,7 +679,29 @@ export default function CommunityScreen({
     return true;
   };
 
-  // Upload Avatar
+  // Helper to convert base64 to byte array for reliable storage upload
+  const getUploadBytes = (base64Str) => {
+    if (!base64Str) return null;
+    try {
+      const base64Js = require('base64-js');
+      return base64Js.toByteArray(base64Str);
+    } catch (_) {
+      try {
+        if (typeof atob === 'function') {
+          const binaryStr = atob(base64Str);
+          const len = binaryStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          return bytes;
+        }
+      } catch (_) {}
+    }
+    return null;
+  };
+
+  // Pick Avatar and open interactive crop preview
   const handlePickAndUploadAvatar = async () => {
     if (!requireAuth()) return;
     try {
@@ -376,93 +709,25 @@ export default function CommunityScreen({
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // Bypasses slow native cropping activity for instant selection
-        quality: 0.6,
+        allowsEditing: false, // Reposition and crop handled in dedicated preview
+        quality: 1.0,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return;
       }
 
-      const localUri = result.assets[0].uri;
-
-      // 1. Instant Optimistic UI Update (0ms delay for user)
-      setMyAvatarUrl(localUri);
-      if (typeof onUpdateCurrentUser === 'function') {
-        onUpdateCurrentUser({
-          ...currentUser,
-          avatar: localUri,
-          avatarUrl: localUri,
-        });
-      }
-      setPosts(prev => prev.map(p => {
-        if (p.userId === currentUser.id || p.author === currentUser.fullName) {
-          return { ...p, avatar: { uri: localUri } };
-        }
-        return p;
-      }));
-
-      // 2. Background Cloud Sync
-      setIsUploadingAvatar(true);
-
-      const response = await fetch(localUri);
-      const blob = await response.blob();
-      const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-      const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
-
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from('community-media')
-        .upload(fileName, blob, {
-          contentType,
-          upsert: true,
-        });
-
-      if (uploadErr) throw uploadErr;
-
-      const { data: publicData } = supabase.storage
-        .from('community-media')
-        .getPublicUrl(fileName);
-      const publicUrl = publicData?.publicUrl;
-
-      if (publicUrl) {
-        setMyAvatarUrl(publicUrl);
-        if (typeof onUpdateCurrentUser === 'function') {
-          onUpdateCurrentUser({
-            ...currentUser,
-            avatar: publicUrl,
-            avatarUrl: publicUrl,
-          });
-        }
-        setPosts(prev => prev.map(p => {
-          if (p.userId === currentUser.id || p.author === currentUser.fullName) {
-            return { ...p, avatar: { uri: publicUrl } };
-          }
-          return p;
-        }));
-
-        supabase
-          .from('profiles')
-          .update({ avatar_url: publicUrl })
-          .eq('id', currentUser.id)
-          .catch(e => console.warn('Error updating profile avatar_url:', e));
-
-        supabase.auth
-          .updateUser({ data: { avatar_url: publicUrl } })
-          .catch(e => console.warn('Error updating auth metadata avatar_url:', e));
-      }
+      setCropConfig({
+        visible: true,
+        uri: result.assets[0].uri,
+        type: 'avatar',
+      });
     } catch (err) {
       console.warn('handlePickAndUploadAvatar error:', err);
-      Alert.alert(
-        isRtl ? 'خطأ' : 'Error',
-        isRtl ? 'تعذر رفع الصورة الشخصية. يرجى المحاولة مرة أخرى.' : 'Failed to upload profile picture. Please try again.'
-      );
-    } finally {
-      setIsUploadingAvatar(false);
     }
   };
 
-  // Upload Banner
+  // Pick Banner and open interactive crop preview
   const handlePickAndUploadBanner = async () => {
     if (!requireAuth()) return;
     try {
@@ -470,81 +735,289 @@ export default function CommunityScreen({
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // Bypasses slow native cropping activity for instant selection
-        quality: 0.6,
+        allowsEditing: false, // Reposition and crop handled in dedicated preview
+        quality: 1.0,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return;
       }
 
-      const localUri = result.assets[0].uri;
+      setCropConfig({
+        visible: true,
+        uri: result.assets[0].uri,
+        type: 'banner',
+      });
+    } catch (err) {
+      console.warn('handlePickAndUploadBanner error:', err);
+    }
+  };
 
-      // 1. Instant Optimistic UI Update (0ms delay for user)
-      setMyBannerUrl(localUri);
+  // Handle saving the crop-and-repositioned image
+  const handleSaveCroppedImage = async (croppedUri, cropResult) => {
+    const type = cropResult?.cropType || cropResult?.type || cropConfig.type || 'avatar';
+    setCropConfig({ visible: false, uri: null, type: 'avatar' });
+
+    if (!croppedUri) return;
+    const now = Date.now();
+
+    if (type === 'avatar') {
+      myAvatarTsRef.current = now;
+      // 1. Instant Optimistic UI Update & Local Persistence (0ms delay for user)
+      setMyAvatarUrl(croppedUri);
+      if (currentUser?.id) {
+        try {
+          await AsyncStorage.setItem(`@werash_user_avatar_${currentUser.id}`, croppedUri);
+          await AsyncStorage.setItem(`@werash_user_avatar_ts_${currentUser.id}`, String(now));
+        } catch (e) {}
+      }
+
       if (typeof onUpdateCurrentUser === 'function') {
         onUpdateCurrentUser({
           ...currentUser,
-          bannerUrl: localUri,
+          avatar: croppedUri,
+          avatarUrl: croppedUri,
         });
       }
-      try {
-        await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, localUri);
-      } catch (e) {}
-
-      // 2. Background Cloud Sync
-      setIsUploadingBanner(true);
-
-      const response = await fetch(localUri);
-      const blob = await response.blob();
-      const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-      const fileName = `${currentUser.id}/banner_${Date.now()}.${ext}`;
-
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from('community-media')
-        .upload(fileName, blob, {
-          contentType,
-          upsert: true,
-        });
-
-      if (uploadErr) throw uploadErr;
-
-      const { data: publicData } = supabase.storage
-        .from('community-media')
-        .getPublicUrl(fileName);
-      const publicUrl = publicData?.publicUrl;
-
-      if (publicUrl) {
-        setMyBannerUrl(publicUrl);
-        if (typeof onUpdateCurrentUser === 'function') {
-          onUpdateCurrentUser({
-            ...currentUser,
-            bannerUrl: publicUrl,
-          });
+      setPosts(prev => prev.map(p => {
+        if (p.userId === currentUser?.id || (currentUser?.fullName && p.author === currentUser.fullName)) {
+          return { ...p, avatar: { uri: croppedUri } };
         }
+        return p;
+      }));
+
+      // 2. Background Cloud Sync (resilient, non-blocking)
+      setIsUploadingAvatar(true);
+      (async () => {
         try {
-          await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+          let authUserId = currentUser?.id;
+          let activeSession = null;
+          try {
+            const sessionRes = await supabase.auth.getSession();
+            activeSession = sessionRes?.data?.session;
+            if (!activeSession) {
+              const refreshRes = await supabase.auth.refreshSession().catch(() => null);
+              activeSession = refreshRes?.data?.session;
+            }
+            if (activeSession?.user?.id) {
+              authUserId = activeSession.user.id;
+            }
+          } catch (_) {}
+
+          let uploadBody = null;
+          if (cropResult?.base64) {
+            try {
+              uploadBody = toByteArray(cropResult.base64);
+            } catch (convErr) {
+              console.warn('Failed converting base64 to Uint8Array for avatar:', convErr);
+            }
+          }
+          if (!uploadBody) {
+            try {
+              const response = await fetch(croppedUri);
+              uploadBody = await response.blob();
+            } catch (fetchErr) {
+              console.warn('fetch blob failed for cropped avatar:', fetchErr);
+            }
+          }
+
+          if (uploadBody && authUserId) {
+            const fileName = `${authUserId}/avatar_${now}.jpg`;
+
+            const { data: uploadData, error: uploadErr } = await supabase.storage
+              .from('community-media')
+              .upload(fileName, uploadBody, {
+                contentType: 'image/jpeg',
+                upsert: true,
+              });
+
+            if (!uploadErr && uploadData) {
+              const { data: publicData } = supabase.storage
+                .from('community-media')
+                .getPublicUrl(fileName);
+              const publicUrl = publicData?.publicUrl;
+
+              if (publicUrl) {
+                const finishedTs = Date.now();
+                myAvatarTsRef.current = finishedTs;
+                setMyAvatarUrl(publicUrl);
+                if (currentUser?.id) {
+                  try {
+                    await AsyncStorage.setItem(`@werash_user_avatar_${currentUser.id}`, publicUrl);
+                    await AsyncStorage.setItem(`@werash_user_avatar_ts_${currentUser.id}`, String(finishedTs));
+                  } catch (e) {}
+                }
+                if (typeof onUpdateCurrentUser === 'function') {
+                  onUpdateCurrentUser({
+                    ...currentUser,
+                    avatar: publicUrl,
+                    avatarUrl: publicUrl,
+                  });
+                }
+                setPosts(prev => prev.map(p => {
+                  if (p.userId === currentUser?.id || p.userId === authUserId || (currentUser?.fullName && p.author === currentUser.fullName)) {
+                    return { ...p, avatar: { uri: publicUrl } };
+                  }
+                  return p;
+                }));
+
+                const targetId = authUserId || currentUser?.id;
+                // Update profiles table
+                await supabase
+                  .from('profiles')
+                  .update({
+                    avatar_url: publicUrl,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', targetId)
+                  .catch(e => console.warn('Error updating profile avatar_url:', e));
+
+                // Update community_posts table so everyone else sees the new avatar immediately!
+                await supabase
+                  .from('community_posts')
+                  .update({ author_avatar: publicUrl })
+                  .eq('user_id', targetId)
+                  .catch(e => console.warn('Error updating community_posts avatar by user_id:', e));
+
+                // Update conversations table
+                supabase
+                  .from('conversations')
+                  .update({ participant_1_avatar: publicUrl })
+                  .eq('participant_1', targetId)
+                  .catch(() => {});
+                supabase
+                  .from('conversations')
+                  .update({ participant_2_avatar: publicUrl })
+                  .eq('participant_2', targetId)
+                  .catch(() => {});
+
+                // Update auth metadata
+                supabase.auth
+                  .updateUser({ data: { avatar_url: publicUrl } })
+                  .catch(e => console.warn('Error updating auth metadata avatar_url:', e));
+              }
+            } else if (uploadErr) {
+              console.warn('Supabase storage avatar upload warning (retaining local photo):', uploadErr.message || uploadErr);
+            }
+          }
+        } catch (syncErr) {
+          console.warn('Background avatar sync error:', syncErr);
+        } finally {
+          setIsUploadingAvatar(false);
+        }
+      })();
+    } else if (type === 'banner') {
+      myBannerTsRef.current = now;
+      // 1. Instant Optimistic UI Update & Local Persistence (0ms delay for user)
+      setMyBannerUrl(croppedUri);
+      if (currentUser?.id) {
+        try {
+          await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, croppedUri);
+          await AsyncStorage.setItem(`@werash_user_banner_ts_${currentUser.id}`, String(now));
         } catch (e) {}
-
-        supabase
-          .from('profiles')
-          .update({ banner_url: publicUrl })
-          .eq('id', currentUser.id)
-          .catch(e => console.warn('Error updating profile banner_url:', e));
-
-        supabase.auth
-          .updateUser({ data: { banner_url: publicUrl } })
-          .catch(e => console.warn('Error updating auth metadata banner_url:', e));
       }
-    } catch (err) {
-      console.warn('handlePickAndUploadBanner error:', err);
-      Alert.alert(
-        isRtl ? 'خطأ' : 'Error',
-        isRtl ? 'تعذر رفع صورة الغلاف. يرجى المحاولة مرة أخرى.' : 'Failed to upload banner. Please try again.'
-      );
-    } finally {
-      setIsUploadingBanner(false);
+
+      if (typeof onUpdateCurrentUser === 'function') {
+        onUpdateCurrentUser({
+          ...currentUser,
+          bannerUrl: croppedUri,
+        });
+      }
+
+      // 2. Background Cloud Sync (resilient, non-blocking)
+      setIsUploadingBanner(true);
+      (async () => {
+        try {
+          let authUserId = currentUser?.id;
+          let activeSession = null;
+          try {
+            const sessionRes = await supabase.auth.getSession();
+            activeSession = sessionRes?.data?.session;
+            if (!activeSession) {
+              const refreshRes = await supabase.auth.refreshSession().catch(() => null);
+              activeSession = refreshRes?.data?.session;
+            }
+            if (activeSession?.user?.id) {
+              authUserId = activeSession.user.id;
+            }
+          } catch (_) {}
+
+          let uploadBody = null;
+          if (cropResult?.base64) {
+            try {
+              uploadBody = toByteArray(cropResult.base64);
+            } catch (convErr) {
+              console.warn('Failed converting base64 to Uint8Array for banner:', convErr);
+            }
+          }
+          if (!uploadBody) {
+            try {
+              const response = await fetch(croppedUri);
+              uploadBody = await response.blob();
+            } catch (fetchErr) {
+              console.warn('fetch blob failed for cropped banner:', fetchErr);
+            }
+          }
+
+          if (uploadBody && authUserId) {
+            const fileName = `${authUserId}/banner_${now}.jpg`;
+
+            const { data: uploadData, error: uploadErr } = await supabase.storage
+              .from('community-media')
+              .upload(fileName, uploadBody, {
+                contentType: 'image/jpeg',
+                upsert: true,
+              });
+
+            if (!uploadErr && uploadData) {
+              const { data: publicData } = supabase.storage
+                .from('community-media')
+                .getPublicUrl(fileName);
+              const publicUrl = publicData?.publicUrl;
+
+              if (publicUrl) {
+                const finishedTs = Date.now();
+                myBannerTsRef.current = finishedTs;
+                setMyBannerUrl(publicUrl);
+                if (currentUser?.id) {
+                  try {
+                    await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+                    await AsyncStorage.setItem(`@werash_user_banner_ts_${currentUser.id}`, String(finishedTs));
+                  } catch (e) {}
+                }
+                if (typeof onUpdateCurrentUser === 'function') {
+                  onUpdateCurrentUser({
+                    ...currentUser,
+                    bannerUrl: publicUrl,
+                  });
+                }
+
+                const targetId = authUserId || currentUser?.id;
+                // Update profiles table
+                await supabase
+                  .from('profiles')
+                  .update({
+                    banner_url: publicUrl,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', targetId)
+                  .catch(e => console.warn('Error updating profile banner_url:', e));
+
+                // Update auth metadata
+                supabase.auth
+                  .updateUser({ data: { banner_url: publicUrl } })
+                  .catch(e => console.warn('Error updating auth metadata banner_url:', e));
+              }
+            } else if (uploadErr) {
+              console.warn('Supabase storage banner upload warning (retaining local banner):', uploadErr.message || uploadErr);
+            }
+          }
+        } catch (syncErr) {
+          console.warn('Background banner sync error:', syncErr);
+        } finally {
+          setIsUploadingBanner(false);
+        }
+      })();
     }
   };
 
@@ -559,12 +1032,46 @@ export default function CommunityScreen({
       try {
         const { data: profs } = await supabase
           .from('profiles')
-          .select('id, full_name, avatar_url, banner_url');
+          .select('id, full_name, avatar_url, banner_url, updated_at');
         if (profs && Array.isArray(profs)) {
           setAllProfiles(profs);
           profs.forEach((pr) => {
             if (pr.id) profMap[pr.id] = pr;
           });
+          if (currentUser?.id && profMap[currentUser.id]) {
+            const myProf = profMap[currentUser.id];
+            const cloudUpdatedAt = myProf.updated_at ? new Date(myProf.updated_at).getTime() : 0;
+            // Only update local avatar if cloud is newer than our local edit timestamp
+            if (cloudUpdatedAt > myAvatarTsRef.current && myProf.avatar_url && myProf.avatar_url.startsWith('http')) {
+              myAvatarTsRef.current = cloudUpdatedAt;
+              setMyAvatarUrl(myProf.avatar_url);
+              AsyncStorage.setItem(`@werash_user_avatar_${currentUser.id}`, myProf.avatar_url).catch(() => {});
+            } else if (myAvatarUrl && myAvatarUrl.startsWith('http') && myProf.avatar_url !== myAvatarUrl) {
+              // Cloud has stale avatar: auto-sync local newest avatar up to Supabase in background
+              supabase
+                .from('profiles')
+                .update({ avatar_url: myAvatarUrl, updated_at: new Date().toISOString() })
+                .eq('id', currentUser.id)
+                .catch(() => {});
+              supabase
+                .from('community_posts')
+                .update({ author_avatar: myAvatarUrl })
+                .eq('user_id', currentUser.id)
+                .catch(() => {});
+            }
+
+            if (cloudUpdatedAt > myBannerTsRef.current && myProf.banner_url && myProf.banner_url.startsWith('http')) {
+              myBannerTsRef.current = cloudUpdatedAt;
+              setMyBannerUrl(myProf.banner_url);
+              AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, myProf.banner_url).catch(() => {});
+            } else if (myBannerUrl && myBannerUrl.startsWith('http') && myProf.banner_url !== myBannerUrl) {
+              supabase
+                .from('profiles')
+                .update({ banner_url: myBannerUrl, updated_at: new Date().toISOString() })
+                .eq('id', currentUser.id)
+                .catch(() => {});
+            }
+          }
         }
       } catch (_) {}
 
@@ -600,6 +1107,22 @@ export default function CommunityScreen({
         }
       } catch (_) {}
 
+      // 4. Fetch real comments count directly from community_post_comments
+      const commentsCountMap = {};
+      try {
+        const { data: allCommentsData } = await supabase
+          .from('community_post_comments')
+          .select('id, post_id');
+
+        if (allCommentsData && Array.isArray(allCommentsData)) {
+          allCommentsData.forEach((c) => {
+            if (c.post_id) {
+              commentsCountMap[c.post_id] = (commentsCountMap[c.post_id] || 0) + 1;
+            }
+          });
+        }
+      } catch (_) {}
+
       // Check locally cached user likes as backup
       if (currentUser?.id) {
         try {
@@ -615,12 +1138,54 @@ export default function CommunityScreen({
 
       const mapped = (postsData || []).map(p => {
         const authorProf = p.user_id ? profMap[p.user_id] : null;
-        const finalAvatarUrl = authorProf?.avatar_url || p.author_avatar;
+        let finalAvatarUrl = authorProf?.avatar_url || p.author_avatar;
+        const isMyPost = Boolean(
+          (currentUser?.id && p.user_id === currentUser.id) ||
+          (currentUser?.fullName && p.author_name === currentUser.fullName)
+        );
+        if (isMyPost && myAvatarUrl) {
+          finalAvatarUrl = myAvatarUrl;
+        }
         const realLikesCount = likesCountMap[p.id];
         const isLikedByMe = likedPostIds.has(p.id);
         const resolvedLikes = realLikesCount !== undefined 
           ? realLikesCount 
           : (p.likes_count || (isLikedByMe ? 1 : 0));
+
+        const realCommentsCount = commentsCountMap[p.id];
+        const resolvedComments = realCommentsCount !== undefined
+          ? realCommentsCount
+          : (p.comments_count || 0);
+
+        let parsedImages = null;
+        let singlePostImage = null;
+        let specialistObj = null;
+        if (p.media_url) {
+          if (typeof p.media_url === 'string' && p.media_url.trim().startsWith('{')) {
+            try {
+              const meta = JSON.parse(p.media_url);
+              if (meta.specialist_id) {
+                specialistObj = ALL_MECHANICS.find(m => m.id === meta.specialist_id) || meta.specialist_data || null;
+              }
+              if (meta.images && Array.isArray(meta.images)) {
+                parsedImages = meta.images;
+                singlePostImage = meta.images[0] ? { uri: meta.images[0] } : null;
+              }
+            } catch (_) {}
+          } else if (typeof p.media_url === 'string' && p.media_url.trim().startsWith('[')) {
+            try {
+              const arr = JSON.parse(p.media_url);
+              if (Array.isArray(arr) && arr.length > 0) {
+                parsedImages = arr;
+                singlePostImage = { uri: arr[0] };
+              }
+            } catch (_) {}
+          }
+          if (!parsedImages && !specialistObj) {
+            parsedImages = [p.media_url];
+            singlePostImage = { uri: p.media_url };
+          }
+        }
 
         return {
           id: p.id,
@@ -630,9 +1195,11 @@ export default function CommunityScreen({
           avatar: finalAvatarUrl ? { uri: finalAvatarUrl } : null,
           time: formatTimeAgo(p.created_at, isRtl),
           content: p.content,
-          postImage: p.media_url ? { uri: p.media_url } : null,
+          postImage: singlePostImage,
+          images: parsedImages,
+          specialist: specialistObj,
           likes: resolvedLikes,
-          comments: p.comments_count || 0,
+          comments: resolvedComments,
           liked: isLikedByMe,
           vehicle: p.vehicle || 'General',
           isMarketplace: Boolean(p.is_marketplace),
@@ -656,21 +1223,43 @@ export default function CommunityScreen({
   useEffect(() => {
     fetchCloudPosts();
 
-    // Subscribe to realtime changes for new/deleted posts only (avoids lag loops on likes)
+    // Subscribe to realtime changes for new/deleted/updated posts and profile updates
     const channel = supabase
       .channel('community_posts_realtime')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'community_posts' },
+        { event: '*', schema: 'public', table: 'community_posts' },
         () => {
           fetchCloudPosts(true);
         }
       )
       .on(
         'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'community_posts' },
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
         () => {
           fetchCloudPosts(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'community_post_comments' },
+        (payload) => {
+          const targetPostId = payload.new?.post_id || payload.old?.post_id;
+          if (targetPostId) {
+            if (payload.eventType === 'INSERT') {
+              setPosts((prev) =>
+                prev.map((p) =>
+                  p.id === targetPostId ? { ...p, comments: (p.comments || 0) + 1 } : p
+                )
+              );
+            } else if (payload.eventType === 'DELETE') {
+              setPosts((prev) =>
+                prev.map((p) =>
+                  p.id === targetPostId ? { ...p, comments: Math.max(0, (p.comments || 1) - 1) } : p
+                )
+              );
+            }
+          }
         }
       )
       .subscribe();
@@ -994,10 +1583,25 @@ export default function CommunityScreen({
           setPosts((prev) => prev.map(replaceTempId));
           setActiveCommentsPost((prev) => (prev ? replaceTempId(prev) : null));
 
-          await supabase
+          // Query the exact, fresh count of comments for this post from Supabase
+          const { count: freshCount } = await supabase
+            .from('community_post_comments')
+            .select('id', { count: 'exact', head: true })
+            .eq('post_id', postId);
+
+          const finalCommentsCount = typeof freshCount === 'number' ? freshCount : (activeCommentsPost?.comments || 0) + 1;
+
+          setPosts((prev) =>
+            prev.map((p) => (p.id === postId ? { ...p, comments: finalCommentsCount } : p))
+          );
+          setActiveCommentsPost((prev) => (prev ? { ...prev, comments: finalCommentsCount } : null));
+
+          supabase
             .from('community_posts')
-            .update({ comments_count: (activeCommentsPost.comments || 0) + 1 })
-            .eq('id', postId);
+            .update({ comments_count: finalCommentsCount })
+            .eq('id', postId)
+            .then(() => {})
+            .catch(() => {});
         } else if (insertErr) {
           console.warn('Error saving comment to Supabase:', insertErr.message);
         }
@@ -1329,18 +1933,19 @@ export default function CommunityScreen({
     if (userId) {
       supabase
         .from('profiles')
-        .select('id, full_name, avatar_url, banner_url, vehicle')
+        .select('id, full_name, avatar_url, banner_url, car_brand, car_model')
         .eq('id', userId)
         .maybeSingle()
         .then(({ data }) => {
           if (data) {
+            const veh = data.car_brand ? `${data.car_brand || ''} ${data.car_model || ''}`.trim() : null;
             setViewingOtherUser(prev => {
               if (!prev || (prev.userId && prev.userId !== userId)) return prev;
               return {
                 ...prev,
                 avatar: data.avatar_url ? { uri: data.avatar_url } : prev.avatar,
                 banner: data.banner_url || prev.banner,
-                vehicle: data.vehicle || prev.vehicle,
+                vehicle: veh || prev.vehicle,
               };
             });
           }
@@ -1387,12 +1992,12 @@ export default function CommunityScreen({
   const resolvedAvatar = myAvatarUrl || currentUser?.avatarUrl || currentUser?.avatar || null;
   const resolvedBanner = myBannerUrl || currentUser?.bannerUrl || null;
 
-  // Create new post in Supabase cloud
+  // Create new post in Supabase cloud (supports multiple images & attached specialist)
   const handleCreatePost = async () => {
-    if (!newPostContent.trim() && !postImageUri) {
+    if (!newPostContent.trim() && postImages.length === 0 && !attachedSpecialist) {
       Alert.alert(
         isRtl ? 'محتوى فارغ' : 'Empty Content',
-        isRtl ? 'يرجى كتابة محتوى أو إضافة صورة للمنشور.' : 'Please enter some text or add an image before posting.'
+        isRtl ? 'يرجى كتابة محتوى أو إضافة صورة أو فني للمنشور.' : 'Please enter some text, add an image, or attach a specialist before posting.'
       );
       return;
     }
@@ -1407,6 +2012,7 @@ export default function CommunityScreen({
             text: isRtl ? 'تسجيل الدخول' : 'Sign In',
             onPress: () => {
               setIsCreatePostActive(false);
+              setAttachedSpecialist(null);
               if (typeof onOpenSignIn === 'function') onOpenSignIn();
             },
           },
@@ -1419,29 +2025,48 @@ export default function CommunityScreen({
       setIsPosting(true);
 
       let uploadedMediaUrl = null;
-      if (postImageUri) {
-        const response = await fetch(postImageUri);
-        const blob = await response.blob();
-        const ext = postImageUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-        const fileName = `${currentUser.id}/post_${Date.now()}.${ext}`;
+      let uploadedUrls = [];
+      if (postImages.length > 0) {
+        for (let i = 0; i < postImages.length; i++) {
+          const localUri = postImages[i];
+          const response = await fetch(localUri);
+          const blob = await response.blob();
+          const ext = localUri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+          const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+          const fileName = `${currentUser.id}/post_${Date.now()}_${i}.${ext}`;
 
-        const { error: uploadErr } = await supabase.storage
-          .from('community-media')
-          .upload(fileName, blob, {
-            contentType,
-            upsert: true,
-          });
+          const { error: uploadErr } = await supabase.storage
+            .from('community-media')
+            .upload(fileName, blob, {
+              contentType,
+              upsert: true,
+            });
 
-        if (uploadErr) {
-          console.warn('Post image upload error:', uploadErr.message);
-          throw uploadErr;
+          if (uploadErr) {
+            console.warn('Post image upload error:', uploadErr.message);
+            throw uploadErr;
+          }
+
+          const { data: publicData } = supabase.storage
+            .from('community-media')
+            .getPublicUrl(fileName);
+
+          if (publicData?.publicUrl) {
+            uploadedUrls.push(publicData.publicUrl);
+          }
         }
+      }
 
-        const { data: publicData } = supabase.storage
-          .from('community-media')
-          .getPublicUrl(fileName);
-        uploadedMediaUrl = publicData?.publicUrl || null;
+      if (attachedSpecialist) {
+        uploadedMediaUrl = JSON.stringify({
+          specialist_id: attachedSpecialist.id,
+          specialist_data: attachedSpecialist,
+          images: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+        });
+      } else if (uploadedUrls.length === 1) {
+        uploadedMediaUrl = uploadedUrls[0];
+      } else if (uploadedUrls.length > 1) {
+        uploadedMediaUrl = JSON.stringify(uploadedUrls);
       }
 
       const postPayload = {
@@ -1452,7 +2077,7 @@ export default function CommunityScreen({
         vehicle: currentUser.activeVehicleName || currentUser.vehicle || 'General',
         content: newPostContent.trim(),
         media_url: uploadedMediaUrl,
-        media_type: uploadedMediaUrl ? 'image' : null,
+        media_type: attachedSpecialist ? 'specialist' : (uploadedMediaUrl ? 'image' : null),
         is_marketplace: false,
         likes_count: 0,
         comments_count: 0,
@@ -1469,6 +2094,32 @@ export default function CommunityScreen({
       }
 
       if (insertedPost) {
+        let parsedImages = null;
+        let singlePostImage = null;
+        if (insertedPost.media_url) {
+          if (typeof insertedPost.media_url === 'string' && insertedPost.media_url.trim().startsWith('{')) {
+            try {
+              const meta = JSON.parse(insertedPost.media_url);
+              if (meta.images && Array.isArray(meta.images)) {
+                parsedImages = meta.images;
+                singlePostImage = meta.images[0] ? { uri: meta.images[0] } : null;
+              }
+            } catch (_) {}
+          } else if (typeof insertedPost.media_url === 'string' && insertedPost.media_url.trim().startsWith('[')) {
+            try {
+              const arr = JSON.parse(insertedPost.media_url);
+              if (Array.isArray(arr) && arr.length > 0) {
+                parsedImages = arr;
+                singlePostImage = { uri: arr[0] };
+              }
+            } catch (_) {}
+          }
+          if (!parsedImages) {
+            parsedImages = [insertedPost.media_url];
+            singlePostImage = { uri: insertedPost.media_url };
+          }
+        }
+
         const finalPost = {
           id: insertedPost.id,
           userId: insertedPost.user_id,
@@ -1477,7 +2128,9 @@ export default function CommunityScreen({
           avatar: insertedPost.author_avatar ? { uri: insertedPost.author_avatar } : null,
           time: formatTimeAgo(insertedPost.created_at, isRtl),
           content: insertedPost.content,
-          postImage: insertedPost.media_url ? { uri: insertedPost.media_url } : null,
+          postImage: singlePostImage,
+          images: parsedImages,
+          specialist: attachedSpecialist,
           likes: 0,
           comments: 0,
           liked: false,
@@ -1489,9 +2142,10 @@ export default function CommunityScreen({
         setPosts((prev) => [finalPost, ...prev]);
       }
 
+      setAttachedSpecialist(null);
       setIsCreatePostActive(false);
       setNewPostContent('');
-      setPostImageUri(null);
+      setPostImages([]);
 
       // Re-fetch in background to ensure sync
       fetchCloudPosts();
@@ -1574,15 +2228,25 @@ export default function CommunityScreen({
     return (
       <TouchableOpacity
         key={post.id}
-        activeOpacity={0.88}
+        activeOpacity={hasImage ? 0.88 : 1}
         style={styles.searchMarketCardShadow}
         onPress={() => {
-          // Open item details if needed
+          if (hasImage) {
+            handleOpenPostImage(post);
+          }
         }}
       >
         <View style={styles.searchMarketCardSurface}>
           {/* Cover Image Container (Expanded for full-width post footprint) */}
-          <View style={styles.searchMarketImageContainer}>
+          <TouchableOpacity 
+            style={styles.searchMarketImageContainer}
+            activeOpacity={hasImage ? 0.92 : 1}
+            onPress={() => {
+              if (hasImage) {
+                handleOpenPostImage(post);
+              }
+            }}
+          >
             {hasImage ? (
               <Image
                 source={imageSource}
@@ -1598,7 +2262,7 @@ export default function CommunityScreen({
                 />
               </View>
             )}
-          </View>
+          </TouchableOpacity>
 
           {/* Item Details (Price, Title, Location) - Same Souq design, no likes or comments */}
           <View style={[styles.searchMarketDetails, isRtl && styles.searchMarketDetailsRtl]}>
@@ -1704,20 +2368,102 @@ export default function CommunityScreen({
           </View>
         )}
 
-        {/* Post Body Text */}
-        {Boolean(post.content) && (
-          <Text style={[styles.postBodyText, isRtl && styles.postBodyTextRtl]}>
-            {isRtl ? (post.contentAr || post.content) : post.content}
-          </Text>
-        )}
+        {/* Post Body Text (Per-paragraph directional detection, 120-char preview, Read more/less toggle) */}
+        {Boolean(post.content) && (() => {
+          const rawText = isRtl ? (post.contentAr || post.content) : post.content;
+          const { isLong, truncated, full } = truncatePostText(rawText, 120);
+          const isExpanded = Boolean(expandedPosts[post.id]);
+          const textToRender = (isLong && !isExpanded) ? truncated : full;
+          const paragraphs = textToRender.split('\n');
 
-        {/* Post Attached Media Image (Social media 4:3 ratio, unrounded edges) */}
-        {post.postImage && (
-          <View style={styles.postImageContainer}>
+          return (
+            <View style={styles.postBodyContainer}>
+              {paragraphs.map((para, pIdx) => {
+                const isLast = pIdx === paragraphs.length - 1;
+                if (!para && !isLast) {
+                  return <View key={`p_blank_${pIdx}`} style={styles.postParagraphSpacing} />;
+                }
+
+                const dir = getParagraphDirection(para, isRtl);
+                const isParaRtl = dir === 'rtl';
+
+                return (
+                  <View
+                    key={`p_${pIdx}`}
+                    style={[
+                      styles.paragraphRow,
+                      isParaRtl ? styles.paragraphRowRtl : styles.paragraphRowLtr,
+                      !isLast && { marginBottom: 6 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.postParagraph,
+                        isParaRtl ? styles.postParagraphRtl : styles.postParagraphLtr,
+                      ]}
+                    >
+                      {para}
+                    </Text>
+                    {isLast && isLong && (
+                      <TouchableOpacity
+                        activeOpacity={0.65}
+                        onPress={() => {
+                          setExpandedPosts(prev => ({
+                            ...prev,
+                            [post.id]: !prev[post.id],
+                          }));
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 14, right: 14 }}
+                        style={[
+                          styles.readMoreBtn,
+                          isParaRtl ? styles.readMoreBtnRtl : styles.readMoreBtnLtr,
+                        ]}
+                      >
+                        <Text style={styles.readMoreText}>
+                          {isExpanded ? 'Read less' : 'Read more'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
+
+        {/* Post Attached Media Images: Multi-Image Grid or Single Image */}
+        {post.images && post.images.length > 1 ? (
+          <View style={styles.postMultiImagesContainer}>
+            <ChatImageGrid
+              images={post.images}
+              width={FEED_GRID_WIDTH}
+              borderRadius={0}
+              onImagePress={(tappedIndex) => handleOpenPostImage(post, tappedIndex)}
+              isRTL={isRtl}
+            />
+          </View>
+        ) : post.postImage ? (
+          <TouchableOpacity
+            style={styles.postImageContainer}
+            activeOpacity={0.92}
+            onPress={() => handleOpenPostImage(post, 0)}
+          >
             <Image
               source={typeof post.postImage === 'string' ? { uri: post.postImage } : post.postImage}
               style={styles.postImage}
               resizeMode="cover"
+            />
+          </TouchableOpacity>
+        ) : null}
+
+        {/* Attached Mechanic Preview Card */}
+        {post.specialist && (
+          <View style={styles.postSharedSpecialistWrapper}>
+            <SharedSpecialistCard
+              specialist={post.specialist}
+              isRtl={isRtl}
+              isDarkMode={isDarkMode}
+              onPress={() => onSelectSpecialist && onSelectSpecialist(post.specialist)}
             />
           </View>
         )}
@@ -1783,7 +2529,7 @@ export default function CommunityScreen({
             refreshing={isRefreshing}
             onRefresh={() => {
               setIsRefreshing(true);
-              fetchCloudPosts();
+              fetchCloudPosts(true);
             }}
             tintColor="#003514"
             colors={['#003514']}
@@ -1845,7 +2591,7 @@ export default function CommunityScreen({
         </View>
 
         {/* Loading Indicator */}
-        {isLoading && (
+        {isLoading && !isRefreshing && displayedPosts.length === 0 && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.activeHighlight} />
           </View>
@@ -1884,7 +2630,9 @@ export default function CommunityScreen({
                     const bannerSrc = resolvedBanner
                       ? (typeof resolvedBanner === 'string' ? { uri: resolvedBanner } : resolvedBanner)
                       : require('../../assets/Banner wallpaper.png');
-                    setPreviewImage(bannerSrc);
+                    setViewerImages([bannerSrc]);
+                    setViewerInitialIndex(0);
+                    setViewerVisible(true);
                   }}
                   style={styles.profileBannerContainer}
                 >
@@ -1938,7 +2686,9 @@ export default function CommunityScreen({
                         const avatarSrc = typeof resolvedAvatar === 'string'
                           ? { uri: resolvedAvatar }
                           : resolvedAvatar;
-                        setPreviewImage(avatarSrc);
+                        setViewerImages([avatarSrc]);
+                        setViewerInitialIndex(0);
+                        setViewerVisible(true);
                       }
                     }}
                     style={styles.profileAvatarCircle}
@@ -2010,23 +2760,39 @@ export default function CommunityScreen({
               </View>
             </View>
 
-            {/* My Posts Section */}
-            {userPosts.length === 0 ? (
+            {/* Compact Segmented Control (My posts / Liked posts) */}
+            <ProfileSegmentedControl
+              activeTab={profileSubTab}
+              onTabChange={setProfileSubTab}
+              isRtl={isRtl}
+              isDarkMode={isDarkMode}
+            />
+
+            {/* Posts Feed for Profile */}
+            {activeProfilePosts.length === 0 ? (
               <View style={styles.noPostsCardShadow}>
                 <View style={styles.noPostsCardSurface}>
                   <View style={styles.noPostsIconCircle}>
-                    <Ionicons name="document-text-outline" size={30} color={colors.activeHighlight} />
+                    <Ionicons
+                      name={profileSubTab === 'my_posts' ? 'document-text-outline' : 'heart-outline'}
+                      size={30}
+                      color={colors.activeHighlight}
+                    />
                   </View>
                   <Text style={[styles.noPostsCardTitle, isRtl && styles.noPostsCardTitleRtl]}>
-                    {isRtl ? 'لا توجد منشورات' : 'No posts'}
+                    {profileSubTab === 'my_posts'
+                      ? (isRtl ? 'لا توجد منشورات' : 'No posts')
+                      : (isRtl ? 'لا توجد إعجابات' : 'No liked posts')}
                   </Text>
                   <Text style={[styles.noPostsCardSubtitle, isRtl && styles.noPostsCardSubtitleRtl]}>
-                    {isRtl ? 'لم تقم بنشر أي منشورات بعد' : "You haven't shared any posts yet"}
+                    {profileSubTab === 'my_posts'
+                      ? (isRtl ? 'لم تقم بنشر أي منشورات بعد' : "You haven't shared any posts yet")
+                      : (isRtl ? 'لم تقم بالإعجاب بأي منشورات بعد' : "You haven't liked any posts yet")}
                   </Text>
                 </View>
               </View>
             ) : (
-              userPosts.map((post) =>
+              activeProfilePosts.map((post) =>
                 post.isMarketplace
                   ? renderSearchMarketplaceCard(post)
                   : renderPostCard(post)
@@ -2063,7 +2829,7 @@ export default function CommunityScreen({
             </TouchableOpacity>
 
             {/* Loading Indicator */}
-            {isLoading && (
+            {isLoading && !isRefreshing && displayedPosts.length === 0 && (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={colors.activeHighlight} />
               </View>
@@ -2172,8 +2938,8 @@ export default function CommunityScreen({
         <View style={[styles.headerRow, isRtl && styles.headerRowRtl]}>
           <View style={[styles.logoContainer, isRtl && styles.logoContainerRtl]}>
             <Image
-              source={require('../../assets/logo_green.png')}
-              style={styles.logoImage}
+              source={require('../../assets/logo.png')}
+              style={[styles.logoImage, isRtl && styles.logoImageRtl]}
               resizeMode="contain"
             />
             {isRtl ? (
@@ -2202,7 +2968,7 @@ export default function CommunityScreen({
             <Ionicons name="search-outline" size={28} color={colors.primaryText} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.iconButton, { marginLeft: 14 }]}
+            style={[styles.iconButton, { marginLeft: 14, position: 'relative' }]}
             activeOpacity={0.7}
             onPress={() => setChatsVisible(true)}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -2210,6 +2976,13 @@ export default function CommunityScreen({
             accessibilityLabel="Messages"
           >
             <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.primaryText} />
+            {unreadChatsCount > 0 && (
+              <View style={styles.chatBadgeContainer}>
+                <Text style={styles.chatBadgeText}>
+                  {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -2251,269 +3024,49 @@ export default function CommunityScreen({
         selectedLanguage={selectedLanguage}
         currentUser={currentUser}
         initialUser={chatInitialUser}
+        onOpenProfile={handleOpenUserProfile}
+        onSelectSpecialist={onSelectSpecialist}
+        onUnreadCountChange={(count) => {
+          setUnreadChatsCount(prev => (prev !== count ? count : prev));
+        }}
       />
 
       {/* Dedicated User Profile Page Modal */}
-      <Modal
+      <OtherUserProfileModal
         visible={Boolean(viewingOtherUser)}
-        animationType="fade"
-        transparent={false}
-        statusBarTranslucent={true}
-        onRequestClose={() => {
-          if (previewImage) {
-            setPreviewImage(null);
-          } else {
-            handleCloseOtherUserProfile();
-          }
+        userId={viewingOtherUser?.userId || viewingOtherUser?.id}
+        user={viewingOtherUser}
+        currentUser={currentUser}
+        selectedLanguage={selectedLanguage}
+        onClose={handleCloseOtherUserProfile}
+        onOpenChat={(target) => {
+          handleCloseOtherUserProfile();
+          setChatInitialUser(target);
+          setChatsVisible(true);
         }}
-      >
-        {Boolean(viewingOtherUser) && (
-          <View style={styles.blankPageContainer}>
-            <StatusBar
-              barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-              backgroundColor={colors.screenBg}
-            />
+        onSelectSpecialist={onSelectSpecialist}
+        initialPosts={otherUserPosts}
+      />
 
-            {/* Top Bar Header (Hidden when in image viewing state) */}
-            {!previewImage && (
-              <View style={[styles.otherProfileHeaderRow, { paddingTop: topInset + 6 }, isRtl && styles.otherProfileHeaderRowRtl]}>
-                <TouchableOpacity
-                  onPress={handleCloseOtherUserProfile}
-                  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-                  activeOpacity={0.7}
-                  style={styles.otherProfileBackButton}
-                >
-                  <Ionicons
-                    name={isRtl ? 'arrow-forward' : 'arrow-back'}
-                    size={26}
-                    color={colors.primaryText}
-                  />
-                </TouchableOpacity>
+      {/* Full-Screen Multi-Image Viewer Gallery (Same interface as Chat Messages) */}
+      <ImageViewerModal
+        visible={viewerVisible}
+        images={viewerImages}
+        initialIndex={viewerInitialIndex}
+        onClose={() => setViewerVisible(false)}
+        isRTL={isRtl}
+        asModal={true}
+      />
 
-                <Text style={[styles.otherProfileHeaderTitle, isRtl && styles.otherProfileHeaderTitleRtl]} numberOfLines={1}>
-                  {viewingOtherUser.author}
-                </Text>
-
-                {/* Balance spacer to keep title centered */}
-                <View style={styles.otherProfileHeaderSpacer} />
-              </View>
-            )}
-
-            {/* Scrollable Profile Details & Feed */}
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.otherProfileScrollContent}
-            >
-              {/* Profile Card */}
-              <View style={styles.profileCardShadow}>
-                <View style={styles.profileCardSurface}>
-                  {/* Banner */}
-                  <TouchableOpacity
-                    activeOpacity={0.92}
-                    onPress={() => {
-                      const bannerSrc = viewingOtherUser.banner
-                        ? (typeof viewingOtherUser.banner === 'string' ? { uri: viewingOtherUser.banner } : viewingOtherUser.banner)
-                        : require('../../assets/Banner wallpaper.png');
-                      setPreviewImage(bannerSrc);
-                    }}
-                    style={styles.profileBannerContainer}
-                  >
-                    <Image
-                      source={
-                        viewingOtherUser.banner
-                          ? (typeof viewingOtherUser.banner === 'string' ? { uri: viewingOtherUser.banner } : viewingOtherUser.banner)
-                          : require('../../assets/Banner wallpaper.png')
-                      }
-                      style={styles.profileBannerImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.profileBannerOverlay} />
-                  </TouchableOpacity>
-
-                  {/* Circular Avatar */}
-                  <View style={styles.profileAvatarOuter}>
-                    <TouchableOpacity
-                      activeOpacity={viewingOtherUser.avatar ? 0.85 : 1}
-                      onPress={() => {
-                        if (viewingOtherUser.avatar) {
-                          const avatarSrc = typeof viewingOtherUser.avatar === 'string'
-                            ? { uri: viewingOtherUser.avatar }
-                            : viewingOtherUser.avatar;
-                          setPreviewImage(avatarSrc);
-                        }
-                      }}
-                      style={styles.profileAvatarCircle}
-                    >
-                      {viewingOtherUser.avatar ? (
-                        <Image
-                          source={typeof viewingOtherUser.avatar === 'string' ? { uri: viewingOtherUser.avatar } : viewingOtherUser.avatar}
-                          style={styles.profileAvatarImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.profileAvatarPlaceholder}>
-                          <Ionicons name="person" size={40} color="#FFFFFF" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Name & Handle */}
-                  <View style={styles.profileMetaContainer}>
-                    <Text style={[styles.profileName, isRtl && styles.profileNameRtl]}>
-                      {viewingOtherUser.author}
-                    </Text>
-                    <Text style={[styles.profileHandle, isRtl && styles.profileHandleRtl]}>
-                      {viewingOtherUser.handle}
-                    </Text>
-
-                    {/* Direct Message Button */}
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      style={[styles.otherProfileMessageBtn, isRtl && styles.otherProfileMessageBtnRtl]}
-                      onPress={() => {
-                        const target = viewingOtherUser;
-                        setViewingOtherUser(null);
-                        setChatInitialUser(target);
-                        setChatsVisible(true);
-                      }}
-                    >
-                      <Ionicons
-                        name="chatbubble-ellipses"
-                        size={15}
-                        color="#FFFFFF"
-                        style={isRtl ? { marginLeft: 6 } : { marginRight: 6 }}
-                      />
-                      <Text style={[styles.otherProfileMessageBtnText, isRtl && styles.otherProfileMessageBtnTextRtl]}>
-                        {isRtl ? 'مراسلة' : 'Message'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Stats Row */}
-                  <View style={[styles.profileStatsSeamlessRow, isRtl && styles.profileStatsSeamlessRowRtl]}>
-                    <View style={styles.profileStatItem}>
-                      <Text style={styles.profileStatNumber}>
-                        {otherUserPosts.length}
-                      </Text>
-                      <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
-                        {isRtl ? 'منشورات' : 'Posts'}
-                      </Text>
-                    </View>
-
-                    <View style={styles.profileStatDivider} />
-
-                    <View style={styles.profileStatItem}>
-                      <Text style={styles.profileStatNumber}>
-                        {otherUserLikesCount}
-                      </Text>
-                      <Text style={[styles.profileStatLabel, isRtl && styles.profileStatLabelRtl]}>
-                        {isRtl ? 'إعجابات' : 'Likes'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {/* User Posts Section */}
-              <View style={[styles.otherProfileSectionRow, isRtl && styles.otherProfileSectionRowRtl]}>
-                <Text style={[styles.otherProfileSectionTitle, isRtl && styles.otherProfileSectionTitleRtl]}>
-                  {isRtl ? 'المنشورات' : 'Posts'}
-                </Text>
-                <Text style={styles.otherProfileSectionCount}>
-                  ({otherUserPosts.length})
-                </Text>
-              </View>
-
-              {otherUserPosts.length === 0 ? (
-                <View style={styles.noPostsCardShadow}>
-                  <View style={styles.noPostsCardSurface}>
-                    <View style={styles.noPostsIconCircle}>
-                      <Ionicons name="document-text-outline" size={30} color={colors.activeHighlight} />
-                    </View>
-                    <Text style={[styles.noPostsCardTitle, isRtl && styles.noPostsCardTitleRtl]}>
-                      {isRtl ? 'لا توجد منشورات' : 'No posts'}
-                    </Text>
-                    <Text style={[styles.noPostsCardSubtitle, isRtl && styles.noPostsCardSubtitleRtl]}>
-                      {isRtl ? 'لم يقم هذا المستخدم بنشر أي منشورات بعد' : 'This user has not shared any posts yet'}
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                otherUserPosts.map((post) =>
-                  post.isMarketplace
-                    ? renderSearchMarketplaceCard(post)
-                    : renderPostCard(post)
-                )
-              )}
-            </ScrollView>
-
-            {/* Full-Screen Image Preview overlay inside User Profile Modal */}
-            {Boolean(previewImage) && (
-              <View style={styles.imageViewerAbsoluteOverlay}>
-                <StatusBar barStyle="light-content" backgroundColor="#000000" />
-                <View style={[styles.imageViewerHeader, { paddingTop: topInset + 10 }, isRtl && styles.imageViewerHeaderRtl]}>
-                  <TouchableOpacity
-                    onPress={() => setPreviewImage(null)}
-                    activeOpacity={0.8}
-                    style={styles.imageViewerCloseButton}
-                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-                  >
-                    <Ionicons name="close" size={24} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.imageViewerCenterContainer}
-                  activeOpacity={1}
-                  onPress={() => setPreviewImage(null)}
-                >
-                  <Image
-                    source={previewImage}
-                    style={styles.imageViewerFullImage}
-                    resizeMode="contain"
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-      </Modal>
-
-      {/* Full-Screen Image Preview Modal for main screen (Profile Tab, etc.) */}
-      <Modal
-        visible={Boolean(previewImage && !viewingOtherUser)}
-        animationType="fade"
-        transparent={true}
-        statusBarTranslucent={true}
-        onRequestClose={() => setPreviewImage(null)}
-      >
-        <View style={styles.imageViewerAbsoluteOverlay}>
-          <StatusBar barStyle="light-content" backgroundColor="#000000" />
-          <View style={[styles.imageViewerHeader, { paddingTop: topInset + 10 }, isRtl && styles.imageViewerHeaderRtl]}>
-            <TouchableOpacity
-              onPress={() => setPreviewImage(null)}
-              activeOpacity={0.8}
-              style={styles.imageViewerCloseButton}
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            >
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.imageViewerCenterContainer}
-            activeOpacity={1}
-            onPress={() => setPreviewImage(null)}
-          >
-            <Image
-              source={previewImage}
-              style={styles.imageViewerFullImage}
-              resizeMode="contain"
-            />
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      {/* Interactive Crop & Reposition Preview Modal (Avatar & Banner) */}
+      <ImageCropModal
+        visible={cropConfig.visible}
+        imageUri={cropConfig.uri}
+        cropType={cropConfig.type}
+        onSave={handleSaveCroppedImage}
+        onCancel={() => setCropConfig({ visible: false, uri: null, type: 'avatar' })}
+        isRtl={isRtl}
+      />
 
       {/* Blank White Page Modal on Search Icon Click */}
       <Modal
@@ -2670,7 +3223,8 @@ export default function CommunityScreen({
         onRequestClose={() => {
           setIsCreatePostActive(false);
           setNewPostContent('');
-          setPostImageUri(null);
+          setPostImages([]);
+          setAttachedSpecialist(null);
         }}
       >
         <KeyboardAvoidingView
@@ -2682,7 +3236,8 @@ export default function CommunityScreen({
               onPress={() => {
                 setIsCreatePostActive(false);
                 setNewPostContent('');
-                setPostImageUri(null);
+                setPostImages([]);
+                setAttachedSpecialist(null);
               }}
               hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               activeOpacity={0.7}
@@ -2699,9 +3254,9 @@ export default function CommunityScreen({
               activeOpacity={0.85}
               style={[
                 styles.createPostSubmitButton,
-                (!newPostContent.trim() && !postImageUri || isPosting) && styles.createPostSubmitButtonDisabled,
+                (!newPostContent.trim() && postImages.length === 0 && !attachedSpecialist || isPosting) && styles.createPostSubmitButtonDisabled,
               ]}
-              disabled={isPosting || (!newPostContent.trim() && !postImageUri)}
+              disabled={isPosting || (!newPostContent.trim() && postImages.length === 0 && !attachedSpecialist)}
               onPress={handleCreatePost}
             >
               {isPosting ? (
@@ -2732,17 +3287,57 @@ export default function CommunityScreen({
               textAlignVertical="top"
             />
 
-            {/* Attached Image Preview if selected */}
-            {postImageUri && (
-              <View style={styles.createPostImagePreviewContainer}>
-                <Image source={{ uri: postImageUri }} style={styles.createPostImagePreview} />
-                <TouchableOpacity
-                  style={styles.createPostImageRemoveBtn}
-                  onPress={() => setPostImageUri(null)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            {/* Attached Images Multi-Preview Dock */}
+            {postImages.length > 0 && (
+              <View style={[styles.createPostImagesPreviewDock, isRtl && { flexDirection: 'row-reverse' }]}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[styles.createPostImagesScroll, isRtl && { flexDirection: 'row-reverse' }]}
                 >
-                  <Ionicons name="close" size={16} color="#FFFFFF" />
-                </TouchableOpacity>
+                  {postImages.map((uri, idx) => (
+                    <View key={`post_img_preview_${idx}`} style={styles.createPostThumbItem}>
+                      <Image source={{ uri }} style={styles.createPostThumbImg} resizeMode="cover" />
+                      <TouchableOpacity
+                        style={styles.createPostThumbRemoveBtn}
+                        onPress={() => setPostImages(prev => prev.filter((_, i) => i !== idx))}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="close" size={14} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <View style={styles.createPostThumbBadge}>
+                        <Text style={styles.createPostThumbBadgeText}>{idx + 1}</Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Add more images button */}
+                  <TouchableOpacity
+                    style={styles.createPostAddMoreBtn}
+                    onPress={handlePickPostImage}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add" size={24} color={colors.activeHighlight} />
+                    <Text style={[styles.createPostAddMoreText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
+                      {isRtl ? 'إضافة' : 'Add'}
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Attached Mechanic Card Preview in Composer */}
+            {attachedSpecialist && (
+              <View style={styles.composerSpecialistWrapper}>
+                <SharedSpecialistCard
+                  specialist={attachedSpecialist}
+                  isRtl={isRtl}
+                  isDarkMode={isDarkMode}
+                  showRemoveBtn={true}
+                  onRemove={() => setAttachedSpecialist(null)}
+                  onPress={() => onSelectSpecialist && onSelectSpecialist(attachedSpecialist)}
+                />
               </View>
             )}
           </ScrollView>
@@ -3358,18 +3953,22 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: 28,
     height: 28,
     marginRight: 8,
+    tintColor: '#37633B',
+  },
+  logoImageRtl: {
+    marginRight: 0,
+    marginLeft: 8,
   },
   wordmarkImage: {
     height: 28,
     width: 83,
-    tintColor: colors.primaryText,
+    tintColor: '#37633B',
   },
   brandNameArabic: {
-    fontFamily: 'ZafranArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 38,
     letterSpacing: 0,
-    color: colors.primaryText,
-    marginRight: 8,
+    color: '#37633B',
   },
   spacer: {
     flex: 1,
@@ -3379,6 +3978,33 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chatBadgeContainer: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FF3B30',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.screenBg,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.20,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  chatBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    includeFontPadding: false,
+    lineHeight: 12,
   },
   tabsBar: {
     flexDirection: 'row',
@@ -3407,7 +4033,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '800',
   },
   tabTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   tabIndicator: {
     width: '100%',
@@ -3497,7 +4123,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '500',
   },
   postInputPlaceholderRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     textAlign: 'right',
   },
   postPlusButton: {
@@ -3585,7 +4211,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   postAuthorNameRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   postAuthorHandle: {
     fontSize: 12,
@@ -3594,13 +4220,45 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '500',
   },
   postAuthorHandleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   moreOptionsButton: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  postBodyContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  paragraphRow: {
+    width: '100%',
+  },
+  paragraphRowRtl: {
+    alignItems: 'flex-end',
+  },
+  paragraphRowLtr: {
+    alignItems: 'flex-start',
+  },
+  postParagraph: {
+    width: '100%',
+    fontSize: 14.5,
+    lineHeight: 22,
+    color: colors.primaryText,
+    fontWeight: '600',
+  },
+  postParagraphRtl: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    fontFamily: 'IBMPlexSansArabic-Bold',
+  },
+  postParagraphLtr: {
+    textAlign: 'left',
+    writingDirection: 'ltr',
+  },
+  postParagraphSpacing: {
+    height: 8,
   },
   postBodyText: {
     fontSize: 14.5,
@@ -3611,8 +4269,25 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   postBodyTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     textAlign: 'right',
+  },
+  readMoreBtn: {
+    marginTop: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  readMoreBtnRtl: {
+    alignSelf: 'flex-end',
+  },
+  readMoreBtnLtr: {
+    alignSelf: 'flex-start',
+  },
+  readMoreText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: isDarkMode ? '#A3B0A7' : '#687076',
+    letterSpacing: -0.1,
   },
   postImageContainer: {
     width: '100%',
@@ -3664,7 +4339,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     marginTop: 12,
   },
   emptyTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   emptySubtitle: {
     fontSize: 13,
@@ -3673,7 +4348,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   emptySubtitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   // Profile Summary Card Styles
   profileWrapper: {
@@ -3719,7 +4394,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.2,
   },
   listItemButtonTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 17,
   },
   marketMetaRow: {
@@ -3750,7 +4425,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   marketPriceTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   marketLocationBadge: {
     flexDirection: 'row',
@@ -3768,7 +4443,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.secondaryText,
   },
   marketLocationTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   // Souq 2-Card Grid Styles
   souqGridContainer: {
@@ -3843,7 +4518,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   souqGridPriceRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   souqGridTitle: {
     fontSize: 13,
@@ -3852,7 +4527,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     marginTop: 2,
   },
   souqGridTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   souqGridLocationRow: {
     flexDirection: 'row',
@@ -3868,7 +4543,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.secondaryText,
   },
   souqGridLocationTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   profileCardShadow: {
     width: '100%',
@@ -3933,7 +4608,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '700',
   },
   editBannerTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   profileAvatarOuter: {
     alignSelf: 'center',
@@ -4011,7 +4686,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   profileNameRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   profileHandle: {
     fontSize: 12.5,
@@ -4021,7 +4696,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   profileHandleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   profileStatsSeamlessRow: {
     flexDirection: 'row',
@@ -4052,7 +4727,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.3,
   },
   profileStatLabelRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 12,
   },
   profileStatDivider: {
@@ -4105,7 +4780,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   noPostsCardTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   noPostsCardSubtitle: {
     fontSize: 13,
@@ -4115,7 +4790,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   noPostsCardSubtitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   blankPageContainer: {
     flex: 1,
@@ -4175,7 +4850,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
   searchInputRtl: {
     textAlign: 'right',
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   blankPageTitle: {
     fontSize: 15.5,
@@ -4183,7 +4858,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.primaryText,
   },
   blankPageTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   searchResultsScroll: {
     paddingTop: 12,
@@ -4208,7 +4883,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   searchSectionHeadingRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     textAlign: 'right',
   },
   peopleScrollContent: {
@@ -4279,7 +4954,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: '100%',
   },
   personNameRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   personHandle: {
     fontSize: 11,
@@ -4289,7 +4964,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: '100%',
   },
   personHandleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   searchEmptyContainer: {
     paddingTop: 80,
@@ -4306,7 +4981,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     textAlign: 'center',
   },
   searchEmptyTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   searchEmptySubtitle: {
     fontSize: 13.5,
@@ -4315,7 +4990,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     lineHeight: 19,
   },
   searchEmptySubtitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   searchMarketCardShadow: {
     width: '100%',
@@ -4379,7 +5054,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   searchMarketPriceRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   searchMarketTitle: {
     fontSize: 15,
@@ -4388,7 +5063,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     marginTop: 3,
   },
   searchMarketTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   searchMarketLocationRow: {
     flexDirection: 'row',
@@ -4404,7 +5079,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.secondaryText,
   },
   searchMarketLocationTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   createPostPromptContainer: {
     paddingHorizontal: 20,
@@ -4424,7 +5099,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: '100%',
   },
   createPostInputRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     textAlign: 'right',
   },
   createPostPromptText: {
@@ -4433,7 +5108,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '500',
   },
   createPostPromptTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     textAlign: 'right',
   },
   createPostHeaderRow: {
@@ -4463,7 +5138,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '700',
   },
   createPostSubmitButtonTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   createPostInputScroll: {
     flex: 1,
@@ -4492,7 +5167,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.primaryText,
   },
   createPostBottomBarTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   createPostImageIconBtn: {
     width: 40,
@@ -4528,6 +5203,92 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  postMultiImagesContainer: {
+    width: '100%',
+    marginBottom: 14,
+    borderRadius: 0,
+    overflow: 'hidden',
+  },
+  createPostImagesPreviewDock: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  createPostImagesScroll: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+  },
+  createPostThumbItem: {
+    width: 92,
+    height: 92,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: colors.elevatedBg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  createPostThumbImg: {
+    width: '100%',
+    height: '100%',
+  },
+  createPostThumbRemoveBtn: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0, 0, 0, 0.68)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  createPostThumbBadge: {
+    position: 'absolute',
+    bottom: 5,
+    left: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createPostThumbBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  createPostAddMoreBtn: {
+    width: 92,
+    height: 92,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.cardBorder,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.elevatedBg,
+    gap: 2,
+  },
+  createPostAddMoreText: {
+    color: colors.activeHighlight,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  postSharedSpecialistWrapper: {
+    marginHorizontal: 14,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  composerSpecialistWrapper: {
+    marginTop: 14,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
 
   /* ── Interactive Comments Bottom Sheet Styles ── */
@@ -5135,7 +5896,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     marginHorizontal: 8,
   },
   otherProfileHeaderTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   otherProfileHeaderSpacer: {
     width: 40,
@@ -5166,7 +5927,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.primaryText,
   },
   otherProfileVehicleTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   otherProfileMessageBtn: {
     flexDirection: 'row',
@@ -5187,7 +5948,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     fontWeight: '700',
   },
   otherProfileMessageBtnTextRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   otherProfileSectionRow: {
     flexDirection: 'row',
@@ -5205,7 +5966,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     color: colors.primaryText,
   },
   otherProfileSectionTitleRtl: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   otherProfileSectionCount: {
     fontSize: 14,

@@ -243,7 +243,7 @@ export default function HomeScreen({
                   {plateNumber ? (
                     <View style={styles.plateBadge}>
                       <View style={styles.plateBadgeHeader}>
-                        <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                        <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                           {isRtl ? 'مصر' : 'EGYPT'}
                         </Text>
                       </View>
@@ -600,7 +600,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     width: 142,
   },
   brandNameArabic: {
-    fontFamily: 'ZafranArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 82,
     letterSpacing: 0,
     marginTop: -5,
@@ -613,7 +613,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   greetingTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
@@ -668,7 +668,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.8,
   },
   activeVehicleTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 10.5,
     letterSpacing: 0,
   },
@@ -701,7 +701,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     lineHeight: 12,
   },
   brandNameTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
@@ -718,7 +718,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     marginBottom: 5,
   },
   modelNameTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 21,
     letterSpacing: 0,
     textAlign: 'center',
@@ -734,7 +734,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     lineHeight: 12,
   },
   yearTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
@@ -921,7 +921,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.2,
   },
   miniCardTitleArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 16.5,
     letterSpacing: 0,
     textAlign: 'right',
@@ -934,7 +934,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     marginTop: 2,
   },
   miniCardSubtitleArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 10,
     letterSpacing: 0,
     textAlign: 'right',
@@ -1022,7 +1022,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.8,
   },
   constructionSignTextArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 10.5,
     letterSpacing: 0,
   },

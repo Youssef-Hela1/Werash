@@ -19,7 +19,7 @@ const renderTextWithSystemNumbers = (text, isRtl, baseStyle, rtlFontSize) => {
         return (
           <Text 
             key={index} 
-            style={isDigit ? { fontSize: rtlFontSize } : { fontFamily: 'AlkhalilArabic-Bold', fontSize: rtlFontSize }}
+            style={isDigit ? { fontSize: rtlFontSize } : { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: rtlFontSize }}
           >
             {part}
           </Text>
@@ -69,7 +69,7 @@ export default function QuickServicesGrid({ onNavigate, selectedLanguage }) {
 
   return (
     <View style={[styles.container, isRtl && { marginTop: 0 }]}>
-      <Text style={[styles.sectionHeader, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }, isRtl && { textAlign: 'right' }]}>{sectionTitle}</Text>
+      <Text style={[styles.sectionHeader, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 15.0 }, isRtl && { textAlign: 'right' }]}>{sectionTitle}</Text>
       
       <View style={[styles.grid, isRtl && { flexDirection: 'row-reverse' }]}>
         {services.map((service) => (
@@ -109,7 +109,7 @@ export default function QuickServicesGrid({ onNavigate, selectedLanguage }) {
 
             {/* Labels Section */}
             <View style={{ marginTop: 2 }}>
-              <Text style={[styles.cardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }, isRtl && { textAlign: 'right' }]}>{service.title}</Text>
+              <Text style={[styles.cardTitle, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.0 }, isRtl && { textAlign: 'right' }]}>{service.title}</Text>
               {renderTextWithSystemNumbers(service.subtitle, isRtl, styles.cardSubtitle, 11.0)}
             </View>
 

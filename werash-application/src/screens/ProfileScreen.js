@@ -5,6 +5,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toByteArray } from 'base64-js';
+import ImageCropModal from '../components/ImageCropModal';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
 
@@ -25,7 +28,9 @@ export default function ProfileScreen({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [avatar, setAvatar] = useState(null);
+  const [avatarBase64, setAvatarBase64] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [cropConfig, setCropConfig] = useState({ visible: false, uri: null });
 
   // Sync inputs with user data
   useEffect(() => {
@@ -54,15 +59,15 @@ export default function ProfileScreen({
         }
       }
 
-      // Launch image picker without heavy cropping activity for instant selection
+      // Launch image picker without native cropping; crop & reposition preview opens next
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.6,
+        quality: 1.0,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setAvatar(result.assets[0].uri);
+        setCropConfig({ visible: true, uri: result.assets[0].uri });
       }
     } catch (err) {
       console.warn('pickImage error:', err);
@@ -95,28 +100,53 @@ export default function ProfileScreen({
       avatar &&
       currentUser?.id &&
       typeof avatar === 'string' &&
-      (avatar.startsWith('file:') || avatar.startsWith('content:') || avatar.startsWith('blob:'))
+      (avatar.startsWith('file:') || avatar.startsWith('content:') || avatar.startsWith('blob:') || avatarBase64)
     ) {
       try {
-        const response = await fetch(avatar);
-        const blob = await response.blob();
-        const ext = avatar.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
-        const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-        const fileName = `${currentUser.id}/avatar_${Date.now()}.${ext}`;
+        let authUserId = currentUser.id;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) {
+            authUserId = session.user.id;
+          }
+        } catch (_) {}
 
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from('community-media')
-          .upload(fileName, blob, {
-            contentType,
-            upsert: true,
-          });
+        let uploadBody = null;
+        if (avatarBase64) {
+          try {
+            uploadBody = toByteArray(avatarBase64);
+          } catch (e) {
+            console.warn('Failed converting base64 in ProfileScreen:', e);
+          }
+        }
+        if (!uploadBody) {
+          try {
+            const response = await fetch(avatar);
+            uploadBody = await response.blob();
+          } catch (fetchErr) {
+            console.warn('fetch blob failed in ProfileScreen:', fetchErr);
+          }
+        }
 
-        if (!uploadErr && uploadData) {
-          const { data: publicData } = supabase.storage
+        if (uploadBody && authUserId) {
+          const fileName = `${authUserId}/avatar_${Date.now()}.jpg`;
+
+          const { data: uploadData, error: uploadErr } = await supabase.storage
             .from('community-media')
-            .getPublicUrl(fileName);
-          if (publicData?.publicUrl) {
-            finalAvatarUrl = publicData.publicUrl;
+            .upload(fileName, uploadBody, {
+              contentType: 'image/jpeg',
+              upsert: true,
+            });
+
+          if (!uploadErr && uploadData) {
+            const { data: publicData } = supabase.storage
+              .from('community-media')
+              .getPublicUrl(fileName);
+            if (publicData?.publicUrl) {
+              finalAvatarUrl = publicData.publicUrl;
+            }
+          } else if (uploadErr) {
+            console.warn('Storage upload error in ProfileScreen:', uploadErr.message || uploadErr);
           }
         }
       } catch (err) {
@@ -124,12 +154,14 @@ export default function ProfileScreen({
       }
     }
 
-    // Sync to Supabase profiles table, Auth metadata, and conversation participants
+    // Sync to Supabase profiles table, Auth metadata, community_posts, and conversations
     if (currentUser?.id) {
       try {
+        const targetId = currentUser.id;
         const updates = {
           full_name: fullName.trim(),
           phone: phone.trim(),
+          updated_at: new Date().toISOString(),
         };
         if (finalAvatarUrl && finalAvatarUrl.startsWith('http')) {
           updates.avatar_url = finalAvatarUrl;
@@ -138,7 +170,7 @@ export default function ProfileScreen({
         await supabase
           .from('profiles')
           .update(updates)
-          .eq('id', currentUser.id);
+          .eq('id', targetId);
 
         const authData = {
           full_name: fullName.trim(),
@@ -155,12 +187,29 @@ export default function ProfileScreen({
           await supabase
             .from('conversations')
             .update({ participant_1_avatar: finalAvatarUrl })
-            .eq('participant_1', currentUser.id);
+            .eq('participant_1', targetId);
 
           await supabase
             .from('conversations')
             .update({ participant_2_avatar: finalAvatarUrl })
-            .eq('participant_2', currentUser.id);
+            .eq('participant_2', targetId);
+
+          await supabase
+            .from('community_posts')
+            .update({ author_avatar: finalAvatarUrl })
+            .eq('user_id', targetId);
+
+          if (fullName.trim()) {
+            await supabase
+              .from('community_posts')
+              .update({ author_avatar: finalAvatarUrl })
+              .eq('author_name', fullName.trim());
+          }
+
+          try {
+            await AsyncStorage.setItem(`@werash_user_avatar_${targetId}`, finalAvatarUrl);
+            await AsyncStorage.setItem(`@werash_user_avatar_ts_${targetId}`, String(Date.now()));
+          } catch (_) {}
         }
       } catch (err) {
         console.warn('Error syncing profile update to Supabase:', err);
@@ -200,14 +249,14 @@ export default function ProfileScreen({
           <TouchableOpacity style={styles.backButton} onPress={onClose} activeOpacity={0.7}>
             <Ionicons name={isRtl ? "arrow-forward" : "arrow-back"} size={22} color={colors.textDark} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 18.0 }]}>
+          <Text style={[styles.headerTitle, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 18.0 }]}>
             {isRtl ? 'تعديل الملف الشخصي' : 'Edit Profile'}
           </Text>
           <TouchableOpacity style={styles.saveHeaderBtn} onPress={handleSave} activeOpacity={0.7} disabled={isSaving}>
             {isSaving ? (
               <ActivityIndicator size="small" color={colors.bgBrand} />
             ) : (
-              <Text style={[styles.saveHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
+              <Text style={[styles.saveHeaderText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.0 }]}>
                 {isRtl ? 'حفظ' : 'Save'}
               </Text>
             )}
@@ -218,10 +267,10 @@ export default function ProfileScreen({
           /* Guest state handler */
           <View style={styles.guestContainer}>
             <Ionicons name="person-circle-outline" size={80} color={colors.textMuted} />
-            <Text style={[styles.guestTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 18.0 }]}>
+            <Text style={[styles.guestTitle, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 18.0 }]}>
               {isRtl ? 'تعديل الملف الشخصي غير متاح' : 'Profile Edit Unavailable'}
             </Text>
-            <Text style={[styles.guestSubtitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 13.0 }]}>
+            <Text style={[styles.guestSubtitle, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 13.0 }]}>
               {isRtl ? 'الرجاء تسجيل الدخول لحسابك لتعديل تفاصيلك الشخصية.' : 'Please sign in to your account to modify your personal details.'}
             </Text>
             <TouchableOpacity
@@ -232,7 +281,7 @@ export default function ProfileScreen({
                 onOpenSignIn && onOpenSignIn();
               }}
             >
-              <Text style={[styles.signInButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }]}>
+              <Text style={[styles.signInButtonText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 15.0 }]}>
                 {isRtl ? 'تسجيل الدخول' : 'Sign In'}
               </Text>
             </TouchableOpacity>
@@ -257,7 +306,7 @@ export default function ProfileScreen({
                   <Ionicons name="camera" size={16} color={colors.white} />
                 </View>
               </TouchableOpacity>
-              <Text style={[styles.avatarTipText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+              <Text style={[styles.avatarTipText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5 }]}>
                 {isRtl ? 'اضغط لتغيير الصورة الشخصية' : 'Tap badge to update photo'}
               </Text>
             </View>
@@ -266,7 +315,7 @@ export default function ProfileScreen({
             <View style={styles.formGroup}>
               {/* Full Name */}
               <View style={[styles.inputWrapper, isRtl && { alignItems: 'flex-end' }]}>
-                <Text style={[styles.inputLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+                <Text style={[styles.inputLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5 }]}>
                   {isRtl ? 'الاسم الكامل' : 'FULL NAME'}
                 </Text>
                 <View style={[styles.textInputContainer, isRtl && { flexDirection: 'row-reverse' }]}>
@@ -283,7 +332,7 @@ export default function ProfileScreen({
 
               {/* Email Address */}
               <View style={[styles.inputWrapper, isRtl && { alignItems: 'flex-end' }]}>
-                <Text style={[styles.inputLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+                <Text style={[styles.inputLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5 }]}>
                   {isRtl ? 'البريد الإلكتروني' : 'EMAIL ADDRESS'}
                 </Text>
                 <View style={[styles.textInputContainer, isRtl && { flexDirection: 'row-reverse' }]}>
@@ -302,7 +351,7 @@ export default function ProfileScreen({
 
               {/* Phone Number */}
               <View style={[styles.inputWrapper, isRtl && { alignItems: 'flex-end' }]}>
-                <Text style={[styles.inputLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>
+                <Text style={[styles.inputLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5 }]}>
                   {isRtl ? 'رقم الهاتف' : 'PHONE NUMBER'}
                 </Text>
                 <View style={[styles.textInputContainer, isRtl && { flexDirection: 'row-reverse' }]}>
@@ -322,7 +371,7 @@ export default function ProfileScreen({
             {/* Bottom Actions Buttons */}
             <View style={[styles.bottomActions, isRtl && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity style={styles.cancelButton} activeOpacity={0.7} onPress={onClose} disabled={isSaving}>
-                <Text style={[styles.cancelButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
+                <Text style={[styles.cancelButtonText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.0 }]}>
                   {isRtl ? 'إلغاء' : 'Cancel'}
                 </Text>
               </TouchableOpacity>
@@ -330,7 +379,7 @@ export default function ProfileScreen({
                 {isSaving ? (
                   <ActivityIndicator size="small" color={colors.white} />
                 ) : (
-                  <Text style={[styles.saveButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0 }]}>
+                  <Text style={[styles.saveButtonText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.0 }]}>
                     {isRtl ? 'حفظ التغييرات' : 'Save Changes'}
                   </Text>
                 )}
@@ -339,6 +388,20 @@ export default function ProfileScreen({
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      {/* Interactive Crop & Reposition Preview Modal */}
+      <ImageCropModal
+        visible={cropConfig.visible}
+        imageUri={cropConfig.uri}
+        cropType="avatar"
+        onSave={(croppedUri, cropResult) => {
+          setCropConfig({ visible: false, uri: null });
+          setAvatar(croppedUri);
+          setAvatarBase64(cropResult?.base64 || null);
+        }}
+        onCancel={() => setCropConfig({ visible: false, uri: null })}
+        isRtl={isRtl}
+      />
     </Modal>
   );
 }

@@ -193,7 +193,7 @@ const renderTextWithSystemNumbers = (text, isRtl, baseStyle, rtlFontSize) => {
         return (
           <Text 
             key={index} 
-            style={isDigit ? { fontSize: rtlFontSize } : { fontFamily: 'AlkhalilArabic-Bold', fontSize: rtlFontSize }}
+            style={isDigit ? { fontSize: rtlFontSize } : { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: rtlFontSize }}
           >
             {part}
           </Text>
@@ -2201,7 +2201,7 @@ export default function GarageScreen({
             <Text style={[
               styles.vehicleFilterText, 
               cardMode === 'services' ? styles.vehicleFilterTextActive : styles.vehicleFilterTextUnselected,
-              isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
+              isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
             ]}>
               {t.serviceStatusTab}
             </Text>
@@ -2221,7 +2221,7 @@ export default function GarageScreen({
             <Text style={[
               styles.vehicleFilterText, 
               cardMode === 'logbook' ? styles.vehicleFilterTextActive : styles.vehicleFilterTextUnselected,
-              isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
+              isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5, letterSpacing: 0 }
             ]}>
               {t.logBookTab}
             </Text>
@@ -2323,7 +2323,7 @@ export default function GarageScreen({
                       <Text
                         style={[
                           { fontSize: 15, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.2 },
-                          isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 16, lineHeight: 21, textAlign: 'right' }
+                          isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 16, lineHeight: 21, textAlign: 'right' }
                         ]}
                       >
                         {selectedLanguage === 'Arabic' ? 'إعداد الصيانة والمسافات' : 'Setup Service & Mileage'}
@@ -2377,7 +2377,7 @@ export default function GarageScreen({
                       color={colors.bgBrand} 
                       style={isRtl ? { marginLeft: 8 } : { marginRight: 8 }} 
                     />
-                    <Text style={[styles.statusCardTitle, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0, lineHeight: 19 }]}>
+                    <Text style={[styles.statusCardTitle, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 15.0, lineHeight: 19 }]}>
                       {cardMode === 'services' 
                         ? (selectedLanguage === 'Arabic' ? "إحصائيات وحالة\nالصيانة" : "Service & Mileage\nStatus")
                         : (selectedLanguage === 'Arabic' ? "ملاحظاتي" : "My Notes")}
@@ -2391,7 +2391,7 @@ export default function GarageScreen({
                       {/* Main Readout: Odometer & Edit Button */}
                       <View style={[styles.mainReadoutContainer, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, isRtl && { flexDirection: 'row-reverse' }]}>
                         <View style={[isRtl && { alignItems: 'flex-end' }]}>
-                          <Text style={[styles.readoutLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5, lineHeight: 15 }, isRtl && { textAlign: 'right' }]}>{t.odometer}</Text>
+                          <Text style={[styles.readoutLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5, lineHeight: 15 }, isRtl && { textAlign: 'right' }]}>{t.odometer}</Text>
                           {renderTextWithSystemNumbers(data.odoStr, isRtl, styles.readoutValue, 20.0)}
                         </View>
                         
@@ -2401,7 +2401,7 @@ export default function GarageScreen({
                           activeOpacity={0.7}
                         >
                           <Ionicons name="create-outline" size={15} color={colors.bgBrand} style={isRtl ? { marginLeft: 3 } : { marginRight: 3 }} />
-                          <Text style={[styles.statusEditButtonText, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.0, lineHeight: 17 }]}>{selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}</Text>
+                          <Text style={[styles.statusEditButtonText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.0, lineHeight: 17 }]}>{selectedLanguage === 'Arabic' ? 'تعديل' : 'Edit'}</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -2423,7 +2423,7 @@ export default function GarageScreen({
                                 <View style={[styles.serviceCardIconWrap, { backgroundColor: item.statusColor + '12' }]}>
                                   <Ionicons name={item.icon} size={15} color={item.statusColor} />
                                 </View>
-                                <Text style={[styles.serviceCardTitleText, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 14.2, lineHeight: 18 }]}>
+                                <Text style={[styles.serviceCardTitleText, isRtl ? { marginRight: 10, marginLeft: 0 } : { marginLeft: 10 }, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.2, lineHeight: 18 }]}>
                                   {item.label}
                                 </Text>
                               </View>
@@ -2439,7 +2439,7 @@ export default function GarageScreen({
                               <View style={[styles.serviceCardStatsGrid, isRtl && { flexDirection: 'row-reverse' }]}>
                                 {/* Last Service Box */}
                                 <View style={[styles.serviceStatBox, styles.serviceStatBoxLeft, isRtl && { alignItems: 'flex-end' }]}>
-                                  <Text style={[styles.serviceStatBoxLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'right' }]}>
+                                  <Text style={[styles.serviceStatBoxLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'right' }]}>
                                     {isRtl ? 'آخر صيانة' : 'LAST SERVICE'}
                                   </Text>
                                   {renderTextWithSystemNumbers(item.lastServiceStr, isRtl, styles.serviceStatBoxValue, 13.0)}
@@ -2452,7 +2452,7 @@ export default function GarageScreen({
                                   { backgroundColor: item.statusColor + '08', borderColor: item.statusColor + '18' },
                                   isRtl ? { alignItems: 'flex-start' } : { alignItems: 'flex-end' }
                                 ]}>
-                                  <Text style={[styles.serviceStatBoxLabel, { color: item.statusColor }, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'left' }]}>
+                                  <Text style={[styles.serviceStatBoxLabel, { color: item.statusColor }, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 10.0, lineHeight: 13 }, isRtl && { textAlign: 'left' }]}>
                                     {isRtl ? 'مستحق عند' : 'DUE AT'}
                                   </Text>
                                   {renderTextWithSystemNumbers(
@@ -3864,7 +3864,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     elevation: 2,
   },
   guestTitle: {
-    fontFamily: 'GuiltyTreasure',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 22,
     color: colors.bgBrand,
     letterSpacing: 0.5,
@@ -3900,7 +3900,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 2,
   },
   bannerTitle: {
-    fontFamily: 'GuiltyTreasure',
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 26,
     color: colors.bgBrand,
     letterSpacing: 0.5,
@@ -3996,7 +3996,7 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
     borderBottomColor: 'rgba(77, 110, 79, 0.08)',
   },
   modalTitle: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 18,
     color: colors.bgBrand,
   },
@@ -6035,10 +6035,10 @@ const createStyles = (colors, isDarkMode) => StyleSheet.create({
   },
 
   arabicBoldText: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
   },
   arabicRegularText: {
-    fontFamily: 'AlkhalilArabic-Regular',
+    fontFamily: 'IBMPlexSansArabic-Regular',
   },
 
 });

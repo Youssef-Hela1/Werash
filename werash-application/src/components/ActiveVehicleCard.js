@@ -163,7 +163,7 @@ export default function ActiveVehicleCard({
               color={colors.bgBrand} 
               style={isRtl ? { marginLeft: 4 } : { marginRight: 4 }} 
             />
-            <Text style={[styles.headerLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 10 }]}>
+            <Text style={[styles.headerLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 10 }]}>
               {labelActiveVehicle}
             </Text>
           </View>
@@ -186,7 +186,7 @@ export default function ActiveVehicleCard({
         <View pointerEvents="none" style={styles.verticalDetailsSection}>
           {!hasVehicle ? (
             <>
-              <Text style={[styles.verticalNoVehicleText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]} numberOfLines={2}>
+              <Text style={[styles.verticalNoVehicleText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]} numberOfLines={2}>
                 {isGuest ? labelNoVehicle : (isRtl ? 'أضف مركبة إلى ورشتك' : 'Add a vehicle to your Warsha')}
               </Text>
               <Text style={styles.verticalNoVehicleSubtext} numberOfLines={1}>
@@ -196,7 +196,7 @@ export default function ActiveVehicleCard({
           ) : (
             <>
               {/* Brand name in smaller text */}
-              <Text style={[styles.verticalBrandName, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]} numberOfLines={1}>
+              <Text style={[styles.verticalBrandName, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]} numberOfLines={1}>
                 {carBrand}
               </Text>
 
@@ -206,7 +206,7 @@ export default function ActiveVehicleCard({
               </Text>
 
               {/* Model year below model name */}
-              <Text style={[styles.verticalModelYear, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+              <Text style={[styles.verticalModelYear, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                 {labelModel}
               </Text>
               
@@ -215,7 +215,7 @@ export default function ActiveVehicleCard({
                 <View style={styles.verticalPlateWrapper}>
                   <View style={styles.plateBadge}>
                     <View style={styles.plateBadgeHeader}>
-                      <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                      <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                         {isRtl ? 'مصر' : 'EGYPT'}
                       </Text>
                     </View>
@@ -313,7 +313,7 @@ export default function ActiveVehicleCard({
             color={colors.bgBrand} 
             style={[styles.headerIcon, isRtl ? { marginLeft: 6, marginRight: 0 } : { marginRight: 6 }]} 
           />
-          <Text style={[styles.headerLabel, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 11.5 }]}>{labelActiveVehicle}</Text>
+          <Text style={[styles.headerLabel, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 11.5 }]}>{labelActiveVehicle}</Text>
         </View>
       </View>
 
@@ -341,7 +341,7 @@ export default function ActiveVehicleCard({
                   {plateNumber ? (
                     <View style={styles.plateBadge}>
                       <View style={styles.plateBadgeHeader}>
-                        <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'AlkhalilArabic-Bold' }]}>
+                        <Text style={[styles.plateBadgeHeaderText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold' }]}>
                           {isRtl ? 'مصر' : 'EGYPT'}
                         </Text>
                       </View>

@@ -14,6 +14,7 @@ import {
   Platform,
   BackHandler,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -347,6 +348,7 @@ export default function ImageViewerModal({
   initialIndex = 0,
   onClose,
   isRTL = false,
+  asModal = false,
 }) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
@@ -393,7 +395,7 @@ export default function ImageViewerModal({
     Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 20
   ) + 10;
 
-  return (
+  const content = (
     <View style={styles.modalOverlay}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
@@ -462,6 +464,22 @@ export default function ImageViewerModal({
       />
     </View>
   );
+
+  if (asModal) {
+    return (
+      <Modal
+        visible={visible}
+        transparent={true}
+        statusBarTranslucent={true}
+        animationType="fade"
+        onRequestClose={onClose}
+      >
+        {content}
+      </Modal>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({

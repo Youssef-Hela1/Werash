@@ -205,7 +205,7 @@ export default function SpecialistSpotlight({ onNavigate, selectedLanguage, onSe
       {/* Spotlight Header Row */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={[styles.sectionMain, isRtl && { fontFamily: 'AlkhalilArabic-Bold', fontSize: 15.0 }, false]}>{labelSpotlight}</Text>
+          <Text style={[styles.sectionMain, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 15.0 }, false]}>{labelSpotlight}</Text>
         </View>
       </View>
 
@@ -379,7 +379,7 @@ const createStyles = (colors) => StyleSheet.create({
     textAlign: 'center',
   },
   adBottomTitleArabic: {
-    fontFamily: 'AlkhalilArabic-Bold',
+    fontFamily: 'IBMPlexSansArabic-Bold',
     fontSize: 11,
     letterSpacing: 0,
     textAlign: 'center',
