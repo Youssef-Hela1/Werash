@@ -338,17 +338,18 @@ function AppContent() {
     'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
 
     // Backward compatibility aliases mapped to new fonts
-    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
-    'IBMPlexSansArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
-    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
-    'IBMPlexSansArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
-    'IBMPlexSansArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
-    'PlusJakartaSans-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
-    'PlusJakartaSans-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
+    'AlkhalilArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'AlkhalilArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    'ZafranArabic-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'ZafranArabic-Regular': require('./assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    'ZafranArabic-Black': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'GuiltyTreasure': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
     'Fastup-Regular': require('./assets/fonts/PlusJakartaSans-Regular.ttf'),
+    'Fastup-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
     'Airstrike-Bold': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
     'Airstrike-Regular': require('./assets/fonts/PlusJakartaSans-Regular.ttf'),
     'Janna-Bold': require('./assets/fonts/IBMPlexSansArabic-Bold.ttf'),
+    'OriginalBurger': require('./assets/fonts/PlusJakartaSans-Bold.ttf'),
 
     // Preserved handwriting fonts for Notes section
     'Caveat-Regular': require('./assets/fonts/Caveat-Regular.ttf'),
@@ -711,26 +712,37 @@ function AppContent() {
     };
   }, [currentUser?.id]);
 
-  // Push Notifications: Register device token and handle notification banner tap
+  // Push Notifications: Register device token and handle notification banner tap safely
   useEffect(() => {
-    if (currentUser?.id) {
-      registerForPushNotificationsAsync(currentUser.id);
+    let responseSubscription = null;
+    try {
+      if (currentUser?.id) {
+        registerForPushNotificationsAsync(currentUser.id).catch(() => {});
+      }
+
+      responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+        try {
+          const data = response?.notification?.request?.content?.data;
+          if (data && (data.conversationId || data.senderId)) {
+            setChatInitialUser({
+              conversationId: data.conversationId || null,
+              userId: data.senderId || null,
+              name: data.senderName || null,
+            });
+            setChatsVisible(true);
+          }
+        } catch (_) {}
+      });
+    } catch (e) {
+      console.warn('[App] Push notifications listener note:', e?.message);
     }
 
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response?.notification?.request?.content?.data;
-      if (data && (data.conversationId || data.senderId)) {
-        setChatInitialUser({
-          conversationId: data.conversationId || null,
-          userId: data.senderId || null,
-          name: data.senderName || null,
-        });
-        setChatsVisible(true);
-      }
-    });
-
     return () => {
-      responseSubscription.remove();
+      try {
+        if (responseSubscription) {
+          responseSubscription.remove();
+        }
+      } catch (_) {}
     };
   }, [currentUser?.id]);
 

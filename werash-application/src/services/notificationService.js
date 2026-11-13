@@ -4,14 +4,18 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
-// Configure foreground notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Configure foreground notification behavior safely
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (e) {
+  console.warn('[NotificationService] setNotificationHandler note:', e?.message);
+}
 
 const EXPO_PROJECT_ID = '5feaa8e4-c7b3-4ae8-86b2-dac97e3c9fed';
 const PUSH_TOKEN_CACHE_KEY = '@werash_cached_push_token';
