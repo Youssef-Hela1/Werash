@@ -58,6 +58,7 @@ export default function Header({
   onSelectLanguage,
   onOpenSettings,
   onOpenChats,
+  onOpenNotifications,
   unreadChatsCount: propUnreadChatsCount,
 }) {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
@@ -83,7 +84,7 @@ export default function Header({
     return currentUser.fullName.trim().split(/\s+/)[0];
   };
 
-  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community' || currentTab === 'home') {
+  if (currentTab === 'mechanics' || currentTab === 'garage' || currentTab === 'more' || currentTab === 'community' || currentTab === 'home' || currentTab === 'notifications') {
     return (
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <SignInScreen 
@@ -182,7 +183,11 @@ export default function Header({
               activeOpacity={0.8} 
               onPress={() => {
                 if (currentUser) {
-                  setNotificationsVisible(true);
+                  if (onOpenNotifications) {
+                    onOpenNotifications();
+                  } else {
+                    setNotificationsVisible(true);
+                  }
                 } else {
                   onSetSignInVisible(true);
                 }

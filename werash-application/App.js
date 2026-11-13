@@ -12,6 +12,7 @@ import BottomNavBar from './src/components/BottomNavBar';
 import SpecialistDetailModal from './src/components/SpecialistDetailModal';
 import AdDetailModal from './src/components/AdDetailModal';
 import NotificationsModal from './src/components/NotificationsModal';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 import ChatsModal from './src/components/ChatsModal';
 import ChatRecipientPickerModal from './src/components/ChatRecipientPickerModal';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -224,37 +225,64 @@ function AppContent() {
   const [notifications, setNotifications] = useState([
     {
       id: 'n1',
-      type: 'maintenance',
-      title: 'Service Due Alert',
-      titleAr: 'تنبيه موعد الصيانة',
-      body: 'Your Hyundai Coupe is due for Engine Oil replacement in 350 km.',
-      bodyAr: 'سيارتك هيونداي كوبيه مستحقة لتغيير زيت المحرك خلال 350 كم.',
-      date: '2 hours ago',
-      dateAr: 'منذ ساعتين',
-      read: false
+      type: 'message',
+      title: 'New message',
+      titleAr: 'رسالة جديدة',
+      body: 'Ahmed sent you a message about your post.',
+      bodyAr: 'أرسل لك أحمد رسالة بخصوص منشورك.',
+      date: '5 min ago',
+      dateAr: 'منذ 5 دقائق',
+      read: false,
+      section: 'today',
     },
     {
       id: 'n2',
-      type: 'message',
-      title: 'New Message',
-      titleAr: 'رسالة جديدة',
-      body: 'Samir Fahmy sent you a message: "Is the price negotiable for the BBS LM rims?"',
-      bodyAr: 'سمير فهمي أرسل لك رسالة: "هل السعر قابل للتفاوض لجنوط BBS LM؟"',
-      date: '1 day ago',
-      dateAr: 'منذ يوم',
-      read: false
+      type: 'reply',
+      title: 'New reply',
+      titleAr: 'رد جديد',
+      body: 'Omar replied to your question in Community.',
+      bodyAr: 'رد عمر على سؤالك في المجتمع.',
+      date: '24 min ago',
+      dateAr: 'منذ 24 دقيقة',
+      read: false,
+      section: 'today',
     },
     {
       id: 'n3',
-      type: 'offer',
-      title: 'Exclusive Offer',
-      titleAr: 'عرض حصري',
-      body: 'Specialist Elena offered a 15% discount on computerized diagnostics today.',
-      bodyAr: 'الأخصائية إيلينا قدمت خصماً بقيمة 15% على الفحص بالكمبيوتر اليوم.',
-      date: '2 days ago',
-      dateAr: 'منذ يومين',
-      read: false
-    }
+      type: 'service',
+      title: 'Service reminder',
+      titleAr: 'تذكير بالصيانة',
+      body: 'Check your saved engine oil service details.',
+      bodyAr: 'تحقق من تفاصيل صيانة زيت المحرك المحفوظة.',
+      date: '1 hr ago',
+      dateAr: 'منذ ساعة',
+      read: false,
+      section: 'today',
+    },
+    {
+      id: 'n4',
+      type: 'welcome',
+      title: 'Welcome to WERASH',
+      titleAr: 'مرحباً بك في ورش',
+      body: 'Your garage, specialists, and community in one place.',
+      bodyAr: 'كراجك، الفنيين، والمجتمع في مكان واحد.',
+      date: 'Yesterday',
+      dateAr: 'أمس',
+      read: true,
+      section: 'earlier',
+    },
+    {
+      id: 'n5',
+      type: 'profile',
+      title: 'Profile updated',
+      titleAr: 'تم تحديث الملف الشخصي',
+      body: 'Your profile changes have been saved.',
+      bodyAr: 'تم حفظ تغييرات ملفك الشخصي بنجاح.',
+      date: 'Yesterday',
+      dateAr: 'أمس',
+      read: true,
+      section: 'earlier',
+    },
   ]);
   const [communityScrollTrigger, setCommunityScrollTrigger] = useState(0);
   const [splashFinished, setSplashFinished] = useState(false);
@@ -746,6 +774,31 @@ function AppContent() {
     };
   }, [currentUser?.id]);
 
+  // Restore persisted read notifications state from storage
+  useEffect(() => {
+    const loadReadStatus = async () => {
+      try {
+        const storageKey = currentUser?.id
+          ? `@werash_notifications_read_ids_${currentUser.id}`
+          : '@werash_notifications_read_ids_guest';
+        const raw = await AsyncStorage.getItem(storageKey);
+        if (raw) {
+          const readIds = JSON.parse(raw);
+          if (Array.isArray(readIds)) {
+            const readSet = new Set(readIds);
+            setNotifications((prev) =>
+              prev.map((item) => ({
+                ...item,
+                read: readSet.has(item.id) ? true : item.read,
+              }))
+            );
+          }
+        }
+      } catch (_) {}
+    };
+    loadReadStatus();
+  }, [currentUser?.id]);
+
   const handleNavigate = (tab, targetSpecialistId = null) => {
     homeTranslateY.setValue(0);
     isHomeAtTopRef.current = true;
@@ -867,6 +920,17 @@ function AppContent() {
             unreadChatsCount={unreadChatsCount}
           />
         );
+      case 'notifications':
+        return (
+          <NotificationsScreen 
+            currentUser={currentUser}
+            selectedLanguage={selectedLanguage}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            onBack={() => setCurrentTab('home')}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'more':
         return (
           <SettingsScreen 
@@ -890,7 +954,7 @@ function AppContent() {
   };
 
   return (
-    <View style={[styles.appContainer, (currentTab === 'home' || currentTab === 'more') && { backgroundColor: '#FFFFFF' }]}>
+    <View style={[styles.appContainer, (currentTab === 'home' || currentTab === 'more' || currentTab === 'notifications') && { backgroundColor: '#FFFFFF' }]}>
       {/* Animated Main Content Container (Moves Header + Home Content together on bounce) */}
       <Animated.View 
         style={styles.mainContentContainer}
@@ -906,6 +970,7 @@ function AppContent() {
           onSelectLanguage={handleSelectLanguage}
           onOpenSettings={() => setCurrentTab('more')}
           onOpenChats={() => setChatsVisible(true)}
+          onOpenNotifications={() => setCurrentTab('notifications')}
           unreadChatsCount={unreadChatsCount}
         />
 
@@ -921,7 +986,11 @@ function AppContent() {
           unreadNotificationsCount={notifications.filter(n => !n.read).length}
           onTabPress={(tab) => {
             if (tab === 'notifications') {
-              setNotificationsVisible(true);
+              homeTranslateY.setValue(0);
+              isHomeAtTopRef.current = true;
+              setIsCommunityNavHidden(false);
+              setCurrentTab('notifications');
+              setExpandedSpecialistId(null);
               return;
             }
             if (tab === 'community' && currentTab === 'community') {
