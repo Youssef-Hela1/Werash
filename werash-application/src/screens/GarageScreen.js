@@ -15,7 +15,8 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
-  Animated
+  Animated,
+  PanResponder
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -632,6 +633,49 @@ export default function GarageScreen({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
+
+  const galleryDismissY = useRef(new Animated.Value(0)).current;
+  const galleryPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        return gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2;
+      },
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.1;
+      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          galleryDismissY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 45 || gestureState.vy > 0.25) {
+          Animated.timing(galleryDismissY, {
+            toValue: 600,
+            duration: 120,
+            useNativeDriver: true,
+          }).start(() => {
+            setIsImageModalOpen(false);
+          });
+        } else {
+          Animated.spring(galleryDismissY, {
+            toValue: 0,
+            friction: 7,
+            tension: 110,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (isImageModalOpen) {
+      galleryDismissY.setValue(0);
+    }
+  }, [isImageModalOpen]);
 
   // New state variables for text wrapping and editing behavior
   const [isEditing, setIsEditing] = useState(false);
@@ -2073,7 +2117,20 @@ export default function GarageScreen({
         animationType="fade"
         onRequestClose={() => setIsImageModalOpen(false)}
       >
-        <View style={styles.galleryModalContainer}>
+        <Animated.View
+          style={[
+            styles.galleryModalContainer,
+            {
+              transform: [{ translateY: galleryDismissY }],
+              opacity: galleryDismissY.interpolate({
+                inputRange: [0, 200],
+                outputRange: [1, 0.2],
+                extrapolate: 'clamp',
+              }),
+            },
+          ]}
+          {...galleryPanResponder.panHandlers}
+        >
           {/* Modal Header */}
           <View style={[styles.galleryModalHeader, isRtl && { flexDirection: 'row-reverse' }]}>
             <Text style={styles.galleryModalTitleText}>
@@ -2159,7 +2216,7 @@ export default function GarageScreen({
               ? 'اسحب لليمين أو اليسار لعرض المزيد • اضغط بالخارج للإغلاق' 
               : 'Swipe left or right to view more • Tap outside to close'}
           </Text>
-        </View>
+        </Animated.View>
       </Modal>
 
       {/* Top Page Mode Toggle (Fixed & Animated) */}

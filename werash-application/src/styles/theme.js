@@ -10,6 +10,8 @@ export const LIGHT_COLORS = {
   forestGreen: '#003514',
   activeHighlight: '#37633B',
   inactiveNav: '#8E8E93',
+  loadingIndicator: '#003514',
+  neonGreen: '#003514',
 
   // Legacy & Compatibility Aliases
   bgCreamy: '#FDFBF7',
@@ -35,8 +37,10 @@ export const DARK_COLORS = {
   secondaryText: '#A3B0A7',
   mutedDecor: '#778D7D',
   forestGreen: '#305734',
-  activeHighlight: '#A8C7AA',
+  activeHighlight: '#4ADE80',
   inactiveNav: '#778D7D',
+  loadingIndicator: '#4ADE80',
+  neonGreen: '#4ADE80',
 
   // Legacy & Compatibility Aliases mapped to semantic palette
   bgCreamy: '#101513',

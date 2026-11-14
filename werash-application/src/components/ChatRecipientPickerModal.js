@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
+import { resolveUserAvatar } from '../services/userProfileCache';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -125,12 +126,15 @@ export default function ChatRecipientPickerModal({
           const cleanName = (otherName || '').trim();
           const username = `@${cleanName.toLowerCase().replace(/\s+/g, '')}`;
 
+          const dynamicAvatar = resolveUserAvatar(otherUserId, otherAvatar, cleanName);
+          const resolvedAvatarUri = (dynamicAvatar && dynamicAvatar.uri) ? dynamicAvatar.uri : (typeof otherAvatar === 'string' && otherAvatar.startsWith('http') ? otherAvatar : null);
+
           return {
             id: c.id,
             otherUserId,
             name: cleanName,
             username: username,
-            avatar: otherAvatar && typeof otherAvatar === 'string' && otherAvatar.startsWith('http') ? otherAvatar : null,
+            avatar: resolvedAvatarUri,
             lastMessageAt: c.last_message_at ? new Date(c.last_message_at).getTime() : 0,
           };
         });

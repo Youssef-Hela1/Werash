@@ -28,13 +28,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChatsModal from '../components/ChatsModal';
 import OtherUserProfileModal from '../components/OtherUserProfileModal';
 import ImageViewerModal from '../components/ImageViewerModal';
+import PostCommentsModal from '../components/PostCommentsModal';
 import ChatImageGrid from '../components/ChatImageGrid';
 import ImageCropModal from '../components/ImageCropModal';
 import SharedSpecialistCard from '../components/SharedSpecialistCard';
 import { ALL_MECHANICS } from '../data/mechanicsData';
-import { toByteArray } from 'base64-js';
+import { decode as decodeBase64 } from 'base64-arraybuffer';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../services/supabase';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
+import {
+  getProfile,
+  fetchLatestProfile,
+  resolveUserAvatar,
+  resolveUserBanner,
+  updateProfileInCache,
+  syncCurrentUserProfile,
+  subscribeProfileUpdates,
+} from '../services/userProfileCache';
 
 const TABS = [
   { id: 'feed', label: 'Feed', labelAr: 'الرئيسية' },
@@ -381,16 +392,8 @@ export default function CommunityScreen({
     setViewerVisible(true);
   };
 
-  // Interactive Comments state & animations
+  // Interactive Comments state
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
-  const [commentInputText, setCommentInputText] = useState('');
-  const [replyingTo, setReplyingTo] = useState(null); // { commentId, author }
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const commentsScrollRef = useRef(null);
-  const commentInputRef = useRef(null);
-  const isCommentsExpandedRef = useRef(false);
-  const commentsHeightAnim = useRef(new Animated.Value(DEFAULT_COMMENTS_HEIGHT)).current;
-  const commentsSlideAnim = useRef(new Animated.Value(0)).current;
 
   // 3-Dots Post Menu & Report State
   const [activeMenuPost, setActiveMenuPost] = useState(null);
@@ -525,6 +528,21 @@ export default function CommunityScreen({
       }
     }
   }, [currentUser?.id, currentUser?.avatarUrl, currentUser?.avatar, currentUser?.bannerUrl]);
+
+  // Live profile updates listener to update feed & comments dynamically without refreshing
+  useEffect(() => {
+    const unsub = subscribeProfileUpdates((updatedId, updatedProf) => {
+      if (!updatedProf) return;
+      setPosts(prev => prev.map(p => {
+        if (p.userId === updatedId || (p.author && updatedProf.fullName === p.author)) {
+          const freshAvatar = updatedProf.avatarUrl ? { uri: updatedProf.avatarUrl } : p.avatar;
+          return { ...p, avatar: freshAvatar };
+        }
+        return p;
+      }));
+    });
+    return () => unsub();
+  }, []);
 
   // Profile Sub-tab state: 'my_posts' or 'liked_posts'
   const [profileSubTab, setProfileSubTab] = useState('my_posts');
@@ -679,26 +697,240 @@ export default function CommunityScreen({
     return true;
   };
 
-  // Helper to convert base64 to byte array for reliable storage upload
-  const getUploadBytes = (base64Str) => {
-    if (!base64Str) return null;
-    try {
-      const base64Js = require('base64-js');
-      return base64Js.toByteArray(base64Str);
-    } catch (_) {
+  // Helper to upload an image from local URI or base64 to Supabase Storage using ArrayBuffer
+  const uploadImageUriToStorage = async (uri, base64Data, subPath) => {
+    let base64 = base64Data;
+    if (!base64 && uri) {
       try {
-        if (typeof atob === 'function') {
-          const binaryStr = atob(base64Str);
-          const len = binaryStr.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          return bytes;
+        const manip = await ImageManipulator.manipulateAsync(uri, [], {
+          base64: true,
+          format: ImageManipulator.SaveFormat.JPEG,
+          compress: 0.88,
+        });
+        base64 = manip.base64;
+      } catch (manipErr) {
+        console.warn('ImageManipulator base64 conversion failed:', manipErr);
+      }
+    }
+
+    if (!base64) {
+      throw new Error('Could not obtain base64 image data for storage upload');
+    }
+
+    const arrayBuffer = decodeBase64(base64);
+
+    const { data: uploadData, error: uploadErr } = await supabase.storage
+      .from('community-media')
+      .upload(subPath, arrayBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+    if (uploadErr) {
+      console.warn('Supabase storage upload error:', uploadErr.message || uploadErr);
+      throw uploadErr;
+    }
+
+    const { data: publicData } = supabase.storage
+      .from('community-media')
+      .getPublicUrl(subPath);
+
+    return publicData?.publicUrl || null;
+  };
+
+  // Resilient Cloud Sync for Avatar
+  const uploadAndSyncAvatar = async (localUri, base64Data = null) => {
+    if (!localUri || isUploadingAvatar) return;
+    setIsUploadingAvatar(true);
+    try {
+      let authUserId = currentUser?.id;
+      try {
+        const sessionRes = await supabase.auth.getSession();
+        let activeSession = sessionRes?.data?.session;
+        if (!activeSession) {
+          const refreshRes = await supabase.auth.refreshSession().catch(() => null);
+          activeSession = refreshRes?.data?.session;
+        }
+        if (activeSession?.user?.id) {
+          authUserId = activeSession.user.id;
         }
       } catch (_) {}
+
+      if (!authUserId) {
+        console.warn('Cannot upload avatar: No authenticated user session');
+        return;
+      }
+
+      const fileName = `${authUserId}/avatar_${Date.now()}.jpg`;
+      const publicUrl = await uploadImageUriToStorage(localUri, base64Data, fileName);
+
+      if (publicUrl) {
+        const finishedTs = Date.now();
+        myAvatarTsRef.current = finishedTs;
+        setMyAvatarUrl(publicUrl);
+        if (currentUser?.id) {
+          try {
+            await AsyncStorage.setItem(`@werash_user_avatar_${currentUser.id}`, publicUrl);
+            await AsyncStorage.setItem(`@werash_user_avatar_ts_${currentUser.id}`, String(finishedTs));
+          } catch (e) {}
+        }
+        if (typeof onUpdateCurrentUser === 'function') {
+          onUpdateCurrentUser({
+            ...currentUser,
+            avatar: publicUrl,
+            avatarUrl: publicUrl,
+          });
+        }
+        setPosts(prev => prev.map(p => {
+          if (p.userId === currentUser?.id || p.userId === authUserId || (currentUser?.fullName && p.author === currentUser.fullName)) {
+            return { ...p, avatar: { uri: publicUrl } };
+          }
+          return p;
+        }));
+
+        const targetId = authUserId || currentUser?.id;
+
+        updateProfileInCache(targetId, {
+          avatarUrl: publicUrl,
+          fullName: currentUser?.fullName,
+        });
+
+        // 1. Update profiles table
+        await supabase
+          .from('profiles')
+          .update({
+            avatar_url: publicUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', targetId)
+          .catch(e => console.warn('Error updating profile avatar_url:', e));
+
+        // 2. Update community_posts table by user_id
+        await supabase
+          .from('community_posts')
+          .update({ author_avatar: publicUrl })
+          .eq('user_id', targetId)
+          .catch(e => console.warn('Error updating community_posts avatar by user_id:', e));
+
+        // 3. Update community_posts table by author_name
+        if (currentUser?.fullName) {
+          await supabase
+            .from('community_posts')
+            .update({ author_avatar: publicUrl })
+            .eq('author_name', currentUser.fullName)
+            .catch(() => {});
+        }
+
+        // 4. Update community_post_comments table by user_id
+        await supabase
+          .from('community_post_comments')
+          .update({ author_avatar: publicUrl })
+          .eq('user_id', targetId)
+          .catch(e => console.warn('Error updating community_post_comments avatar by user_id:', e));
+
+        // 5. Update community_post_comments table by author_name
+        if (currentUser?.fullName) {
+          await supabase
+            .from('community_post_comments')
+            .update({ author_avatar: publicUrl })
+            .eq('author_name', currentUser.fullName)
+            .catch(() => {});
+        }
+
+        // 6. Update conversations table
+        supabase
+          .from('conversations')
+          .update({ participant_1_avatar: publicUrl })
+          .eq('participant_1', targetId)
+          .catch(() => {});
+        supabase
+          .from('conversations')
+          .update({ participant_2_avatar: publicUrl })
+          .eq('participant_2', targetId)
+          .catch(() => {});
+
+        // 7. Update auth metadata
+        supabase.auth
+          .updateUser({ data: { avatar_url: publicUrl } })
+          .catch(e => console.warn('Error updating auth metadata avatar_url:', e));
+      }
+    } catch (err) {
+      console.warn('Error uploading/syncing avatar:', err);
+    } finally {
+      setIsUploadingAvatar(false);
     }
-    return null;
+  };
+
+  // Resilient Cloud Sync for Banner
+  const uploadAndSyncBanner = async (localUri, base64Data = null) => {
+    if (!localUri || isUploadingBanner) return;
+    setIsUploadingBanner(true);
+    try {
+      let authUserId = currentUser?.id;
+      try {
+        const sessionRes = await supabase.auth.getSession();
+        let activeSession = sessionRes?.data?.session;
+        if (!activeSession) {
+          const refreshRes = await supabase.auth.refreshSession().catch(() => null);
+          activeSession = refreshRes?.data?.session;
+        }
+        if (activeSession?.user?.id) {
+          authUserId = activeSession.user.id;
+        }
+      } catch (_) {}
+
+      if (!authUserId) {
+        console.warn('Cannot upload banner: No authenticated user session');
+        return;
+      }
+
+      const fileName = `${authUserId}/banner_${Date.now()}.jpg`;
+      const publicUrl = await uploadImageUriToStorage(localUri, base64Data, fileName);
+
+      if (publicUrl) {
+        const finishedTs = Date.now();
+        myBannerTsRef.current = finishedTs;
+        setMyBannerUrl(publicUrl);
+        if (currentUser?.id) {
+          try {
+            await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
+            await AsyncStorage.setItem(`@werash_user_banner_ts_${currentUser.id}`, String(finishedTs));
+          } catch (e) {}
+        }
+        if (typeof onUpdateCurrentUser === 'function') {
+          onUpdateCurrentUser({
+            ...currentUser,
+            bannerUrl: publicUrl,
+          });
+        }
+
+        const targetId = authUserId || currentUser?.id;
+
+        updateProfileInCache(targetId, {
+          bannerUrl: publicUrl,
+          fullName: currentUser?.fullName,
+        });
+
+        // 1. Update profiles table
+        await supabase
+          .from('profiles')
+          .update({
+            banner_url: publicUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', targetId)
+          .catch(e => console.warn('Error updating profile banner_url:', e));
+
+        // 2. Update auth metadata
+        supabase.auth
+          .updateUser({ data: { banner_url: publicUrl } })
+          .catch(e => console.warn('Error updating auth metadata banner_url:', e));
+      }
+    } catch (err) {
+      console.warn('Error uploading/syncing banner:', err);
+    } finally {
+      setIsUploadingBanner(false);
+    }
   };
 
   // Pick Avatar and open interactive crop preview
@@ -787,125 +1019,7 @@ export default function CommunityScreen({
       }));
 
       // 2. Background Cloud Sync (resilient, non-blocking)
-      setIsUploadingAvatar(true);
-      (async () => {
-        try {
-          let authUserId = currentUser?.id;
-          let activeSession = null;
-          try {
-            const sessionRes = await supabase.auth.getSession();
-            activeSession = sessionRes?.data?.session;
-            if (!activeSession) {
-              const refreshRes = await supabase.auth.refreshSession().catch(() => null);
-              activeSession = refreshRes?.data?.session;
-            }
-            if (activeSession?.user?.id) {
-              authUserId = activeSession.user.id;
-            }
-          } catch (_) {}
-
-          let uploadBody = null;
-          if (cropResult?.base64) {
-            try {
-              uploadBody = toByteArray(cropResult.base64);
-            } catch (convErr) {
-              console.warn('Failed converting base64 to Uint8Array for avatar:', convErr);
-            }
-          }
-          if (!uploadBody) {
-            try {
-              const response = await fetch(croppedUri);
-              uploadBody = await response.blob();
-            } catch (fetchErr) {
-              console.warn('fetch blob failed for cropped avatar:', fetchErr);
-            }
-          }
-
-          if (uploadBody && authUserId) {
-            const fileName = `${authUserId}/avatar_${now}.jpg`;
-
-            const { data: uploadData, error: uploadErr } = await supabase.storage
-              .from('community-media')
-              .upload(fileName, uploadBody, {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-
-            if (!uploadErr && uploadData) {
-              const { data: publicData } = supabase.storage
-                .from('community-media')
-                .getPublicUrl(fileName);
-              const publicUrl = publicData?.publicUrl;
-
-              if (publicUrl) {
-                const finishedTs = Date.now();
-                myAvatarTsRef.current = finishedTs;
-                setMyAvatarUrl(publicUrl);
-                if (currentUser?.id) {
-                  try {
-                    await AsyncStorage.setItem(`@werash_user_avatar_${currentUser.id}`, publicUrl);
-                    await AsyncStorage.setItem(`@werash_user_avatar_ts_${currentUser.id}`, String(finishedTs));
-                  } catch (e) {}
-                }
-                if (typeof onUpdateCurrentUser === 'function') {
-                  onUpdateCurrentUser({
-                    ...currentUser,
-                    avatar: publicUrl,
-                    avatarUrl: publicUrl,
-                  });
-                }
-                setPosts(prev => prev.map(p => {
-                  if (p.userId === currentUser?.id || p.userId === authUserId || (currentUser?.fullName && p.author === currentUser.fullName)) {
-                    return { ...p, avatar: { uri: publicUrl } };
-                  }
-                  return p;
-                }));
-
-                const targetId = authUserId || currentUser?.id;
-                // Update profiles table
-                await supabase
-                  .from('profiles')
-                  .update({
-                    avatar_url: publicUrl,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', targetId)
-                  .catch(e => console.warn('Error updating profile avatar_url:', e));
-
-                // Update community_posts table so everyone else sees the new avatar immediately!
-                await supabase
-                  .from('community_posts')
-                  .update({ author_avatar: publicUrl })
-                  .eq('user_id', targetId)
-                  .catch(e => console.warn('Error updating community_posts avatar by user_id:', e));
-
-                // Update conversations table
-                supabase
-                  .from('conversations')
-                  .update({ participant_1_avatar: publicUrl })
-                  .eq('participant_1', targetId)
-                  .catch(() => {});
-                supabase
-                  .from('conversations')
-                  .update({ participant_2_avatar: publicUrl })
-                  .eq('participant_2', targetId)
-                  .catch(() => {});
-
-                // Update auth metadata
-                supabase.auth
-                  .updateUser({ data: { avatar_url: publicUrl } })
-                  .catch(e => console.warn('Error updating auth metadata avatar_url:', e));
-              }
-            } else if (uploadErr) {
-              console.warn('Supabase storage avatar upload warning (retaining local photo):', uploadErr.message || uploadErr);
-            }
-          }
-        } catch (syncErr) {
-          console.warn('Background avatar sync error:', syncErr);
-        } finally {
-          setIsUploadingAvatar(false);
-        }
-      })();
+      uploadAndSyncAvatar(croppedUri, cropResult?.base64);
     } else if (type === 'banner') {
       myBannerTsRef.current = now;
       // 1. Instant Optimistic UI Update & Local Persistence (0ms delay for user)
@@ -925,99 +1039,7 @@ export default function CommunityScreen({
       }
 
       // 2. Background Cloud Sync (resilient, non-blocking)
-      setIsUploadingBanner(true);
-      (async () => {
-        try {
-          let authUserId = currentUser?.id;
-          let activeSession = null;
-          try {
-            const sessionRes = await supabase.auth.getSession();
-            activeSession = sessionRes?.data?.session;
-            if (!activeSession) {
-              const refreshRes = await supabase.auth.refreshSession().catch(() => null);
-              activeSession = refreshRes?.data?.session;
-            }
-            if (activeSession?.user?.id) {
-              authUserId = activeSession.user.id;
-            }
-          } catch (_) {}
-
-          let uploadBody = null;
-          if (cropResult?.base64) {
-            try {
-              uploadBody = toByteArray(cropResult.base64);
-            } catch (convErr) {
-              console.warn('Failed converting base64 to Uint8Array for banner:', convErr);
-            }
-          }
-          if (!uploadBody) {
-            try {
-              const response = await fetch(croppedUri);
-              uploadBody = await response.blob();
-            } catch (fetchErr) {
-              console.warn('fetch blob failed for cropped banner:', fetchErr);
-            }
-          }
-
-          if (uploadBody && authUserId) {
-            const fileName = `${authUserId}/banner_${now}.jpg`;
-
-            const { data: uploadData, error: uploadErr } = await supabase.storage
-              .from('community-media')
-              .upload(fileName, uploadBody, {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-
-            if (!uploadErr && uploadData) {
-              const { data: publicData } = supabase.storage
-                .from('community-media')
-                .getPublicUrl(fileName);
-              const publicUrl = publicData?.publicUrl;
-
-              if (publicUrl) {
-                const finishedTs = Date.now();
-                myBannerTsRef.current = finishedTs;
-                setMyBannerUrl(publicUrl);
-                if (currentUser?.id) {
-                  try {
-                    await AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, publicUrl);
-                    await AsyncStorage.setItem(`@werash_user_banner_ts_${currentUser.id}`, String(finishedTs));
-                  } catch (e) {}
-                }
-                if (typeof onUpdateCurrentUser === 'function') {
-                  onUpdateCurrentUser({
-                    ...currentUser,
-                    bannerUrl: publicUrl,
-                  });
-                }
-
-                const targetId = authUserId || currentUser?.id;
-                // Update profiles table
-                await supabase
-                  .from('profiles')
-                  .update({
-                    banner_url: publicUrl,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', targetId)
-                  .catch(e => console.warn('Error updating profile banner_url:', e));
-
-                // Update auth metadata
-                supabase.auth
-                  .updateUser({ data: { banner_url: publicUrl } })
-                  .catch(e => console.warn('Error updating auth metadata banner_url:', e));
-              }
-            } else if (uploadErr) {
-              console.warn('Supabase storage banner upload warning (retaining local banner):', uploadErr.message || uploadErr);
-            }
-          }
-        } catch (syncErr) {
-          console.warn('Background banner sync error:', syncErr);
-        } finally {
-          setIsUploadingBanner(false);
-        }
-      })();
+      uploadAndSyncBanner(croppedUri, cropResult?.base64);
     }
   };
 
@@ -1025,6 +1047,9 @@ export default function CommunityScreen({
   const fetchCloudPosts = async (silent = false) => {
     if (!silent) {
       setIsLoading(true);
+    }
+    if (currentUser?.id) {
+      syncCurrentUserProfile(currentUser).catch(() => {});
     }
     try {
       // 1. Fetch user profiles for avatars
@@ -1041,8 +1066,27 @@ export default function CommunityScreen({
           if (currentUser?.id && profMap[currentUser.id]) {
             const myProf = profMap[currentUser.id];
             const cloudUpdatedAt = myProf.updated_at ? new Date(myProf.updated_at).getTime() : 0;
+
+            // Ensure local edit timestamp is initialized from AsyncStorage if ref is still 0
+            let localAvatarTs = myAvatarTsRef.current;
+            if (localAvatarTs === 0 && currentUser?.id) {
+              const storedTs = await AsyncStorage.getItem(`@werash_user_avatar_ts_${currentUser.id}`).catch(() => null);
+              if (storedTs) {
+                localAvatarTs = parseInt(storedTs, 10);
+                myAvatarTsRef.current = localAvatarTs;
+              }
+            }
+            let localBannerTs = myBannerTsRef.current;
+            if (localBannerTs === 0 && currentUser?.id) {
+              const storedBannerTs = await AsyncStorage.getItem(`@werash_user_banner_ts_${currentUser.id}`).catch(() => null);
+              if (storedBannerTs) {
+                localBannerTs = parseInt(storedBannerTs, 10);
+                myBannerTsRef.current = localBannerTs;
+              }
+            }
+
             // Only update local avatar if cloud is newer than our local edit timestamp
-            if (cloudUpdatedAt > myAvatarTsRef.current && myProf.avatar_url && myProf.avatar_url.startsWith('http')) {
+            if (cloudUpdatedAt > localAvatarTs && myProf.avatar_url && myProf.avatar_url.startsWith('http')) {
               myAvatarTsRef.current = cloudUpdatedAt;
               setMyAvatarUrl(myProf.avatar_url);
               AsyncStorage.setItem(`@werash_user_avatar_${currentUser.id}`, myProf.avatar_url).catch(() => {});
@@ -1058,9 +1102,31 @@ export default function CommunityScreen({
                 .update({ author_avatar: myAvatarUrl })
                 .eq('user_id', currentUser.id)
                 .catch(() => {});
+              if (currentUser.fullName) {
+                supabase
+                  .from('community_posts')
+                  .update({ author_avatar: myAvatarUrl })
+                  .eq('author_name', currentUser.fullName)
+                  .catch(() => {});
+              }
+              supabase
+                .from('community_post_comments')
+                .update({ author_avatar: myAvatarUrl })
+                .eq('user_id', currentUser.id)
+                .catch(() => {});
+              if (currentUser.fullName) {
+                supabase
+                  .from('community_post_comments')
+                  .update({ author_avatar: myAvatarUrl })
+                  .eq('author_name', currentUser.fullName)
+                  .catch(() => {});
+              }
+            } else if (myAvatarUrl && !myAvatarUrl.startsWith('http') && !isUploadingAvatar) {
+              // Local avatar was saved as local file from earlier attempt: upload and sync to cloud now
+              uploadAndSyncAvatar(myAvatarUrl);
             }
 
-            if (cloudUpdatedAt > myBannerTsRef.current && myProf.banner_url && myProf.banner_url.startsWith('http')) {
+            if (cloudUpdatedAt > localBannerTs && myProf.banner_url && myProf.banner_url.startsWith('http')) {
               myBannerTsRef.current = cloudUpdatedAt;
               setMyBannerUrl(myProf.banner_url);
               AsyncStorage.setItem(`@werash_user_banner_${currentUser.id}`, myProf.banner_url).catch(() => {});
@@ -1070,6 +1136,9 @@ export default function CommunityScreen({
                 .update({ banner_url: myBannerUrl, updated_at: new Date().toISOString() })
                 .eq('id', currentUser.id)
                 .catch(() => {});
+            } else if (myBannerUrl && !myBannerUrl.startsWith('http') && !isUploadingBanner) {
+              // Local banner was saved as local file from earlier attempt: upload and sync to cloud now
+              uploadAndSyncBanner(myBannerUrl);
             }
           }
         }
@@ -1137,15 +1206,14 @@ export default function CommunityScreen({
       }
 
       const mapped = (postsData || []).map(p => {
-        const authorProf = p.user_id ? profMap[p.user_id] : null;
-        let finalAvatarUrl = authorProf?.avatar_url || p.author_avatar;
         const isMyPost = Boolean(
           (currentUser?.id && p.user_id === currentUser.id) ||
           (currentUser?.fullName && p.author_name === currentUser.fullName)
         );
-        if (isMyPost && myAvatarUrl) {
-          finalAvatarUrl = myAvatarUrl;
-        }
+        const resolvedAvatarSrc = (isMyPost && myAvatarUrl)
+          ? { uri: myAvatarUrl }
+          : resolveUserAvatar(p.user_id, p.author_avatar, p.author_name);
+
         const realLikesCount = likesCountMap[p.id];
         const isLikedByMe = likedPostIds.has(p.id);
         const resolvedLikes = realLikesCount !== undefined 
@@ -1192,7 +1260,7 @@ export default function CommunityScreen({
           userId: p.user_id,
           author: p.author_name || 'Community Member',
           handle: p.author_handle || `@${(p.author_name || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
-          avatar: finalAvatarUrl ? { uri: finalAvatarUrl } : null,
+          avatar: resolvedAvatarSrc || null,
           time: formatTimeAgo(p.created_at, isRtl),
           content: p.content,
           postImage: singlePostImage,
@@ -1243,21 +1311,77 @@ export default function CommunityScreen({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'community_post_comments' },
-        (payload) => {
+        async (payload) => {
           const targetPostId = payload.new?.post_id || payload.old?.post_id;
           if (targetPostId) {
-            if (payload.eventType === 'INSERT') {
+            try {
+              const { count } = await supabase
+                .from('community_post_comments')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', targetPostId);
+
+              const nextComments = typeof count === 'number'
+                ? count
+                : (payload.eventType === 'INSERT' ? (p.comments || 0) + 1 : Math.max(0, (p.comments || 1) - 1));
+
               setPosts((prev) =>
-                prev.map((p) =>
-                  p.id === targetPostId ? { ...p, comments: (p.comments || 0) + 1 } : p
-                )
+                prev.map((p) => {
+                  if (p.id !== targetPostId) return p;
+                  const finalCount = typeof count === 'number'
+                    ? count
+                    : (payload.eventType === 'INSERT' ? (p.comments || 0) + 1 : Math.max(0, (p.comments || 1) - 1));
+                  return { ...p, comments: finalCount, commentsCount: finalCount };
+                })
               );
-            } else if (payload.eventType === 'DELETE') {
+
+              setActiveCommentsPost((prev) => {
+                if (!prev || prev.id !== targetPostId) return prev;
+                const finalCount = typeof count === 'number'
+                  ? count
+                  : (payload.eventType === 'INSERT' ? (prev.comments || 0) + 1 : Math.max(0, (prev.comments || 1) - 1));
+                return { ...prev, comments: finalCount, commentsCount: finalCount };
+              });
+            } catch (err) {
+              console.warn('Realtime comments count sync error:', err);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'community_post_likes' },
+        async (payload) => {
+          const targetPostId = payload.new?.post_id || payload.old?.post_id;
+          const targetUserId = payload.new?.user_id || payload.old?.user_id;
+          if (targetPostId) {
+            try {
+              const isMe = currentUser?.id && targetUserId === currentUser.id;
+              const { count } = await supabase
+                .from('community_post_likes')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', targetPostId);
+
               setPosts((prev) =>
-                prev.map((p) =>
-                  p.id === targetPostId ? { ...p, comments: Math.max(0, (p.comments || 1) - 1) } : p
-                )
+                prev.map((p) => {
+                  if (p.id !== targetPostId) return p;
+                  const finalLikes = typeof count === 'number'
+                    ? count
+                    : (payload.eventType === 'INSERT' ? (p.likes || 0) + 1 : Math.max(0, (p.likes || 1) - 1));
+                  const finalLiked = isMe ? (payload.eventType === 'INSERT') : p.liked;
+                  return { ...p, likes: finalLikes, liked: finalLiked };
+                })
               );
+
+              setActiveCommentsPost((prev) => {
+                if (!prev || prev.id !== targetPostId) return prev;
+                const finalLikes = typeof count === 'number'
+                  ? count
+                  : (payload.eventType === 'INSERT' ? (prev.likes || 0) + 1 : Math.max(0, (prev.likes || 1) - 1));
+                const finalLiked = isMe ? (payload.eventType === 'INSERT') : prev.liked;
+                return { ...prev, likes: finalLikes, liked: finalLiked };
+              });
+            } catch (err) {
+              console.warn('Realtime likes count sync error:', err);
             }
           }
         }
@@ -1269,394 +1393,9 @@ export default function CommunityScreen({
     };
   }, [currentUser?.id, isRtl]);
 
-  // Fetch comments for a specific post from Supabase
-  const fetchPostComments = async (postId) => {
-    if (!postId) return;
-    setIsLoadingComments(true);
-    try {
-      const { data, error } = await supabase
-        .from('community_post_comments')
-        .select('*')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.warn('Error fetching comments:', error.message);
-        setIsLoadingComments(false);
-        return;
-      }
-
-      const commentMap = new Map();
-      const topLevelList = [];
-
-      (data || []).forEach((row) => {
-        const item = {
-          id: row.id,
-          author: row.author_name || (isRtl ? 'مستخدم' : 'User'),
-          handle: row.author_handle || '@user',
-          avatar: row.author_avatar ? { uri: row.author_avatar } : null,
-          time: formatTimeAgo(row.created_at, isRtl),
-          content: row.content,
-          likes: 0,
-          liked: false,
-          replies: [],
-          parentId: row.parent_id || null,
-        };
-        commentMap.set(row.id, item);
-        if (!row.parent_id) {
-          topLevelList.push(item);
-        }
-      });
-
-      (data || []).forEach((row) => {
-        if (row.parent_id && commentMap.has(row.parent_id)) {
-          const parent = commentMap.get(row.parent_id);
-          const reply = commentMap.get(row.id);
-          if (parent && reply && !parent.replies.some((r) => r.id === reply.id)) {
-            parent.replies.push(reply);
-          }
-        }
-      });
-
-      setActiveCommentsPost((prev) => {
-        if (!prev || prev.id !== postId) return prev;
-        return {
-          ...prev,
-          commentsList: topLevelList,
-          comments: (data || []).length,
-        };
-      });
-
-      setPosts((prev) =>
-        prev.map((p) => {
-          if (p.id === postId) {
-            return {
-              ...p,
-              commentsList: topLevelList,
-              comments: (data || []).length,
-            };
-          }
-          return p;
-        })
-      );
-    } catch (err) {
-      console.warn('fetchPostComments exception:', err);
-    } finally {
-      setIsLoadingComments(false);
-    }
-  };
-
-  // Realtime subscription for comments on the active post
-  useEffect(() => {
-    if (activeCommentsPost?.id) {
-      isCommentsExpandedRef.current = false;
-      commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
-      fetchPostComments(activeCommentsPost.id);
-
-      const commentsChannel = supabase
-        .channel(`comments_${activeCommentsPost.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'community_post_comments',
-            filter: `post_id=eq.${activeCommentsPost.id}`,
-          },
-          (payload) => {
-            if (payload.new) {
-              fetchPostComments(activeCommentsPost.id);
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(commentsChannel);
-      };
-    }
-  }, [activeCommentsPost?.id]);
-
-  // Drag-to-expand / drag-to-dismiss gesture for comments bottom sheet
-  const commentsPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 4,
-      onPanResponderGrant: () => {
-        commentsHeightAnim.stopAnimation();
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const baseHeight = isCommentsExpandedRef.current ? EXPANDED_COMMENTS_HEIGHT : DEFAULT_COMMENTS_HEIGHT;
-        const targetHeight = baseHeight - gestureState.dy;
-        const clampedHeight = Math.max(140, Math.min(EXPANDED_COMMENTS_HEIGHT, targetHeight));
-        commentsHeightAnim.setValue(clampedHeight);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (Math.abs(gestureState.dy) < 5 && Math.abs(gestureState.dx) < 5) {
-          const nextExpanded = !isCommentsExpandedRef.current;
-          isCommentsExpandedRef.current = nextExpanded;
-          Animated.spring(commentsHeightAnim, {
-            toValue: nextExpanded ? EXPANDED_COMMENTS_HEIGHT : DEFAULT_COMMENTS_HEIGHT,
-            useNativeDriver: false,
-            friction: 8,
-            tension: 50,
-          }).start();
-          return;
-        }
-
-        const isExpanded = isCommentsExpandedRef.current;
-        if (!isExpanded) {
-          if (gestureState.dy < -45 || gestureState.vy < -0.35) {
-            isCommentsExpandedRef.current = true;
-            Animated.spring(commentsHeightAnim, {
-              toValue: EXPANDED_COMMENTS_HEIGHT,
-              useNativeDriver: false,
-              friction: 8,
-              tension: 50,
-            }).start();
-          } else if (gestureState.dy > 80 || gestureState.vy > 0.6) {
-            Animated.timing(commentsHeightAnim, {
-              toValue: 0,
-              duration: 180,
-              useNativeDriver: false,
-            }).start(() => setActiveCommentsPost(null));
-          } else {
-            Animated.spring(commentsHeightAnim, {
-              toValue: DEFAULT_COMMENTS_HEIGHT,
-              useNativeDriver: false,
-              friction: 8,
-            }).start();
-          }
-        } else {
-          if (gestureState.dy > 50 || gestureState.vy > 0.35) {
-            isCommentsExpandedRef.current = false;
-            Animated.spring(commentsHeightAnim, {
-              toValue: DEFAULT_COMMENTS_HEIGHT,
-              useNativeDriver: false,
-              friction: 8,
-              tension: 50,
-            }).start();
-          } else {
-            Animated.spring(commentsHeightAnim, {
-              toValue: EXPANDED_COMMENTS_HEIGHT,
-              useNativeDriver: false,
-              friction: 8,
-            }).start();
-          }
-        }
-      },
-    })
-  ).current;
-
   const handleOpenComments = (post) => {
-    const freshPost = posts.find(p => p.id === post.id) || post;
-    commentsSlideAnim.setValue(500);
-    isCommentsExpandedRef.current = false;
-    commentsHeightAnim.setValue(DEFAULT_COMMENTS_HEIGHT);
+    const freshPost = posts.find((p) => p.id === post.id) || post;
     setActiveCommentsPost(freshPost);
-    setCommentInputText('');
-    setReplyingTo(null);
-    Animated.spring(commentsSlideAnim, {
-      toValue: 0,
-      useNativeDriver: false,
-      friction: 8,
-      tension: 50,
-    }).start();
-    fetchPostComments(freshPost.id);
-  };
-
-  const handleStartReply = (comment, specificAuthor) => {
-    const authorToReply = specificAuthor || comment.author;
-    setReplyingTo({
-      commentId: comment.id,
-      author: authorToReply,
-    });
-    setTimeout(() => {
-      if (commentInputRef.current) {
-        commentInputRef.current.focus();
-      }
-    }, 100);
-  };
-
-  const handleSubmitComment = async () => {
-    if (!requireAuth()) return;
-    if (!commentInputText.trim() || !activeCommentsPost) return;
-
-    const currentAuthorName = currentUser?.fullName || (isRtl ? 'مستخدم' : 'Guest User');
-    const currentHandle = currentUser?.fullName
-      ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}`
-      : '@guest';
-    const commentContent = commentInputText.trim();
-    const postId = activeCommentsPost.id;
-    const parentCommentId = replyingTo ? replyingTo.commentId : null;
-
-    setCommentInputText('');
-    setReplyingTo(null);
-
-    const tempId = `temp_${Date.now()}`;
-    const newCommentItem = {
-      id: tempId,
-      author: currentAuthorName,
-      handle: currentHandle,
-      avatar: currentUser?.avatarUrl ? { uri: currentUser.avatarUrl } : null,
-      time: isRtl ? 'الآن' : 'Just now',
-      content: commentContent,
-      likes: 0,
-      liked: false,
-      replies: [],
-      parentId: parentCommentId,
-    };
-
-    const updatePostState = (p) => {
-      if (p.id !== postId) return p;
-      let updatedComments = [...(p.commentsList || [])];
-
-      if (parentCommentId) {
-        updatedComments = updatedComments.map((c) => {
-          if (c.id === parentCommentId) {
-            return {
-              ...c,
-              replies: [...(c.replies || []), newCommentItem],
-            };
-          }
-          return c;
-        });
-      } else {
-        updatedComments.push(newCommentItem);
-      }
-
-      const totalCount = (p.comments || 0) + 1;
-      return {
-        ...p,
-        commentsList: updatedComments,
-        comments: totalCount,
-      };
-    };
-
-    setPosts((prev) => prev.map(updatePostState));
-    setActiveCommentsPost((prev) => (prev ? updatePostState(prev) : null));
-
-    setTimeout(() => {
-      if (commentsScrollRef.current) {
-        commentsScrollRef.current.scrollToEnd({ animated: true });
-      }
-    }, 120);
-
-    if (currentUser?.id) {
-      try {
-        const payload = {
-          post_id: postId,
-          user_id: currentUser.id,
-          author_name: currentAuthorName,
-          author_handle: currentHandle,
-          author_avatar: currentUser.avatarUrl || null,
-          content: commentContent,
-        };
-        if (parentCommentId) {
-          payload.parent_id = parentCommentId;
-        }
-
-        const { data: insertedComment, error: insertErr } = await supabase
-          .from('community_post_comments')
-          .insert(payload)
-          .select()
-          .single();
-
-        if (!insertErr && insertedComment) {
-          const replaceTempId = (p) => {
-            if (p.id !== postId) return p;
-            const updatedComments = (p.commentsList || []).map((c) => {
-              if (c.id === tempId) {
-                return { ...c, id: insertedComment.id };
-              }
-              if (c.replies && c.replies.length > 0) {
-                const updatedReplies = c.replies.map((r) =>
-                  r.id === tempId ? { ...r, id: insertedComment.id } : r
-                );
-                return { ...c, replies: updatedReplies };
-              }
-              return c;
-            });
-            return { ...p, commentsList: updatedComments };
-          };
-
-          setPosts((prev) => prev.map(replaceTempId));
-          setActiveCommentsPost((prev) => (prev ? replaceTempId(prev) : null));
-
-          // Query the exact, fresh count of comments for this post from Supabase
-          const { count: freshCount } = await supabase
-            .from('community_post_comments')
-            .select('id', { count: 'exact', head: true })
-            .eq('post_id', postId);
-
-          const finalCommentsCount = typeof freshCount === 'number' ? freshCount : (activeCommentsPost?.comments || 0) + 1;
-
-          setPosts((prev) =>
-            prev.map((p) => (p.id === postId ? { ...p, comments: finalCommentsCount } : p))
-          );
-          setActiveCommentsPost((prev) => (prev ? { ...prev, comments: finalCommentsCount } : null));
-
-          supabase
-            .from('community_posts')
-            .update({ comments_count: finalCommentsCount })
-            .eq('id', postId)
-            .then(() => {})
-            .catch(() => {});
-        } else if (insertErr) {
-          console.warn('Error saving comment to Supabase:', insertErr.message);
-        }
-      } catch (err) {
-        console.warn('handleSubmitComment exception:', err);
-      }
-    }
-  };
-
-  const handleToggleCommentLike = (postId, commentId) => {
-    const updatePostComments = (p) => {
-      if (p.id !== postId) return p;
-      const updatedList = (p.commentsList || []).map((c) => {
-        if (c.id === commentId) {
-          const isLiked = !c.liked;
-          return {
-            ...c,
-            liked: isLiked,
-            likes: isLiked ? (c.likes || 0) + 1 : Math.max(0, (c.likes || 1) - 1),
-          };
-        }
-        return c;
-      });
-      return { ...p, commentsList: updatedList };
-    };
-
-    setPosts((prev) => prev.map(updatePostComments));
-    setActiveCommentsPost((prev) => (prev ? updatePostComments(prev) : null));
-  };
-
-  const handleToggleReplyLike = (postId, commentId, replyId) => {
-    const updatePost = (p) => {
-      if (p.id !== postId) return p;
-      const updatedComments = (p.commentsList || []).map((c) => {
-        if (c.id === commentId) {
-          const updatedReplies = (c.replies || []).map((r) => {
-            if (r.id === replyId) {
-              const isLiked = !r.liked;
-              return {
-                ...r,
-                liked: isLiked,
-                likes: isLiked ? (r.likes || 0) + 1 : Math.max(0, (r.likes || 1) - 1),
-              };
-            }
-            return r;
-          });
-          return { ...c, replies: updatedReplies };
-        }
-        return c;
-      });
-      return { ...p, commentsList: updatedComments };
-    };
-
-    setPosts((prev) => prev.map(updatePost));
-    setActiveCommentsPost((prev) => (prev ? updatePost(prev) : null));
   };
 
   const handleOpenPostMenu = (post, e) => {
@@ -1903,15 +1642,11 @@ export default function CommunityScreen({
       return;
     }
 
-    const cachedProf = userId
-      ? allProfiles.find(p => p.id === userId)
-      : allProfiles.find(p => p.full_name === authorName);
+    const cachedProf = getProfile(userId, authorName);
+    const resolvedAvatar = resolveUserAvatar(userId, authorData.avatar, authorName);
+    const resolvedBanner = resolveUserBanner(userId, authorData.banner, authorName);
 
     const authorPosts = posts.filter(p => (userId && p.userId === userId) || p.author === authorName);
-    const resolvedAvatar = cachedProf?.avatar_url
-      ? { uri: cachedProf.avatar_url }
-      : (authorData.avatar || (authorPosts[0]?.avatar || null));
-    const resolvedBanner = cachedProf?.banner_url || null;
     const resolvedVehicle = (authorData.vehicle && authorData.vehicle !== 'General')
       ? authorData.vehicle
       : (authorPosts.find(p => p.vehicle && p.vehicle !== 'General')?.vehicle || cachedProf?.vehicle || null);
@@ -1930,28 +1665,23 @@ export default function CommunityScreen({
     setActiveCommentsPost(null);
     setViewingOtherUser(otherUserData);
 
-    if (userId) {
-      supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, banner_url, car_brand, car_model')
-        .eq('id', userId)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data) {
-            const veh = data.car_brand ? `${data.car_brand || ''} ${data.car_model || ''}`.trim() : null;
-            setViewingOtherUser(prev => {
-              if (!prev || (prev.userId && prev.userId !== userId)) return prev;
-              return {
-                ...prev,
-                avatar: data.avatar_url ? { uri: data.avatar_url } : prev.avatar,
-                banner: data.banner_url || prev.banner,
-                vehicle: veh || prev.vehicle,
-              };
-            });
-          }
-        })
-        .catch(() => {});
-    }
+    fetchLatestProfile(userId, authorName)
+      .then((data) => {
+        if (data) {
+          setViewingOtherUser(prev => {
+            if (!prev) return prev;
+            if (userId && prev.userId && prev.userId !== userId) return prev;
+            return {
+              ...prev,
+              userId: data.id || prev.userId,
+              avatar: data.avatarUrl ? { uri: data.avatarUrl } : prev.avatar,
+              banner: data.bannerUrl || prev.banner,
+              vehicle: data.vehicle || prev.vehicle,
+            };
+          });
+        }
+      })
+      .catch(() => {});
   };
 
   const handleCloseOtherUserProfile = () => {
@@ -2176,10 +1906,11 @@ export default function CommunityScreen({
   }
   allProfiles.forEach((prof) => {
     if (prof.full_name && !peopleMap.has(prof.id || prof.full_name)) {
+      const dynamicAv = resolveUserAvatar(prof.id, prof.avatar_url, prof.full_name);
       peopleMap.set(prof.id || prof.full_name, {
         id: prof.id,
         name: prof.full_name,
-        avatar: prof.avatar_url || null,
+        avatar: (dynamicAv && dynamicAv.uri) ? dynamicAv.uri : (prof.avatar_url || null),
         handle: null,
       });
     }
@@ -2187,10 +1918,11 @@ export default function CommunityScreen({
   posts.forEach((p) => {
     const key = p.userId || p.author;
     if (key && !peopleMap.has(key)) {
+      const dynamicAv = resolveUserAvatar(p.userId, p.avatar, p.author);
       peopleMap.set(key, {
         id: key,
         name: p.author,
-        avatar: p.avatar,
+        avatar: (dynamicAv && dynamicAv.uri) ? dynamicAv.uri : (typeof p.avatar === 'string' ? p.avatar : p.avatar?.uri || null),
         handle: p.handle,
       });
     }
@@ -2531,8 +2263,9 @@ export default function CommunityScreen({
               setIsRefreshing(true);
               fetchCloudPosts(true);
             }}
-            tintColor="#003514"
-            colors={['#003514']}
+            tintColor={isDarkMode ? '#4ADE80' : '#003514'}
+            colors={[isDarkMode ? '#4ADE80' : '#003514']}
+            progressBackgroundColor={isDarkMode ? (colors.cardBg || '#1E2621') : '#FFFFFF'}
             progressViewOffset={headerHeight}
           />
         }
@@ -2576,14 +2309,14 @@ export default function CommunityScreen({
                   setIsCreatePostActive(true);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Share a car update"
+                accessibilityLabel="Create post"
               >
                 {/* Vertical Divider */}
                 <View style={styles.postDivider} />
 
                 {/* Input Placeholder Text */}
                 <Text style={[styles.postInputPlaceholder, isRtl && styles.postInputPlaceholderRtl]}>
-                  {isRtl ? 'شارك تحديثاً لسيارتك...' : 'Share a car update...'}
+                  {isRtl ? 'إنشاء منشور...' : 'Create post...'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -3046,6 +2779,19 @@ export default function CommunityScreen({
         }}
         onSelectSpecialist={onSelectSpecialist}
         initialPosts={otherUserPosts}
+        onPostLikeChange={(postId, willBeLiked, nextLikes) => {
+          setPosts((prev) =>
+            prev.map((p) => (p.id === postId ? { ...p, liked: willBeLiked, likes: nextLikes } : p))
+          );
+        }}
+        onPostCommentCountChange={(postId, count) => {
+          setPosts((prev) =>
+            prev.map((p) => (p.id === postId ? { ...p, comments: count, commentsCount: count } : p))
+          );
+          setActiveCommentsPost((prev) =>
+            prev && prev.id === postId ? { ...prev, comments: count, commentsCount: count } : prev
+          );
+        }}
       />
 
       {/* Full-Screen Multi-Image Viewer Gallery (Same interface as Chat Messages) */}
@@ -3372,319 +3118,25 @@ export default function CommunityScreen({
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Interactive Comments Bottom Sheet Modal */}
-      <Modal
+      {/* Interactive Comments Bottom Sheet Shared Modal */}
+      <PostCommentsModal
         visible={Boolean(activeCommentsPost)}
-        animationType="none"
-        transparent={true}
-        statusBarTranslucent={true}
-        onRequestClose={() => setActiveCommentsPost(null)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.commentsBackdrop}
-        >
-          <TouchableOpacity 
-            style={StyleSheet.absoluteFill} 
-            activeOpacity={1} 
-            onPress={() => setActiveCommentsPost(null)}
-          />
-
-          <Animated.View 
-            style={[
-              styles.commentsSheetContainer, 
-              { 
-                height: commentsHeightAnim,
-                transform: [{ translateY: commentsSlideAnim }]
-              }
-            ]}
-          >
-            {/* Draggable Handle Bar Area */}
-            <View 
-              style={styles.commentsHandleArea}
-              {...commentsPanResponder.panHandlers}
-            >
-              <View style={styles.commentsHandleBar} />
-            </View>
-
-            {/* Header */}
-            <View style={[styles.commentsHeader, isRtl && styles.commentsHeaderRtl]}>
-              <View style={[styles.commentsHeaderTitleGroup, isRtl && styles.commentsHeaderTitleGroupRtl]}>
-                <Text style={styles.commentsHeaderTitle}>
-                  {isRtl ? 'التعليقات' : 'Comments'}
-                </Text>
-                <View style={[styles.commentsCountBadge, isRtl && styles.commentsCountBadgeRtl]}>
-                  <Text style={styles.commentsCountBadgeText}>
-                    {(activeCommentsPost?.commentsList || []).length}
-                  </Text>
-                </View>
-              </View>
-
-              <TouchableOpacity 
-                style={styles.commentsCloseBtn} 
-                onPress={() => setActiveCommentsPost(null)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close" size={18} color={colors.primaryText} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Comments List Scroll */}
-            <ScrollView 
-              ref={commentsScrollRef}
-              style={styles.commentsListScroll}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {isLoadingComments && (activeCommentsPost?.commentsList || []).length === 0 ? (
-                <View style={styles.emptyCommentsBox}>
-                  <ActivityIndicator size="small" color={colors.activeHighlight} />
-                  <Text style={[styles.emptyCommentsSubtitle, { marginTop: 12 }]}>
-                    {isRtl ? 'جاري تحميل التعليقات...' : 'Loading comments...'}
-                  </Text>
-                </View>
-              ) : (activeCommentsPost?.commentsList || []).length === 0 ? (
-                <View style={styles.emptyCommentsBox}>
-                  <Ionicons name="chatbubbles-outline" size={44} color={colors.mutedDecor} />
-                  <Text style={styles.emptyCommentsTitle}>
-                    {isRtl ? 'لا توجد تعليقات بعد' : 'No comments yet'}
-                  </Text>
-                  <Text style={styles.emptyCommentsSubtitle}>
-                    {isRtl ? 'كن أول من يشارك برأيه حول هذا المنشور!' : 'Be the first to share your thoughts on this post!'}
-                  </Text>
-                </View>
-              ) : (
-                (activeCommentsPost?.commentsList || []).map((c) => (
-                  <View key={c.id} style={[styles.commentItemRow, isRtl && styles.commentItemRowRtl]}>
-                    {/* Comment Avatar */}
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => handleOpenUserProfile({
-                        userId: c.user_id || c.userId,
-                        author: c.author_name || c.author,
-                        avatar: c.avatar,
-                      })}
-                    >
-                      {c.avatar ? (
-                        <Image source={c.avatar} style={styles.commentAvatar} />
-                      ) : (
-                        <View style={styles.commentAvatarIcon}>
-                          <Ionicons name="person" size={15} color="#FFFFFF" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-
-                    {/* Comment Bubble & Meta */}
-                    <View style={[styles.commentBubbleContainer, isRtl ? { marginRight: 10, alignItems: 'flex-end' } : { marginLeft: 10 }]}>
-                      <View style={styles.commentBubble}>
-                        <TouchableOpacity
-                          activeOpacity={0.8}
-                          onPress={() => handleOpenUserProfile({
-                            userId: c.user_id || c.userId,
-                            author: c.author_name || c.author,
-                            avatar: c.avatar,
-                          })}
-                        >
-                          <Text style={[styles.commentAuthorName, isRtl && { textAlign: 'right' }]}>
-                            {c.author}
-                          </Text>
-                        </TouchableOpacity>
-                        <Text style={[styles.commentBodyText, isRtl && { textAlign: 'right' }]}>
-                          {c.content}
-                        </Text>
-                      </View>
-
-                      {/* Time, Reply & Like */}
-                      <View style={[styles.commentMetaRow, isRtl && styles.commentMetaRowRtl]}>
-                        <Text style={styles.commentTimeText}>{c.time}</Text>
-                        <TouchableOpacity
-                          style={styles.commentReplyBtn}
-                          activeOpacity={0.7}
-                          onPress={() => handleStartReply(c)}
-                        >
-                          <Text style={styles.commentReplyBtnText}>
-                            {isRtl ? 'رد' : 'Reply'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.commentLikeBtn, isRtl && styles.commentLikeBtnRtl]}
-                          activeOpacity={0.7}
-                          onPress={() => handleToggleCommentLike(activeCommentsPost.id, c.id)}
-                        >
-                          <Ionicons
-                            name={c.liked ? "heart" : "heart-outline"}
-                            size={13}
-                            color={c.liked ? '#E0245E' : colors.mutedDecor}
-                          />
-                          {(c.likes > 0) && (
-                            <Text style={[styles.commentLikeCount, c.liked && { color: '#E0245E' }]}>
-                              {c.likes}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* Nested Replies */}
-                      {c.replies && c.replies.length > 0 && (
-                        <View style={[
-                          styles.repliesListContainer, 
-                          isRtl && styles.repliesListContainerRtl
-                        ]}>
-                          {c.replies.map((reply) => (
-                            <View key={reply.id} style={[styles.replyItemRow, isRtl && styles.replyItemRowRtl]}>
-                              <TouchableOpacity
-                                activeOpacity={0.8}
-                                onPress={() => handleOpenUserProfile({
-                                  userId: reply.user_id || reply.userId,
-                                  author: reply.author_name || reply.author,
-                                  avatar: reply.avatar,
-                                })}
-                              >
-                                {reply.avatar ? (
-                                  <Image source={reply.avatar} style={styles.replyAvatar} />
-                                ) : (
-                                  <View style={styles.replyAvatarIcon}>
-                                    <Ionicons name="person" size={12} color="#FFFFFF" />
-                                  </View>
-                                )}
-                              </TouchableOpacity>
-
-                              <View style={[styles.replyBubbleContainer, isRtl ? { marginRight: 8, alignItems: 'flex-end' } : { marginLeft: 8 }]}>
-                                <View style={styles.replyBubble}>
-                                  <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    onPress={() => handleOpenUserProfile({
-                                      userId: reply.user_id || reply.userId,
-                                      author: reply.author_name || reply.author,
-                                      avatar: reply.avatar,
-                                    })}
-                                  >
-                                    <Text style={[styles.replyAuthorName, isRtl && { textAlign: 'right' }]}>
-                                      {reply.author}
-                                    </Text>
-                                  </TouchableOpacity>
-                                  <Text style={[styles.replyBodyText, isRtl && { textAlign: 'right' }]}>
-                                    {reply.content}
-                                  </Text>
-                                </View>
-
-                                <View style={[styles.commentMetaRow, isRtl && styles.commentMetaRowRtl]}>
-                                  <Text style={styles.commentTimeText}>{reply.time}</Text>
-                                  <TouchableOpacity
-                                    style={styles.commentReplyBtn}
-                                    activeOpacity={0.7}
-                                    onPress={() => handleStartReply(c, reply.author)}
-                                  >
-                                    <Text style={styles.commentReplyBtnText}>
-                                      {isRtl ? 'رد' : 'Reply'}
-                                    </Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={[styles.commentLikeBtn, isRtl && styles.commentLikeBtnRtl]}
-                                    activeOpacity={0.7}
-                                    onPress={() => handleToggleReplyLike(activeCommentsPost.id, c.id, reply.id)}
-                                  >
-                                    <Ionicons
-                                      name={reply.liked ? "heart" : "heart-outline"}
-                                      size={12}
-                                      color={reply.liked ? '#E0245E' : colors.mutedDecor}
-                                    />
-                                    {(reply.likes > 0) && (
-                                      <Text style={[styles.commentLikeCount, reply.liked && { color: '#E0245E' }]}>
-                                        {reply.likes}
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            {/* Replying To Banner */}
-            {replyingTo && (
-              <View style={[styles.replyingToBanner, isRtl && styles.replyingToBannerRtl]}>
-                <View style={[styles.replyingToLeft, isRtl && styles.replyingToLeftRtl]}>
-                  <Ionicons 
-                    name="arrow-undo-outline" 
-                    size={14} 
-                    color={colors.activeHighlight} 
-                    style={isRtl ? { marginLeft: 5 } : { marginRight: 5 }} 
-                  />
-                  <Text style={styles.replyingToText}>
-                    {isRtl ? `الرد على ${replyingTo.author}` : `Replying to ${replyingTo.author}`}
-                  </Text>
-                </View>
-                <TouchableOpacity 
-                  onPress={() => setReplyingTo(null)} 
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.cancelReplyBtn}
-                >
-                  <Ionicons name="close-circle" size={17} color={colors.secondaryText} />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Comment Input Footer */}
-            <View style={[
-              styles.commentInputContainer, 
-              { paddingBottom: Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 16 : 10) },
-              isRtl && styles.commentInputContainerRtl
-            ]}>
-              {/* Current User Avatar */}
-              {currentUser?.avatarUrl ? (
-                <Image source={{ uri: currentUser.avatarUrl }} style={styles.commentInputUserAvatarImage} />
-              ) : (
-                <View style={styles.commentInputUserAvatar}>
-                  <Ionicons name="person" size={14} color="#FFFFFF" />
-                </View>
-              )}
-
-              <View style={[styles.commentInputWrapper, isRtl && styles.commentInputWrapperRtl]}>
-                <TextInput
-                  ref={commentInputRef}
-                  style={[styles.commentTextInput, isRtl && { textAlign: 'right' }]}
-                  placeholder={
-                    replyingTo 
-                      ? (isRtl ? `رد على ${replyingTo.author}...` : `Reply to ${replyingTo.author}...`)
-                      : (isRtl ? 'اكتب تعليقاً...' : 'Add a comment...')
-                  }
-                  placeholderTextColor={colors.secondaryText}
-                  value={commentInputText}
-                  onChangeText={setCommentInputText}
-                  multiline={true}
-                  maxLength={400}
-                />
-
-                <TouchableOpacity
-                  style={[
-                    styles.commentSendBtn,
-                    !commentInputText.trim() && styles.commentSendBtnDisabled,
-                    isRtl && { marginLeft: 0, marginRight: 6 }
-                  ]}
-                  disabled={!commentInputText.trim()}
-                  activeOpacity={0.8}
-                  onPress={handleSubmitComment}
-                >
-                  <Ionicons
-                    name="send"
-                    size={14}
-                    color={commentInputText.trim() ? '#FFFFFF' : colors.mutedDecor}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        </KeyboardAvoidingView>
-      </Modal>
+        post={activeCommentsPost}
+        currentUser={currentUser}
+        selectedLanguage={selectedLanguage}
+        onClose={() => setActiveCommentsPost(null)}
+        onOpenUserProfile={handleOpenUserProfile}
+        onCommentCountChange={(postId, count) => {
+          setPosts((prev) =>
+            prev.map((p) => (p.id === postId ? { ...p, comments: count, commentsCount: count } : p))
+          );
+          setActiveCommentsPost((prev) =>
+            prev && prev.id === postId ? { ...prev, comments: count, commentsCount: count } : prev
+          );
+        }}
+        asModal={true}
+        requireAuth={requireAuth}
+      />
 
       {/* Post Options Menu Bubble Popover */}
       <Modal

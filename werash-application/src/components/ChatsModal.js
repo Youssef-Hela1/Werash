@@ -20,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
 import ImageViewerModal from './ImageViewerModal';
+import PostCommentsModal from './PostCommentsModal';
 import ChatImageGrid from './ChatImageGrid';
 import ChatMessageSpecialistCard from './ChatMessageSpecialistCard';
 import SpecialistDetailModal from './SpecialistDetailModal';
@@ -32,6 +33,12 @@ import {
   getLocalDeletedTimestamps 
 } from '../services/chatService';
 import { sendChatMessagePushNotification } from '../services/notificationService';
+import {
+  resolveUserAvatar,
+  resolveUserBanner,
+  fetchLatestProfile,
+  subscribeProfileUpdates,
+} from '../services/userProfileCache';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -189,6 +196,7 @@ export default function ChatsModal({
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [viewingProfileUser, setViewingProfileUser] = useState(null);
   const [profilePreviewImage, setProfilePreviewImage] = useState(null);
+  const [activeCommentsPost, setActiveCommentsPost] = useState(null);
 
   // Real audio recording and playback via expo-audio
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -379,6 +387,29 @@ export default function ChatsModal({
     };
   }, [visible, activeUser?.id]);
 
+  // Live profile updates listener so inbox, headers, and avatars update immediately
+  useEffect(() => {
+    const unsub = subscribeProfileUpdates((updatedId, updatedProf) => {
+      if (!updatedProf) return;
+      setChats(prev => prev.map(c => {
+        if (c.otherUserId === updatedId || (c.name && updatedProf.fullName === c.name)) {
+          const freshAvatar = updatedProf.avatarUrl ? { uri: updatedProf.avatarUrl } : c.avatar;
+          return { ...c, avatar: freshAvatar };
+        }
+        return c;
+      }));
+      setActiveChat(prev => {
+        if (!prev) return prev;
+        if (prev.otherUserId === updatedId || (prev.name && updatedProf.fullName === prev.name)) {
+          const freshAvatar = updatedProf.avatarUrl ? { uri: updatedProf.avatarUrl } : prev.avatar;
+          return { ...prev, avatar: freshAvatar };
+        }
+        return prev;
+      });
+    });
+    return () => unsub();
+  }, []);
+
   // 2. Active Chat Room Presence Channel
   useEffect(() => {
     if (!visible || !activeChatId || !activeUser?.id) return;
@@ -433,6 +464,9 @@ export default function ChatsModal({
     const targetUserId = activeChat.otherUserId;
     const targetName = isRTL ? (activeChat.nameAr || activeChat.name) : (activeChat.name || activeChat.nameAr);
 
+    const initialAvatar = resolveUserAvatar(targetUserId, activeChat.avatar, targetName);
+    const initialBanner = resolveUserBanner(targetUserId, null, targetName);
+
     if (typeof onOpenProfile === 'function') {
       onOpenProfile({
         id: targetUserId || activeChat.id,
@@ -440,7 +474,8 @@ export default function ChatsModal({
         author: targetName,
         fullName: targetName,
         name: targetName,
-        avatar: activeChat.avatar,
+        avatar: initialAvatar || activeChat.avatar,
+        banner: initialBanner,
       });
       return;
     }
@@ -452,8 +487,8 @@ export default function ChatsModal({
       fullName: targetName,
       name: targetName,
       handle: `@${String(targetName || 'user').toLowerCase().replace(/[\s\W]+/g, '')}`,
-      avatar: activeChat.avatar,
-      banner: null,
+      avatar: initialAvatar || activeChat.avatar,
+      banner: initialBanner,
       vehicle: null,
       posts: [],
       likesCount: 0,
@@ -464,24 +499,18 @@ export default function ChatsModal({
 
     if (targetUserId) {
       try {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', targetUserId)
-          .maybeSingle();
-
-        if (prof) {
-          const resolvedAv = prof.avatar_url ? { uri: prof.avatar_url } : activeChat.avatar;
-          const resolvedVeh = prof.vehicle || (prof.car_brand ? `${prof.car_brand || ''} ${prof.car_model || ''}`.trim() : null);
+        fetchLatestProfile(targetUserId, targetName).then(prof => {
+          if (!prof) return;
+          const resolvedAv = prof.avatarUrl ? { uri: prof.avatarUrl } : initialAvatar;
           setViewingProfileUser(prev => prev ? {
             ...prev,
-            avatar: resolvedAv,
-            banner: prof.banner_url || null,
-            vehicle: resolvedVeh,
-            fullName: prof.full_name || prev.fullName,
-            author: prof.full_name || prev.author,
+            avatar: resolvedAv || prev.avatar,
+            banner: prof.bannerUrl || prev.banner,
+            vehicle: prof.vehicle || prev.vehicle,
+            fullName: prof.fullName || prev.fullName,
+            author: prof.fullName || prev.author,
           } : null);
-        }
+        }).catch(() => {});
 
         const { data: userPosts } = await supabase
           .from('community_posts')
@@ -567,7 +596,8 @@ export default function ChatsModal({
         const otherUserId = isP1 ? c.participant_2 : c.participant_1;
         const otherName = isP1 ? (c.participant_2_name || 'User') : (c.participant_1_name || 'User');
         const otherAvatar = isP1 ? c.participant_2_avatar : c.participant_1_avatar;
-        const resolvedAvatar = getAvatarSource(otherAvatar);
+        const dynamicAvatar = resolveUserAvatar(otherUserId, otherAvatar, otherName);
+        const resolvedAvatar = dynamicAvatar || getAvatarSource(otherAvatar);
 
         const lastTime = formatTimeAgo(c.last_message_at, false);
         const lastTimeAr = formatTimeAgo(c.last_message_at, true);
@@ -2516,6 +2546,7 @@ export default function ChatsModal({
                           <ChatImageGrid
                             images={msg.images || [msg.image]}
                             onImagePress={(tappedIndex) => {
+                              Keyboard.dismiss();
                               if (isSelectionMode) {
                                 handleToggleSelectMessage(msg);
                                 return;
@@ -2982,7 +3013,7 @@ export default function ChatsModal({
             >
               {isLoadingChats ? (
                 <View style={styles.emptyInbox}>
-                  <ActivityIndicator size="large" color={colors.forestGreen} />
+                  <ActivityIndicator size="large" color={isDarkMode ? '#4ADE80' : colors.forestGreen} />
                 </View>
               ) : filteredChats.length === 0 ? (
                 <View style={styles.emptyInbox}>
@@ -3207,10 +3238,13 @@ export default function ChatsModal({
                 <TouchableOpacity
                   activeOpacity={0.92}
                   onPress={() => {
+                    Keyboard.dismiss();
                     const bannerSrc = viewingProfileUser.banner
                       ? (typeof viewingProfileUser.banner === 'string' ? { uri: viewingProfileUser.banner } : viewingProfileUser.banner)
                       : require('../../assets/Banner wallpaper.png');
-                    setProfilePreviewImage(bannerSrc);
+                    setViewerImages([bannerSrc]);
+                    setViewerInitialIndex(0);
+                    setViewerVisible(true);
                   }}
                   style={styles.profileBannerContainer}
                 >
@@ -3231,11 +3265,14 @@ export default function ChatsModal({
                   <TouchableOpacity
                     activeOpacity={viewingProfileUser.avatar ? 0.85 : 1}
                     onPress={() => {
+                      Keyboard.dismiss();
                       if (viewingProfileUser.avatar) {
                         const avatarSrc = typeof viewingProfileUser.avatar === 'string'
                           ? { uri: viewingProfileUser.avatar }
                           : viewingProfileUser.avatar;
-                        setProfilePreviewImage(avatarSrc);
+                        setViewerImages([avatarSrc]);
+                        setViewerInitialIndex(0);
+                        setViewerVisible(true);
                       }
                     }}
                     style={[styles.profileAvatarCircle, { borderColor: colors.screenBg }]}
@@ -3344,12 +3381,16 @@ export default function ChatsModal({
                           {post.likes_count || 0}
                         </Text>
                       </View>
-                      <View style={[styles.postStatBadge, isRTL && { flexDirection: 'row-reverse' }]}>
-                        <Ionicons name="chatbubble" size={13} color={colors.secondaryText} />
+                      <TouchableOpacity
+                        style={[styles.postStatBadge, isRTL && { flexDirection: 'row-reverse' }]}
+                        activeOpacity={0.7}
+                        onPress={() => setActiveCommentsPost(post)}
+                      >
+                        <Ionicons name="chatbubble-outline" size={13} color={colors.secondaryText} />
                         <Text style={[styles.postStatText, { color: colors.secondaryText }]}>
                           {post.comments_count || 0}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ))
@@ -3372,6 +3413,33 @@ export default function ChatsModal({
                 />
               </View>
             )}
+
+            {/* Interactive Comments Bottom Sheet Shared Modal */}
+            <PostCommentsModal
+              visible={Boolean(activeCommentsPost)}
+              post={activeCommentsPost}
+              currentUser={currentUser}
+              selectedLanguage={selectedLanguage}
+              onClose={() => setActiveCommentsPost(null)}
+              onCommentCountChange={(postId, count) => {
+                setViewingProfileUser((prev) => {
+                  if (!prev || !prev.posts) return prev;
+                  return {
+                    ...prev,
+                    posts: prev.posts.map((p) =>
+                      p.id === postId ? { ...p, comments_count: count } : p
+                    ),
+                  };
+                });
+                setActiveCommentsPost((prev) =>
+                  prev && prev.id === postId
+                    ? { ...prev, comments_count: count, comments: count }
+                    : prev
+                );
+              }}
+              asModal={false}
+              requireAuth={() => true}
+            />
           </View>
         )}
 
@@ -3382,6 +3450,7 @@ export default function ChatsModal({
           initialIndex={viewerInitialIndex}
           onClose={() => setViewerVisible(false)}
           isRTL={isRTL}
+          asModal={false}
         />
 
         {/* Full-Screen Specialist Detail Overlay (exact same as posts feed) */}

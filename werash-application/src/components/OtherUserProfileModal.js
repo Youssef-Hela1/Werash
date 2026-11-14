@@ -8,12 +8,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageViewerModal from './ImageViewerModal';
+import PostCommentsModal from './PostCommentsModal';
 import ChatImageGrid from './ChatImageGrid';
 import SharedSpecialistCard from './SharedSpecialistCard';
 import { ALL_MECHANICS } from '../data/mechanicsData';
 import { truncatePostText, getParagraphDirection } from '../screens/CommunityScreen';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
+import {
+  getProfile,
+  fetchLatestProfile,
+  resolveUserAvatar,
+  resolveUserBanner,
+  subscribeProfileUpdates,
+} from '../services/userProfileCache';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FEED_GRID_WIDTH = Math.round(SCREEN_WIDTH - 32);
@@ -47,6 +55,8 @@ export default function OtherUserProfileModal({
   onSelectSpecialist,
   asModal = true,
   initialPosts = null,
+  onPostCommentCountChange = null,
+  onPostLikeChange = null,
 }) {
   const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
@@ -86,12 +96,6 @@ export default function OtherUserProfileModal({
 
   // Interactive Comments state
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
-  const [commentsList, setCommentsList] = useState([]);
-  const [commentInputText, setCommentInputText] = useState('');
-  const [replyingTo, setReplyingTo] = useState(null); // { commentId, author }
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const commentsScrollRef = useRef(null);
-  const commentInputRef = useRef(null);
 
   // Sync and fetch target user's current data from Supabase
   useEffect(() => {
@@ -101,51 +105,71 @@ export default function OtherUserProfileModal({
     const authorName = user?.author || user?.fullName || user?.name || 'User';
     const initialHandle = user?.handle || `@${String(authorName).toLowerCase().replace(/[\s\W]+/g, '')}`;
 
+    // 0ms instant cached resolution: never flash empty placeholders
+    const cachedProf = getProfile(targetId, authorName);
+    const initialAvatar = resolveUserAvatar(targetId, user?.avatar, authorName);
+    const initialBanner = resolveUserBanner(targetId, user?.banner, authorName);
+
     const initialObj = {
       userId: targetId,
       id: targetId || user?.id,
-      author: authorName,
+      author: cachedProf?.fullName || authorName,
       handle: initialHandle,
-      avatar: user?.avatar || null,
-      banner: user?.banner || null,
-      vehicle: user?.vehicle || null,
+      avatar: initialAvatar,
+      banner: initialBanner,
+      vehicle: cachedProf?.vehicle || user?.vehicle || null,
     };
     setProfileData(initialObj);
 
-    // If initial posts were passed, use them initially
+    // If initial posts were passed, use them initially with normalized counts
     if (Array.isArray(initialPosts) && initialPosts.length > 0) {
-      setUserPosts(initialPosts);
-      const totalLikes = initialPosts.reduce((sum, p) => sum + (p.likes || p.likes_count || 0), 0);
+      const formatted = initialPosts.map(p => ({
+        ...p,
+        commentsCount: p.commentsCount !== undefined ? p.commentsCount : (p.comments || 0),
+        likes: p.likes !== undefined ? p.likes : (p.likes_count || 0),
+      }));
+      setUserPosts(formatted);
+      const totalLikes = formatted.reduce((sum, p) => sum + (p.likes || 0), 0);
       setLikesCount(totalLikes);
     }
-
-    if (!targetId) return;
 
     let isMounted = true;
     setIsLoading(true);
 
-    // 1. Fetch live user profile details from public.profiles
-    supabase
-      .from('profiles')
-      .select('id, full_name, avatar_url, banner_url, car_brand, car_model')
-      .eq('id', targetId)
-      .maybeSingle()
-      .then(({ data: liveProf, error: profErr }) => {
-        if (!isMounted || profErr || !liveProf) return;
-        const veh = liveProf.car_brand ? `${liveProf.car_brand || ''} ${liveProf.car_model || ''}`.trim() : null;
+    // 1. Fetch live user profile details (checks Supabase profiles AND storage fallback)
+    fetchLatestProfile(targetId, authorName)
+      .then((freshProf) => {
+        if (!isMounted || !freshProf) return;
         setProfileData(prev => {
           if (!prev) return prev;
-          const freshAvatar = liveProf.avatar_url ? { uri: liveProf.avatar_url } : prev.avatar;
+          const freshAvatar = freshProf.avatarUrl ? { uri: freshProf.avatarUrl } : prev.avatar;
           return {
             ...prev,
-            author: liveProf.full_name || prev.author,
-            avatar: freshAvatar,
-            banner: liveProf.banner_url || prev.banner,
-            vehicle: veh || prev.vehicle,
+            author: freshProf.fullName || prev.author,
+            avatar: freshAvatar || prev.avatar,
+            banner: freshProf.bannerUrl || prev.banner,
+            vehicle: freshProf.vehicle || prev.vehicle,
           };
         });
       })
       .catch(() => {});
+
+    // Live subscription: update smoothly if target user updates their picture/banner while modal is open
+    const unsubscribeProfile = subscribeProfileUpdates((updatedId, updatedProf) => {
+      if (!isMounted || !updatedProf) return;
+      if (updatedId === targetId || (authorName && updatedProf.fullName === authorName)) {
+        setProfileData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            author: updatedProf.fullName || prev.author,
+            avatar: updatedProf.avatarUrl ? { uri: updatedProf.avatarUrl } : prev.avatar,
+            banner: updatedProf.bannerUrl || prev.banner,
+            vehicle: updatedProf.vehicle || prev.vehicle,
+          };
+        });
+      }
+    });
 
     // 2. Fetch live user posts and resolve current user's liked status
     (async () => {
@@ -237,7 +261,7 @@ export default function OtherUserProfileModal({
           userId: p.user_id,
           author: p.author_name || authorName,
           handle: initialHandle,
-          avatar: p.author_avatar ? { uri: p.author_avatar } : null,
+          avatar: resolveUserAvatar(p.user_id, p.author_avatar, p.author_name) || initialAvatar,
           time: formatPostTime(p.created_at, false),
           timeAr: formatPostTime(p.created_at, true),
           content: p.content || '',
@@ -262,267 +286,13 @@ export default function OtherUserProfileModal({
 
     return () => {
       isMounted = false;
+      if (typeof unsubscribeProfile === 'function') unsubscribeProfile();
     };
   }, [visible, userId, user, currentUser?.id]);
-
-  // Fetch comments for a specific post
-  const fetchPostComments = useCallback(async (postId) => {
-    if (!postId) return;
-    setIsLoadingComments(true);
-    try {
-      const { data, error } = await supabase
-        .from('community_post_comments')
-        .select('*')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.warn('Error fetching comments:', error.message);
-        return;
-      }
-
-      const commentMap = new Map();
-      const topLevelList = [];
-
-      (data || []).forEach((row) => {
-        const item = {
-          id: row.id,
-          author: row.author_name || (isRtl ? 'مستخدم' : 'User'),
-          handle: row.author_handle || '@user',
-          avatar: row.author_avatar ? { uri: row.author_avatar } : null,
-          time: formatPostTime(row.created_at, isRtl),
-          content: row.content,
-          likes: 0,
-          liked: false,
-          replies: [],
-          parentId: row.parent_id || null,
-        };
-        commentMap.set(row.id, item);
-        if (!row.parent_id) {
-          topLevelList.push(item);
-        }
-      });
-
-      (data || []).forEach((row) => {
-        if (row.parent_id && commentMap.has(row.parent_id)) {
-          const parent = commentMap.get(row.parent_id);
-          const reply = commentMap.get(row.id);
-          if (parent && reply && !parent.replies.some((r) => r.id === reply.id)) {
-            parent.replies.push(reply);
-          }
-        }
-      });
-
-      setCommentsList(topLevelList);
-
-      // Update post comments count in state
-      setUserPosts(prev => prev.map(p => {
-        if (p.id === postId) {
-          return {
-            ...p,
-            commentsCount: (data || []).length,
-          };
-        }
-        return p;
-      }));
-    } catch (err) {
-      console.warn('fetchPostComments error:', err);
-    } finally {
-      setIsLoadingComments(false);
-    }
-  }, [isRtl]);
-
-  // Realtime comments subscription
-  useEffect(() => {
-    if (!activeCommentsPost?.id) return;
-    fetchPostComments(activeCommentsPost.id);
-
-    const commentsChannel = supabase
-      .channel(`profile_comments_${activeCommentsPost.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'community_post_comments',
-          filter: `post_id=eq.${activeCommentsPost.id}`,
-        },
-        () => {
-          fetchPostComments(activeCommentsPost.id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(commentsChannel);
-    };
-  }, [activeCommentsPost?.id, fetchPostComments]);
 
   // Open comments bottom sheet
   const handleOpenComments = (post) => {
     setActiveCommentsPost(post);
-    setCommentInputText('');
-    setReplyingTo(null);
-  };
-
-  // Start reply to a specific comment
-  const handleStartReply = (comment, specificAuthor) => {
-    const authorToReply = specificAuthor || comment.author;
-    setReplyingTo({
-      commentId: comment.id,
-      author: authorToReply,
-    });
-    setTimeout(() => {
-      if (commentInputRef.current) {
-        commentInputRef.current.focus();
-      }
-    }, 100);
-  };
-
-  // Submit comment
-  const handleSubmitComment = async () => {
-    if (!commentInputText.trim() || !activeCommentsPost) return;
-
-    const currentAuthorName = currentUser?.fullName || (isRtl ? 'مستخدم' : 'Guest User');
-    const currentHandle = currentUser?.fullName
-      ? `@${currentUser.fullName.toLowerCase().replace(/[\s\W]+/g, '')}`
-      : '@guest';
-    const commentContent = commentInputText.trim();
-    const postId = activeCommentsPost.id;
-    const parentCommentId = replyingTo ? replyingTo.commentId : null;
-
-    setCommentInputText('');
-    setReplyingTo(null);
-
-    const tempId = `temp_${Date.now()}`;
-    const newCommentItem = {
-      id: tempId,
-      author: currentAuthorName,
-      handle: currentHandle,
-      avatar: currentUser?.avatarUrl ? { uri: currentUser.avatarUrl } : null,
-      time: isRtl ? 'الآن' : 'Just now',
-      content: commentContent,
-      likes: 0,
-      liked: false,
-      replies: [],
-      parentId: parentCommentId,
-    };
-
-    // Optimistic UI update
-    setCommentsList(prev => {
-      if (parentCommentId) {
-        return prev.map(c => {
-          if (c.id === parentCommentId) {
-            return {
-              ...c,
-              replies: [...(c.replies || []), newCommentItem],
-            };
-          }
-          return c;
-        });
-      }
-      return [...prev, newCommentItem];
-    });
-
-    setUserPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        return {
-          ...p,
-          commentsCount: (p.commentsCount || 0) + 1,
-        };
-      }
-      return p;
-    }));
-
-    setTimeout(() => {
-      if (commentsScrollRef.current) {
-        commentsScrollRef.current.scrollToEnd({ animated: true });
-      }
-    }, 120);
-
-    // Save to Supabase in background
-    if (currentUser?.id) {
-      try {
-        const payload = {
-          post_id: postId,
-          user_id: currentUser.id,
-          author_name: currentAuthorName,
-          author_handle: currentHandle,
-          author_avatar: currentUser.avatarUrl || null,
-          content: commentContent,
-        };
-        if (parentCommentId) {
-          payload.parent_id = parentCommentId;
-        }
-
-        const { data: insertedComment } = await supabase
-          .from('community_post_comments')
-          .insert(payload)
-          .select()
-          .single();
-
-        if (insertedComment) {
-          setCommentsList(prev => {
-            const replaceId = (list) => list.map(c => {
-              if (c.id === tempId) return { ...c, id: insertedComment.id };
-              if (c.replies?.length > 0) return { ...c, replies: replaceId(c.replies) };
-              return c;
-            });
-            return replaceId(prev);
-          });
-
-          // Query accurate count from community_post_comments
-          const { count: freshCount } = await supabase
-            .from('community_post_comments')
-            .select('id', { count: 'exact', head: true })
-            .eq('post_id', postId);
-
-          const finalCommentsCount = typeof freshCount === 'number' ? freshCount : (activeCommentsPost?.commentsCount || 0) + 1;
-
-          setUserPosts(prev => prev.map(p => p.id === postId ? { ...p, commentsCount: finalCommentsCount } : p));
-          setActiveCommentsPost(prev => prev ? { ...prev, commentsCount: finalCommentsCount } : null);
-
-          supabase
-            .from('community_posts')
-            .update({ comments_count: finalCommentsCount })
-            .eq('id', postId)
-            .then(() => {})
-            .catch(() => {});
-        }
-      } catch (err) {
-        console.warn('Error saving comment:', err);
-      }
-    }
-  };
-
-  const handleToggleCommentLike = (commentId) => {
-    setCommentsList(prev => prev.map(c => {
-      if (c.id === commentId) {
-        const isLiked = !c.liked;
-        return {
-          ...c,
-          liked: isLiked,
-          likes: isLiked ? (c.likes || 0) + 1 : Math.max(0, (c.likes || 1) - 1),
-        };
-      }
-      if (c.replies?.length > 0) {
-        return {
-          ...c,
-          replies: c.replies.map(r => {
-            if (r.id === commentId) {
-              const isLiked = !r.liked;
-              return {
-                ...r,
-                liked: isLiked,
-                likes: isLiked ? (r.likes || 0) + 1 : Math.max(0, (r.likes || 1) - 1),
-              };
-            }
-            return r;
-          })
-        };
-      }
-      return c;
-    }));
   };
 
   // Toggle Like on a Post
@@ -545,6 +315,10 @@ export default function OtherUserProfileModal({
 
     // Update total likesCount in profile header
     setLikesCount(prev => willBeLiked ? prev + 1 : Math.max(0, prev - 1));
+
+    if (onPostLikeChange) {
+      onPostLikeChange(postId, willBeLiked, nextLikes);
+    }
 
     // Persist in local storage
     if (currentUser?.id) {
@@ -582,7 +356,62 @@ export default function OtherUserProfileModal({
         console.warn('Like sync error:', cloudErr);
       }
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, onPostLikeChange]);
+
+  // Real-time spontaneous registration of likes and comments on this profile
+  useEffect(() => {
+    if (!visible) return;
+    const targetId = userId || user?.userId || user?.id;
+
+    const channel = supabase
+      .channel(`profile_spontaneous_rt_${targetId || 'user'}_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'community_post_likes' },
+        async (payload) => {
+          const targetPostId = payload.new?.post_id || payload.old?.post_id;
+          if (!targetPostId) return;
+
+          const { count } = await supabase
+            .from('community_post_likes')
+            .select('id', { count: 'exact', head: true })
+            .eq('post_id', targetPostId);
+
+          if (typeof count === 'number') {
+            setUserPosts(prev => {
+              const updated = prev.map(p => p.id === targetPostId ? { ...p, likes: count } : p);
+              const total = updated.reduce((sum, p) => sum + (p.likes || 0), 0);
+              setLikesCount(total);
+              return updated;
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'community_post_comments' },
+        async (payload) => {
+          const targetPostId = payload.new?.post_id || payload.old?.post_id;
+          if (!targetPostId) return;
+
+          const { count } = await supabase
+            .from('community_post_comments')
+            .select('id', { count: 'exact', head: true })
+            .eq('post_id', targetPostId);
+
+          if (typeof count === 'number') {
+            setUserPosts(prev =>
+              prev.map(p => p.id === targetPostId ? { ...p, commentsCount: count, comments: count } : p)
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [visible, userId, user?.userId, user?.id]);
 
   const handleBack = () => {
     if (viewerVisible) {
@@ -978,7 +807,7 @@ export default function OtherUserProfileModal({
                       post.liked && { color: '#E0245E', fontWeight: '700' },
                       isRtl ? { marginRight: 6 } : { marginLeft: 6 }
                     ]}>
-                      {post.likes}
+                      {post.likes !== undefined ? post.likes : (post.likes_count || 0)}
                     </Text>
                   </TouchableOpacity>
 
@@ -991,7 +820,7 @@ export default function OtherUserProfileModal({
                   >
                     <Ionicons name="chatbubble-outline" size={19} color={colors.secondaryText} />
                     <Text style={[styles.engagementCount, isRtl ? { marginRight: 6 } : { marginLeft: 6 }]}>
-                      {post.commentsCount || 0}
+                      {post.commentsCount !== undefined ? post.commentsCount : (post.comments || 0)}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1008,261 +837,32 @@ export default function OtherUserProfileModal({
         initialIndex={viewerInitialIndex}
         onClose={() => setViewerVisible(false)}
         isRTL={isRtl}
+        asModal={false}
       />
 
-      {/* Interactive Comments Bottom Sheet Modal */}
-      {Boolean(activeCommentsPost) && (
-        <Modal
-          visible={Boolean(activeCommentsPost)}
-          animationType="slide"
-          transparent={true}
-          statusBarTranslucent={true}
-          onRequestClose={() => setActiveCommentsPost(null)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.commentsBackdrop}
-          >
-            <TouchableOpacity 
-              style={StyleSheet.absoluteFill} 
-              activeOpacity={1} 
-              onPress={() => setActiveCommentsPost(null)}
-            />
+      {/* Interactive Comments Bottom Sheet Shared Component */}
+      <PostCommentsModal
+        visible={Boolean(activeCommentsPost)}
+        post={activeCommentsPost}
+        currentUser={currentUser}
+        selectedLanguage={selectedLanguage}
+        onClose={() => setActiveCommentsPost(null)}
+        onOpenUserProfile={(targetUser) => {
+          // Keep profile viewing or update
+        }}
+        onCommentCountChange={(targetPostId, count) => {
+          setUserPosts(prev => prev.map(p => p.id === targetPostId ? { ...p, commentsCount: count } : p));
+          setActiveCommentsPost(prev => prev && prev.id === targetPostId ? { ...prev, commentsCount: count, comments: count } : prev);
+          if (onPostCommentCountChange) {
+            onPostCommentCountChange(targetPostId, count);
+          }
+        }}
+        asModal={false}
+        requireAuth={() => true}
+      />
 
-            <View style={styles.commentsSheetContainer}>
-              {/* Handle Bar Area */}
-              <View style={styles.commentsHandleArea}>
-                <View style={styles.commentsHandleBar} />
-              </View>
 
-              {/* Header */}
-              <View style={[styles.commentsHeader, isRtl && styles.commentsHeaderRtl]}>
-                <View style={[styles.commentsHeaderTitleGroup, isRtl && styles.commentsHeaderTitleGroupRtl]}>
-                  <Text style={styles.commentsHeaderTitle}>
-                    {isRtl ? 'التعليقات' : 'Comments'}
-                  </Text>
-                  <View style={[styles.commentsCountBadge, isRtl && styles.commentsCountBadgeRtl]}>
-                    <Text style={styles.commentsCountBadgeText}>
-                      {commentsList.length}
-                    </Text>
-                  </View>
-                </View>
 
-                <TouchableOpacity 
-                  style={styles.commentsCloseBtn} 
-                  onPress={() => setActiveCommentsPost(null)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="close" size={18} color={colors.primaryText} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Comments List Scroll */}
-              <ScrollView 
-                ref={commentsScrollRef}
-                style={styles.commentsListScroll}
-                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                {isLoadingComments && commentsList.length === 0 ? (
-                  <View style={styles.emptyCommentsBox}>
-                    <ActivityIndicator size="small" color={colors.activeHighlight} />
-                    <Text style={[styles.emptyCommentsSubtitle, { marginTop: 12 }]}>
-                      {isRtl ? 'جاري تحميل التعليقات...' : 'Loading comments...'}
-                    </Text>
-                  </View>
-                ) : commentsList.length === 0 ? (
-                  <View style={styles.emptyCommentsBox}>
-                    <Ionicons name="chatbubbles-outline" size={44} color={colors.mutedDecor} />
-                    <Text style={styles.emptyCommentsTitle}>
-                      {isRtl ? 'لا توجد تعليقات بعد' : 'No comments yet'}
-                    </Text>
-                    <Text style={styles.emptyCommentsSubtitle}>
-                      {isRtl ? 'كن أول من يشارك برأيه حول هذا المنشور!' : 'Be the first to share your thoughts on this post!'}
-                    </Text>
-                  </View>
-                ) : (
-                  commentsList.map((c) => (
-                    <View key={c.id} style={[styles.commentItemRow, isRtl && styles.commentItemRowRtl]}>
-                      {/* Comment Avatar */}
-                      <View>
-                        {c.avatar ? (
-                          <Image source={c.avatar} style={styles.commentAvatar} />
-                        ) : (
-                          <View style={styles.commentAvatarIcon}>
-                            <Ionicons name="person" size={15} color="#FFFFFF" />
-                          </View>
-                        )}
-                      </View>
-
-                      {/* Comment Bubble & Meta */}
-                      <View style={[styles.commentBubbleContainer, isRtl && styles.commentBubbleContainerRtl]}>
-                        <View style={styles.commentBubble}>
-                          <Text style={[styles.commentAuthorName, isRtl && { textAlign: 'right' }]}>
-                            {c.author}
-                          </Text>
-                          <Text style={[styles.commentBodyText, isRtl && { textAlign: 'right' }]}>
-                            {c.content}
-                          </Text>
-                        </View>
-
-                        {/* Time, Reply & Like */}
-                        <View style={[styles.commentMetaRow, isRtl && styles.commentMetaRowRtl]}>
-                          <Text style={styles.commentTimeText}>{c.time}</Text>
-                          <TouchableOpacity
-                            style={styles.commentReplyBtn}
-                            activeOpacity={0.7}
-                            onPress={() => handleStartReply(c)}
-                          >
-                            <Text style={styles.commentReplyBtnText}>
-                              {isRtl ? 'رد' : 'Reply'}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.commentLikeBtn, isRtl && styles.commentLikeBtnRtl]}
-                            activeOpacity={0.7}
-                            onPress={() => handleToggleCommentLike(c.id)}
-                          >
-                            <Ionicons
-                              name={c.liked ? "heart" : "heart-outline"}
-                              size={13}
-                              color={c.liked ? '#E0245E' : colors.mutedDecor}
-                            />
-                            {(c.likes > 0) && (
-                              <Text style={[styles.commentLikeCount, c.liked && { color: '#E0245E' }]}>
-                                {c.likes}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Nested Replies */}
-                        {c.replies && c.replies.length > 0 && (
-                          <View style={[styles.repliesListContainer, isRtl && styles.repliesListContainerRtl]}>
-                            {c.replies.map((reply) => (
-                              <View key={reply.id} style={[styles.replyItemRow, isRtl && styles.replyItemRowRtl]}>
-                                <View>
-                                  {reply.avatar ? (
-                                    <Image source={reply.avatar} style={styles.replyAvatar} />
-                                  ) : (
-                                    <View style={styles.replyAvatarIcon}>
-                                      <Ionicons name="person" size={12} color="#FFFFFF" />
-                                    </View>
-                                  )}
-                                </View>
-                                <View style={[styles.commentBubbleContainer, isRtl && styles.commentBubbleContainerRtl]}>
-                                  <View style={styles.commentBubble}>
-                                    <Text style={[styles.commentAuthorName, isRtl && { textAlign: 'right' }]}>
-                                      {reply.author}
-                                    </Text>
-                                    <Text style={[styles.commentBodyText, isRtl && { textAlign: 'right' }]}>
-                                      {reply.content}
-                                    </Text>
-                                  </View>
-                                  <View style={[styles.commentMetaRow, isRtl && styles.commentMetaRowRtl]}>
-                                    <Text style={styles.commentTimeText}>{reply.time}</Text>
-                                    <TouchableOpacity
-                                      style={styles.commentReplyBtn}
-                                      activeOpacity={0.7}
-                                      onPress={() => handleStartReply(c, reply.author)}
-                                    >
-                                      <Text style={styles.commentReplyBtnText}>
-                                        {isRtl ? 'رد' : 'Reply'}
-                                      </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      style={[styles.commentLikeBtn, isRtl && styles.commentLikeBtnRtl]}
-                                      activeOpacity={0.7}
-                                      onPress={() => handleToggleCommentLike(reply.id)}
-                                    >
-                                      <Ionicons
-                                        name={reply.liked ? "heart" : "heart-outline"}
-                                        size={12}
-                                        color={reply.liked ? '#E0245E' : colors.mutedDecor}
-                                      />
-                                      {(reply.likes > 0) && (
-                                        <Text style={[styles.commentLikeCount, reply.liked && { color: '#E0245E' }]}>
-                                          {reply.likes}
-                                        </Text>
-                                      )}
-                                    </TouchableOpacity>
-                                  </View>
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-
-              {/* Replying banner indicator */}
-              {Boolean(replyingTo) && (
-                <View style={[styles.replyingToBanner, isRtl && styles.replyingToBannerRtl]}>
-                  <Text style={styles.replyingToText}>
-                    {isRtl ? `الرد على ${replyingTo.author}` : `Replying to ${replyingTo.author}`}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setReplyingTo(null)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={16} color={colors.secondaryText} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Comment Input Bar */}
-              <View style={[styles.commentInputContainer, isRtl && styles.commentInputContainerRtl]}>
-                {currentUser?.avatarUrl ? (
-                  <Image source={{ uri: currentUser.avatarUrl }} style={styles.commentInputUserAvatarImage} />
-                ) : (
-                  <View style={styles.commentInputUserAvatar}>
-                    <Ionicons name="person" size={14} color="#FFFFFF" />
-                  </View>
-                )}
-
-                <View style={[styles.commentInputWrapper, isRtl && styles.commentInputWrapperRtl]}>
-                  <TextInput
-                    ref={commentInputRef}
-                    style={[styles.commentTextInput, isRtl && { textAlign: 'right' }]}
-                    placeholder={
-                      replyingTo 
-                        ? (isRtl ? `رد على ${replyingTo.author}...` : `Reply to ${replyingTo.author}...`)
-                        : (isRtl ? 'اكتب تعليقاً...' : 'Add a comment...')
-                    }
-                    placeholderTextColor={colors.secondaryText}
-                    value={commentInputText}
-                    onChangeText={setCommentInputText}
-                    multiline={true}
-                    maxLength={400}
-                  />
-
-                  <TouchableOpacity
-                    style={[
-                      styles.commentSendBtn,
-                      !commentInputText.trim() && styles.commentSendBtnDisabled,
-                      isRtl && { marginLeft: 0, marginRight: 6 }
-                    ]}
-                    disabled={!commentInputText.trim()}
-                    activeOpacity={0.8}
-                    onPress={handleSubmitComment}
-                  >
-                    <Ionicons
-                      name="send"
-                      size={14}
-                      color={commentInputText.trim() ? '#FFFFFF' : colors.mutedDecor}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      )}
     </View>
   );
 

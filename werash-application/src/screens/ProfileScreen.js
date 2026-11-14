@@ -6,10 +6,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { toByteArray } from 'base64-js';
+import { decode as decodeBase64 } from 'base64-arraybuffer';
+import * as ImageManipulator from 'expo-image-manipulator';
 import ImageCropModal from '../components/ImageCropModal';
 import { useThemeStyles, useTheme } from '../styles/ThemeContext';
 import { supabase } from '../services/supabase';
+import { updateProfileInCache } from '../services/userProfileCache';
 
 export default function ProfileScreen({
   visible,
@@ -19,7 +21,7 @@ export default function ProfileScreen({
   onOpenSignIn,
   selectedLanguage
 }) {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
   const isRtl = selectedLanguage === 'Arabic';
 
@@ -111,29 +113,27 @@ export default function ProfileScreen({
           }
         } catch (_) {}
 
-        let uploadBody = null;
-        if (avatarBase64) {
+        let base64 = avatarBase64;
+        if (!base64 && avatar && typeof avatar === 'string' && !avatar.startsWith('http')) {
           try {
-            uploadBody = toByteArray(avatarBase64);
-          } catch (e) {
-            console.warn('Failed converting base64 in ProfileScreen:', e);
-          }
-        }
-        if (!uploadBody) {
-          try {
-            const response = await fetch(avatar);
-            uploadBody = await response.blob();
-          } catch (fetchErr) {
-            console.warn('fetch blob failed in ProfileScreen:', fetchErr);
+            const manip = await ImageManipulator.manipulateAsync(avatar, [], {
+              base64: true,
+              format: ImageManipulator.SaveFormat.JPEG,
+              compress: 0.88,
+            });
+            base64 = manip.base64;
+          } catch (manipErr) {
+            console.warn('manipulateAsync base64 failed in ProfileScreen:', manipErr);
           }
         }
 
-        if (uploadBody && authUserId) {
+        if (base64 && authUserId) {
+          const arrayBuffer = decodeBase64(base64);
           const fileName = `${authUserId}/avatar_${Date.now()}.jpg`;
 
           const { data: uploadData, error: uploadErr } = await supabase.storage
             .from('community-media')
-            .upload(fileName, uploadBody, {
+            .upload(fileName, arrayBuffer, {
               contentType: 'image/jpeg',
               upsert: true,
             });
@@ -206,10 +206,27 @@ export default function ProfileScreen({
               .eq('author_name', fullName.trim());
           }
 
+          await supabase
+            .from('community_post_comments')
+            .update({ author_avatar: finalAvatarUrl })
+            .eq('user_id', targetId);
+
+          if (fullName.trim()) {
+            await supabase
+              .from('community_post_comments')
+              .update({ author_avatar: finalAvatarUrl })
+              .eq('author_name', fullName.trim());
+          }
+
           try {
             await AsyncStorage.setItem(`@werash_user_avatar_${targetId}`, finalAvatarUrl);
             await AsyncStorage.setItem(`@werash_user_avatar_ts_${targetId}`, String(Date.now()));
           } catch (_) {}
+
+          updateProfileInCache(targetId, {
+            fullName: fullName.trim(),
+            avatarUrl: finalAvatarUrl,
+          });
         }
       } catch (err) {
         console.warn('Error syncing profile update to Supabase:', err);
@@ -254,7 +271,7 @@ export default function ProfileScreen({
           </Text>
           <TouchableOpacity style={styles.saveHeaderBtn} onPress={handleSave} activeOpacity={0.7} disabled={isSaving}>
             {isSaving ? (
-              <ActivityIndicator size="small" color={colors.bgBrand} />
+              <ActivityIndicator size="small" color={isDarkMode ? '#4ADE80' : colors.bgBrand} />
             ) : (
               <Text style={[styles.saveHeaderText, isRtl && { fontFamily: 'IBMPlexSansArabic-Bold', fontSize: 14.0 }]}>
                 {isRtl ? 'حفظ' : 'Save'}

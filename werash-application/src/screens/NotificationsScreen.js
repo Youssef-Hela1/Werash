@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
   Platform,
   LayoutAnimation,
   UIManager,
@@ -12,7 +13,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTheme } from '../styles/ThemeContext';
+import { useTheme, useThemeStyles } from '../styles/ThemeContext';
+import { syncAllNotifications } from '../services/notificationManager';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -22,18 +24,43 @@ const STORAGE_KEY_READ_IDS = '@werash_notifications_read_ids';
 
 export default function NotificationsScreen({
   currentUser,
+  userVehicles = [],
   selectedLanguage,
   notifications = [],
   setNotifications,
   onBack,
   onNavigate,
+  onOpenChat,
+  onRefresh,
 }) {
   const { colors, isDarkMode } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const isRTL = selectedLanguage === 'Arabic';
 
   // Filter state: 'all' | 'unread'
   const [activeFilter, setActiveFilter] = useState('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (onRefresh) {
+        await onRefresh();
+      } else {
+        await syncAllNotifications({
+          currentUser,
+          userVehicles,
+          setNotifications,
+          isRTL,
+        });
+      }
+    } catch (err) {
+      console.warn('[NotificationsScreen] Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !n.read).length;
@@ -43,10 +70,14 @@ export default function NotificationsScreen({
   const persistReadState = useCallback(async (updatedNotifications) => {
     try {
       const readIds = updatedNotifications.filter((n) => n.read).map((n) => n.id);
-      const storageKey = currentUser?.id 
-        ? `${STORAGE_KEY_READ_IDS}_${currentUser.id}` 
-        : `${STORAGE_KEY_READ_IDS}_guest`;
-      await AsyncStorage.setItem(storageKey, JSON.stringify(readIds));
+      const userSuffix = currentUser?.id || 'guest';
+      const storageKey = `${STORAGE_KEY_READ_IDS}_${userSuffix}`;
+      const dataKey = `@werash_notifications_data_${userSuffix}`;
+
+      await AsyncStorage.multiSet([
+        [storageKey, JSON.stringify(readIds)],
+        [dataKey, JSON.stringify(updatedNotifications)],
+      ]);
     } catch (e) {
       console.warn('[Notifications] Persist read error:', e);
     }
@@ -78,9 +109,24 @@ export default function NotificationsScreen({
     if (!item.read) {
       handleMarkAsRead(item.id);
     }
-    // Action navigation if applicable
-    if (onNavigate && item.targetTab) {
-      onNavigate(item.targetTab);
+    // Direct message tap: open chat with sender
+    if (item.type === 'message' && onOpenChat) {
+      onOpenChat({
+        conversationId: item.data?.conversationId,
+        id: item.data?.senderId,
+        name: item.data?.senderName,
+      });
+      return;
+    }
+    // Action navigation
+    if (onNavigate) {
+      if (item.targetTab === 'garage' || item.type === 'service' || item.type === 'maintenance') {
+        onNavigate('garage');
+      } else if (item.targetTab === 'community' || item.type === 'like' || item.type === 'comment' || item.type === 'reply') {
+        onNavigate('community');
+      } else if (item.targetTab) {
+        onNavigate(item.targetTab);
+      }
     }
   };
 
@@ -103,7 +149,9 @@ export default function NotificationsScreen({
 
   // Render icon based on type
   const renderNotificationIcon = (type, isRead) => {
-    const iconColor = isRead ? '#6B7280' : '#003514';
+    const iconColor = isRead
+      ? (isDarkMode ? colors.secondaryText : '#6B7280')
+      : (isDarkMode ? '#4ADE80' : '#003514');
     const iconSize = 22;
 
     switch (type) {
@@ -111,6 +159,10 @@ export default function NotificationsScreen({
         return <Ionicons name="chatbubble-outline" size={iconSize} color={iconColor} />;
       case 'reply':
         return <Ionicons name="chatbubbles-outline" size={iconSize} color={iconColor} />;
+      case 'comment':
+        return <Ionicons name="chatbubble-ellipses-outline" size={iconSize} color={iconColor} />;
+      case 'like':
+        return <Ionicons name="heart-outline" size={iconSize} color={iconColor} />;
       case 'service':
       case 'maintenance':
         return <MaterialCommunityIcons name="oil-level" size={iconSize} color={iconColor} />;
@@ -210,7 +262,7 @@ export default function NotificationsScreen({
           <Ionicons
             name={isRTL ? 'chevron-forward' : 'chevron-back'}
             size={25}
-            color="#003514"
+            color={isDarkMode ? colors.primaryText : '#003514'}
           />
           <Text style={[styles.headerTitleText, isRTL && styles.headerTitleTextRtl]}>
             {isRTL ? 'الإشعارات' : 'Notifications'}
@@ -277,14 +329,27 @@ export default function NotificationsScreen({
       {/* Notifications List */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 110 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={isDarkMode ? '#4ADE80' : '#003514'}
+            colors={[isDarkMode ? '#4ADE80' : '#003514']}
+            progressBackgroundColor={isDarkMode ? (colors.cardBg || '#1E2621') : '#FFFFFF'}
+          />
+        }
       >
         {/* Empty State */}
         {displayedNotifications.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconCircle}>
-              <Ionicons name="notifications-off-outline" size={32} color="#003514" />
+              <Ionicons
+                name="notifications-off-outline"
+                size={32}
+                color={isDarkMode ? '#4ADE80' : '#003514'}
+              />
             </View>
             <Text style={styles.emptyTitle}>
               {activeFilter === 'unread'
@@ -323,10 +388,10 @@ export default function NotificationsScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDarkMode) => StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.screenBg,
   },
   headerRow: {
     flexDirection: 'row',
@@ -334,6 +399,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 18,
     paddingVertical: 12,
+    backgroundColor: colors.screenBg,
   },
   headerRowRtl: {
     flexDirection: 'row-reverse',
@@ -349,7 +415,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
-    color: '#003514',
+    color: isDarkMode ? colors.primaryText : '#003514',
     marginLeft: 6,
     letterSpacing: -0.3,
   },
@@ -362,10 +428,11 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontFamily: 'PlusJakartaSans-Medium',
     fontWeight: '500',
-    color: '#6B7280',
+    color: isDarkMode ? '#4ADE80' : '#6B7280',
   },
   markAllReadDisabled: {
-    opacity: 0.45,
+    opacity: 0.35,
+    color: isDarkMode ? colors.secondaryText : '#6B7280',
   },
   filterRow: {
     flexDirection: 'row',
@@ -374,6 +441,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
     gap: 10,
+    backgroundColor: colors.screenBg,
   },
   filterRowRtl: {
     flexDirection: 'row-reverse',
@@ -386,26 +454,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterPillActive: {
-    backgroundColor: '#003514',
+    backgroundColor: isDarkMode ? '#4ADE80' : '#003514',
   },
   filterPillInactive: {
-    backgroundColor: '#ECEEF0',
+    backgroundColor: isDarkMode ? colors.cardBg : '#ECEEF0',
+    borderWidth: isDarkMode ? 1 : 0,
+    borderColor: isDarkMode ? colors.cardBorder : 'transparent',
   },
   filterPillText: {
     fontSize: 13.5,
   },
   filterPillTextActive: {
-    color: '#FFFFFF',
+    color: isDarkMode ? '#0A1E11' : '#FFFFFF',
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
   },
   filterPillTextInactive: {
-    color: '#4B5563',
+    color: isDarkMode ? colors.secondaryText : '#4B5563',
     fontFamily: 'PlusJakartaSans-Medium',
     fontWeight: '500',
   },
   scrollView: {
     flex: 1,
+    backgroundColor: colors.screenBg,
   },
   scrollContent: {
     paddingTop: 4,
@@ -417,7 +488,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
-    color: '#4B5563',
+    color: isDarkMode ? colors.secondaryText : '#4B5563',
     marginHorizontal: 18,
     marginTop: 10,
     marginBottom: 10,
@@ -448,15 +519,16 @@ const styles = StyleSheet.create({
 
   /* ── Unread Card State ── */
   cardUnread: {
-    backgroundColor: '#E4EFE4', // Pale sage-green
-    borderWidth: 0,
+    backgroundColor: isDarkMode ? '#1B2920' : '#E4EFE4',
+    borderWidth: isDarkMode ? 1 : 0,
+    borderColor: isDarkMode ? 'rgba(74, 222, 128, 0.28)' : 'transparent',
   },
   unreadAccentLine: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: 4.5,
-    backgroundColor: '#003514', // Narrow forest-green accent
+    backgroundColor: isDarkMode ? '#4ADE80' : '#003514',
   },
   unreadAccentLineLtr: {
     left: 0,
@@ -470,7 +542,7 @@ const styles = StyleSheet.create({
     width: 7.5,
     height: 7.5,
     borderRadius: 4,
-    backgroundColor: '#003514', // Small solid green unread dot
+    backgroundColor: isDarkMode ? '#4ADE80' : '#003514',
   },
   unreadDotLtr: {
     right: 15,
@@ -481,9 +553,9 @@ const styles = StyleSheet.create({
 
   /* ── Read Card State ── */
   cardRead: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? colors.cardBg : '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB', // Thin light-grey border
+    borderColor: isDarkMode ? colors.cardBorder : '#E5E7EB',
   },
 
   /* ── Icon Tile ── */
@@ -496,10 +568,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   iconTileUnread: {
-    backgroundColor: '#D1E6D1', // Pale-green tile
+    backgroundColor: isDarkMode ? 'rgba(74, 222, 128, 0.15)' : '#D1E6D1',
   },
   iconTileRead: {
-    backgroundColor: '#F3F4F6', // Light-grey tile
+    backgroundColor: isDarkMode ? colors.elevatedBg : '#F3F4F6',
   },
 
   /* ── Content Text ── */
@@ -520,12 +592,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   cardTitleUnread: {
-    color: '#003514', // Bold dark-green title
+    color: isDarkMode ? '#FFFFFF' : '#003514',
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
   },
   cardTitleRead: {
-    color: '#4B5563', // Grey title with lighter font weight
+    color: isDarkMode ? colors.primaryText : '#4B5563',
     fontFamily: 'PlusJakartaSans-SemiBold',
     fontWeight: '600',
   },
@@ -535,12 +607,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   cardBodyUnread: {
-    color: '#1A202C', // Stronger dark body text
+    color: isDarkMode ? '#F2F5F2' : '#1A202C',
     fontFamily: 'PlusJakartaSans-Medium',
     fontWeight: '500',
   },
   cardBodyRead: {
-    color: '#6B7280', // Regular dark-grey body text
+    color: isDarkMode ? colors.secondaryText : '#6B7280',
     fontFamily: 'PlusJakartaSans-Regular',
     fontWeight: '400',
   },
@@ -549,10 +621,10 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
   },
   cardDateUnread: {
-    color: '#6B7280',
+    color: isDarkMode ? '#A3B0A7' : '#6B7280',
   },
   cardDateRead: {
-    color: '#9CA3AF',
+    color: isDarkMode ? '#778D7D' : '#9CA3AF',
   },
 
   /* ── Empty State ── */
@@ -566,7 +638,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#E4EFE4',
+    backgroundColor: isDarkMode ? 'rgba(74, 222, 128, 0.12)' : '#E4EFE4',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -575,13 +647,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'PlusJakartaSans-Bold',
     fontWeight: '700',
-    color: '#003514',
+    color: isDarkMode ? colors.primaryText : '#003514',
     marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 13.5,
     fontFamily: 'PlusJakartaSans-Regular',
-    color: '#6B7280',
+    color: isDarkMode ? colors.secondaryText : '#6B7280',
     textAlign: 'center',
   },
 });

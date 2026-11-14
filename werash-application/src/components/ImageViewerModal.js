@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   Dimensions,
+  useWindowDimensions,
   FlatList,
   Animated,
   PanResponder,
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../styles/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -40,8 +42,18 @@ function getTouchesCenter(touches) {
   };
 }
 
-function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive }) {
+function ZoomableImage({
+  uri,
+  screenWidth,
+  screenHeight,
+  onZoomChange,
+  isActive,
+  onDismissMove,
+  onDismissRelease,
+}) {
+  const { isDarkMode, colors } = useTheme();
   const [imageLoading, setImageLoading] = useState(false);
+  const loadingTimeoutRef = useRef(null);
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -52,11 +64,37 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
   const isZoomedRef = useRef(false);
 
   const lastTapRef = useRef(0);
+  const tapStartRef = useRef(null);
   const initialDistanceRef = useRef(null);
   const initialScaleRef = useRef(1);
   const initialCenterRef = useRef({ x: 0, y: 0 });
   const startPanRef = useRef({ x: 0, y: 0 });
   const lastTouchPosRef = useRef(null);
+  const prevTouchesCountRef = useRef(0);
+
+  const getMaxTx = (s) => Math.max(0, (screenWidth * (s - 1)) / 2);
+  const getMaxTy = (s) => Math.max(0, (screenHeight * (s - 1)) / 2);
+
+  const handleLoadStart = () => {
+    if (typeof uri === 'string' && (uri.startsWith('http') || uri.startsWith('file') || uri.startsWith('content') || uri.startsWith('data:'))) {
+      setImageLoading(true);
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = setTimeout(() => {
+        setImageLoading(false);
+      }, 3500);
+    }
+  };
+
+  const handleLoadEnd = () => {
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    setImageLoading(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
+  }, []);
 
   const notifyZoom = (zoomed) => {
     if (isZoomedRef.current !== zoomed) {
@@ -71,13 +109,14 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
     currentTy.current = 0;
     initialDistanceRef.current = null;
     lastTouchPosRef.current = null;
+    prevTouchesCountRef.current = 0;
     notifyZoom(false);
 
     if (animated) {
       Animated.parallel([
-        Animated.spring(scale, { toValue: 1, friction: 7, tension: 70, useNativeDriver: true }),
-        Animated.spring(translateX, { toValue: 0, friction: 7, tension: 70, useNativeDriver: true }),
-        Animated.spring(translateY, { toValue: 0, friction: 7, tension: 70, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, friction: 8, tension: 85, useNativeDriver: true }),
+        Animated.spring(translateX, { toValue: 0, friction: 8, tension: 85, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: 0, friction: 8, tension: 85, useNativeDriver: true }),
       ]).start();
     } else {
       scale.setValue(1);
@@ -87,16 +126,15 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
   };
 
   useEffect(() => {
-    if (!isActive) {
-      resetZoom(false);
-    }
-  }, [isActive]);
+    resetZoom(false);
+    handleLoadEnd();
+  }, [isActive, uri]);
 
   const zoomTo = (targetScale, tapX, tapY) => {
-    const maxTx = Math.max(0, (screenWidth * (targetScale - 1)) / 2);
-    const maxTy = Math.max(0, (screenHeight * (targetScale - 1)) / 2);
-    const targetTx = Math.max(-maxTx, Math.min(maxTx, (screenWidth / 2 - tapX) * (targetScale - 1) * 0.5));
-    const targetTy = Math.max(-maxTy, Math.min(maxTy, (screenHeight / 2 - tapY) * (targetScale - 1) * 0.5));
+    const maxTx = getMaxTx(targetScale);
+    const maxTy = getMaxTy(targetScale);
+    const targetTx = Math.max(-maxTx, Math.min(maxTx, (screenWidth / 2 - tapX) * (targetScale - 1)));
+    const targetTy = Math.max(-maxTy, Math.min(maxTy, (screenHeight / 2 - tapY) * (targetScale - 1)));
 
     currentScale.current = targetScale;
     currentTx.current = targetTx;
@@ -104,9 +142,9 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
     notifyZoom(true);
 
     Animated.parallel([
-      Animated.spring(scale, { toValue: targetScale, friction: 7, tension: 70, useNativeDriver: true }),
-      Animated.spring(translateX, { toValue: targetTx, friction: 7, tension: 70, useNativeDriver: true }),
-      Animated.spring(translateY, { toValue: targetTy, friction: 7, tension: 70, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: targetScale, friction: 8, tension: 85, useNativeDriver: true }),
+      Animated.spring(translateX, { toValue: targetTx, friction: 8, tension: 85, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: targetTy, friction: 8, tension: 85, useNativeDriver: true }),
     ]).start();
   };
 
@@ -114,11 +152,11 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
     const now = Date.now();
     if (now - lastTapRef.current < 280) {
       lastTapRef.current = 0;
-      if (isZoomedRef.current) {
+      if (isZoomedRef.current || currentScale.current > 1.05) {
         resetZoom(true);
       } else {
-        const tapX = evt.nativeEvent?.locationX || screenWidth / 2;
-        const tapY = evt.nativeEvent?.locationY || screenHeight / 2;
+        const tapX = evt.nativeEvent?.locationX ?? screenWidth / 2;
+        const tapY = evt.nativeEvent?.locationY ?? screenHeight / 2;
         zoomTo(2.5, tapX, tapY);
       }
     } else {
@@ -131,40 +169,53 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
       onStartShouldSetPanResponderCapture: (evt) => {
         const touches = evt.nativeEvent.touches;
         if (touches && touches.length >= 2) return true;
-        if (isZoomedRef.current) return true;
+        if (isZoomedRef.current || currentScale.current > 1.05) return true;
         return false;
       },
       onStartShouldSetPanResponder: (evt) => {
         const touches = evt.nativeEvent.touches;
         if (touches && touches.length >= 2) return true;
-        if (isZoomedRef.current) return true;
+        if (isZoomedRef.current || currentScale.current > 1.05) return true;
         return false;
       },
       onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
         const touches = evt.nativeEvent.touches;
         if (touches && touches.length >= 2) return true;
-        if (isZoomedRef.current) {
-          return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
+        if (isZoomedRef.current || currentScale.current > 1.05) {
+          return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+        }
+        // Capture downward swipe before FlatList steals it
+        if (touches && touches.length === 1) {
+          if (gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.2) {
+            return true;
+          }
         }
         return false;
       },
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         const touches = evt.nativeEvent.touches;
         if (touches && touches.length >= 2) return true;
-        if (isZoomedRef.current) {
-          return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
+        if (isZoomedRef.current || currentScale.current > 1.05) {
+          return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+        }
+        if (touches && touches.length === 1) {
+          if (gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.1) {
+            return true;
+          }
         }
         return false;
       },
-      onPanResponderTerminationRequest: (evt) => {
-        const touches = evt.nativeEvent.touches;
-        if (touches && touches.length >= 2) return false;
-        if (isZoomedRef.current) return false;
-        return true;
-      },
+      onPanResponderTerminationRequest: () => false,
 
       onPanResponderGrant: (evt) => {
         const touches = evt.nativeEvent.touches || [];
+        prevTouchesCountRef.current = touches.length;
+        tapStartRef.current = {
+          time: Date.now(),
+          x: touches[0]?.pageX ?? 0,
+          y: touches[0]?.pageY ?? 0,
+        };
+
         if (touches.length >= 2) {
           initialDistanceRef.current = getTouchesDistance(touches);
           initialScaleRef.current = currentScale.current;
@@ -187,6 +238,20 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
         const touches = evt.nativeEvent.touches || [];
 
         if (touches.length >= 2) {
+          // If switched from 1 finger to 2 fingers, seamlessly re-anchor pinch
+          if (prevTouchesCountRef.current !== 2) {
+            initialDistanceRef.current = getTouchesDistance(touches);
+            initialScaleRef.current = currentScale.current;
+            initialCenterRef.current = getTouchesCenter(touches);
+            startPanRef.current = {
+              x: currentTx.current,
+              y: currentTy.current,
+            };
+            lastTouchPosRef.current = null;
+            prevTouchesCountRef.current = 2;
+            return;
+          }
+
           const dist = getTouchesDistance(touches);
           if (!initialDistanceRef.current || initialDistanceRef.current <= 0) {
             initialDistanceRef.current = dist;
@@ -202,16 +267,20 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
 
           if (dist > 0 && initialDistanceRef.current > 0) {
             const factor = dist / initialDistanceRef.current;
+            // Allow tactile shrink below 1 down to 0.75; cap zoom at 4.5
             const targetScale = Math.max(0.75, Math.min(initialScaleRef.current * factor, 4.5));
             scale.setValue(targetScale);
             currentScale.current = targetScale;
 
             const center = getTouchesCenter(touches);
-            const dCenterX = (center.x - initialCenterRef.current.x) * 0.7;
-            const dCenterY = (center.y - initialCenterRef.current.y) * 0.7;
+            const dCenterX = center.x - initialCenterRef.current.x;
+            const dCenterY = center.y - initialCenterRef.current.y;
 
-            const newTx = startPanRef.current.x + dCenterX;
-            const newTy = startPanRef.current.y + dCenterY;
+            const maxTx = getMaxTx(targetScale);
+            const maxTy = getMaxTy(targetScale);
+            const newTx = Math.max(-maxTx - 30, Math.min(maxTx + 30, startPanRef.current.x + dCenterX));
+            const newTy = Math.max(-maxTy - 30, Math.min(maxTy + 30, startPanRef.current.y + dCenterY));
+
             translateX.setValue(newTx);
             translateY.setValue(newTy);
             currentTx.current = newTx;
@@ -221,61 +290,91 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
               notifyZoom(true);
             }
           }
-        } else if (touches.length === 1 && isZoomedRef.current) {
+        } else if (touches.length === 1 && (isZoomedRef.current || currentScale.current > 1.05)) {
+          // If switched from 2 fingers to 1 finger, seamlessly re-anchor pan
+          if (prevTouchesCountRef.current !== 1 || !lastTouchPosRef.current) {
+            const curTouch = touches[0];
+            lastTouchPosRef.current = {
+              x: curTouch.pageX ?? curTouch.locationX ?? 0,
+              y: curTouch.pageY ?? curTouch.locationY ?? 0,
+            };
+            prevTouchesCountRef.current = 1;
+            return;
+          }
+
           const curTouch = touches[0];
           const pageX = curTouch.pageX ?? curTouch.locationX ?? 0;
           const pageY = curTouch.pageY ?? curTouch.locationY ?? 0;
-
-          if (initialDistanceRef.current) {
-            initialDistanceRef.current = null;
-            lastTouchPosRef.current = { x: pageX, y: pageY };
-            return;
-          }
-
-          if (!lastTouchPosRef.current) {
-            lastTouchPosRef.current = { x: pageX, y: pageY };
-            return;
-          }
 
           const dx = pageX - lastTouchPosRef.current.x;
           const dy = pageY - lastTouchPosRef.current.y;
           lastTouchPosRef.current = { x: pageX, y: pageY };
 
-          const maxTx = Math.max(0, (screenWidth * (currentScale.current - 1)) / 2 + 25);
-          const maxTy = Math.max(0, (screenHeight * (currentScale.current - 1)) / 2 + 25);
+          const maxTx = getMaxTx(currentScale.current);
+          const maxTy = getMaxTy(currentScale.current);
 
-          const nextTx = Math.max(-maxTx, Math.min(maxTx, currentTx.current + dx));
-          const nextTy = Math.max(-maxTy, Math.min(maxTy, currentTy.current + dy));
+          // 1:1 Natural panning with rubber-band resistance beyond bounds
+          let nextTx = currentTx.current + dx;
+          let nextTy = currentTy.current + dy;
+
+          if (nextTx > maxTx) {
+            nextTx = maxTx + (nextTx - maxTx) * 0.35;
+          } else if (nextTx < -maxTx) {
+            nextTx = -maxTx + (nextTx - (-maxTx)) * 0.35;
+          }
+
+          if (nextTy > maxTy) {
+            nextTy = maxTy + (nextTy - maxTy) * 0.35;
+          } else if (nextTy < -maxTy) {
+            nextTy = -maxTy + (nextTy - (-maxTy)) * 0.35;
+          }
 
           translateX.setValue(nextTx);
           translateY.setValue(nextTy);
           currentTx.current = nextTx;
           currentTy.current = nextTy;
+        } else if (touches.length === 1 && !isZoomedRef.current && currentScale.current <= 1.05) {
+          prevTouchesCountRef.current = 1;
+          if (gestureState.dy > 0 && onDismissMove) {
+            onDismissMove(gestureState.dy);
+          }
         }
       },
 
       onPanResponderRelease: (evt, gestureState) => {
         initialDistanceRef.current = null;
         lastTouchPosRef.current = null;
+        prevTouchesCountRef.current = 0;
 
-        // Double tap toggle when zoomed in
-        const isTap = Math.abs(gestureState.dx) < 8 && Math.abs(gestureState.dy) < 8;
-        if (isTap && isZoomedRef.current) {
+        // Check if this gesture was a tap (double tap toggle)
+        const elapsed = Date.now() - (tapStartRef.current?.time || 0);
+        const distMoved = Math.hypot(
+          (evt.nativeEvent.pageX || 0) - (tapStartRef.current?.x || 0),
+          (evt.nativeEvent.pageY || 0) - (tapStartRef.current?.y || 0)
+        );
+        const isTap = distMoved < 10 && elapsed < 300;
+
+        if (isTap) {
           const now = Date.now();
           if (now - lastTapRef.current < 280) {
             lastTapRef.current = 0;
-            resetZoom(true);
+            if (isZoomedRef.current || currentScale.current > 1.05) {
+              resetZoom(true);
+            } else {
+              const tapX = evt.nativeEvent.locationX ?? screenWidth / 2;
+              const tapY = evt.nativeEvent.locationY ?? screenHeight / 2;
+              zoomTo(2.5, tapX, tapY);
+            }
             return;
           }
           lastTapRef.current = now;
         }
 
-        if (currentScale.current <= 1.05) {
-          resetZoom(true);
-        } else {
+        if (currentScale.current > 1.05) {
+          // Cap zoom level to 3.5 on release
           const targetScale = Math.min(currentScale.current, 3.5);
-          const maxTx = Math.max(0, (screenWidth * (targetScale - 1)) / 2);
-          const maxTy = Math.max(0, (screenHeight * (targetScale - 1)) / 2);
+          const maxTx = getMaxTx(targetScale);
+          const maxTy = getMaxTy(targetScale);
           const boundedTx = Math.max(-maxTx, Math.min(maxTx, currentTx.current));
           const boundedTy = Math.max(-maxTy, Math.min(maxTy, currentTy.current));
 
@@ -284,20 +383,52 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
           currentTy.current = boundedTy;
 
           Animated.parallel([
-            Animated.spring(scale, { toValue: targetScale, friction: 7, tension: 70, useNativeDriver: true }),
-            Animated.spring(translateX, { toValue: boundedTx, friction: 7, tension: 70, useNativeDriver: true }),
-            Animated.spring(translateY, { toValue: boundedTy, friction: 7, tension: 70, useNativeDriver: true }),
+            Animated.spring(scale, { toValue: targetScale, friction: 8, tension: 85, useNativeDriver: true }),
+            Animated.spring(translateX, { toValue: boundedTx, friction: 8, tension: 85, useNativeDriver: true }),
+            Animated.spring(translateY, { toValue: boundedTy, friction: 8, tension: 85, useNativeDriver: true }),
           ]).start();
 
           notifyZoom(true);
+        } else if (currentScale.current <= 1.05 && !isZoomedRef.current && gestureState.dy > 0) {
+          // Downward drag to dismiss at normal scale
+          const shouldClose = gestureState.dy > 45 || gestureState.vy > 0.25;
+          if (shouldClose && onDismissRelease) {
+            onDismissRelease(gestureState);
+          } else {
+            resetZoom(true);
+            if (onDismissRelease) {
+              onDismissRelease({ dy: 0, vy: 0 });
+            }
+          }
+        } else {
+          // Pinched inward below normal scale -> smoothly snap back to 1.0 & center
+          resetZoom(true);
+          if (onDismissRelease) {
+            onDismissRelease({ dy: 0, vy: 0 });
+          }
         }
       },
 
       onPanResponderTerminate: () => {
         initialDistanceRef.current = null;
         lastTouchPosRef.current = null;
+        prevTouchesCountRef.current = 0;
         if (currentScale.current <= 1.05) {
           resetZoom(true);
+        } else {
+          const maxTx = getMaxTx(currentScale.current);
+          const maxTy = getMaxTy(currentScale.current);
+          const boundedTx = Math.max(-maxTx, Math.min(maxTx, currentTx.current));
+          const boundedTy = Math.max(-maxTy, Math.min(maxTy, currentTy.current));
+          currentTx.current = boundedTx;
+          currentTy.current = boundedTy;
+          Animated.parallel([
+            Animated.spring(translateX, { toValue: boundedTx, friction: 8, tension: 85, useNativeDriver: true }),
+            Animated.spring(translateY, { toValue: boundedTy, friction: 8, tension: 85, useNativeDriver: true }),
+          ]).start();
+        }
+        if (onDismissRelease) {
+          onDismissRelease({ dy: 0, vy: 0 });
         }
       },
     })
@@ -315,9 +446,9 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
             styles.zoomWrapper,
             {
               transform: [
-                { scale },
                 { translateX },
                 { translateY },
+                { scale },
               ],
             },
           ]}
@@ -327,17 +458,18 @@ function ZoomableImage({ uri, screenWidth, screenHeight, onZoomChange, isActive 
             source={typeof uri === 'string' ? { uri } : uri}
             style={styles.fullImage}
             resizeMode="contain"
-            onLoadStart={() => setImageLoading(true)}
-            onLoadEnd={() => setImageLoading(false)}
-            onError={() => setImageLoading(false)}
+            onLoadStart={handleLoadStart}
+            onLoad={handleLoadEnd}
+            onLoadEnd={handleLoadEnd}
+            onError={handleLoadEnd}
           />
-          {imageLoading && (
-            <View style={styles.loadingOverlay} pointerEvents="none">
-              <ActivityIndicator size="large" color="#FFFFFF" />
-            </View>
-          )}
         </Animated.View>
       </TouchableWithoutFeedback>
+      {imageLoading && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color={isDarkMode ? (colors?.loadingIndicator || '#4ADE80') : '#FFFFFF'} />
+        </View>
+      )}
     </View>
   );
 }
@@ -351,10 +483,44 @@ export default function ImageViewerModal({
   asModal = false,
 }) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const screenWidth = windowWidth || SCREEN_WIDTH;
+  const screenHeight = windowHeight || SCREEN_HEIGHT;
+
   const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
   const [isZoomed, setIsZoomed] = useState(false);
   const headerOpacity = useRef(new Animated.Value(1)).current;
+  const dismissY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef(null);
+
+  const handleDismissMove = (dy) => {
+    if (dy > 0) {
+      dismissY.setValue(dy);
+    }
+  };
+
+  const handleDismissRelease = (gestureState) => {
+    const dy = gestureState?.dy || 0;
+    const vy = gestureState?.vy || 0;
+    const shouldClose = dy > 45 || vy > 0.25;
+
+    if (shouldClose) {
+      Animated.timing(dismissY, {
+        toValue: screenHeight,
+        duration: 120,
+        useNativeDriver: true,
+      }).start(() => {
+        onClose?.();
+      });
+    } else {
+      Animated.spring(dismissY, {
+        toValue: 0,
+        friction: 7,
+        tension: 120,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
 
   // Handle hardware back press on Android
   useEffect(() => {
@@ -368,10 +534,11 @@ export default function ImageViewerModal({
 
   useEffect(() => {
     if (visible) {
+      dismissY.setValue(0);
+      headerOpacity.setValue(1);
       const idx = Math.max(0, Math.min(initialIndex || 0, images.length - 1));
       setCurrentIndex(idx);
       setIsZoomed(false);
-      headerOpacity.setValue(1);
       setTimeout(() => {
         if (flatListRef.current && idx > 0) {
           flatListRef.current.scrollToIndex({ index: idx, animated: false });
@@ -396,14 +563,24 @@ export default function ImageViewerModal({
   ) + 10;
 
   const content = (
-    <View style={styles.modalOverlay}>
+    <Animated.View
+      style={[
+        styles.modalOverlay,
+        {
+          transform: [{ translateY: dismissY }],
+        },
+      ]}
+    >
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-      {/* Top Header Bar: Hides when zoomed in, shows when at default zoom level */}
+      {/* Top Header Bar: Hides when zoomed in */}
       <Animated.View 
         style={[
           styles.headerBar, 
-          { paddingTop: topSafe, opacity: headerOpacity }, 
+          {
+            paddingTop: topSafe,
+            opacity: headerOpacity,
+          }, 
           isRTL && styles.headerBarRtl
         ]}
         pointerEvents={isZoomed ? 'none' : 'box-none'}
@@ -429,7 +606,6 @@ export default function ImageViewerModal({
         <View style={{ width: 44, height: 44 }} />
       </Animated.View>
 
-      {/* Swipeable Paging Image Gallery: Paging disabled while zoomed to allow free panning */}
       <FlatList
         ref={flatListRef}
         data={images}
@@ -437,16 +613,17 @@ export default function ImageViewerModal({
         pagingEnabled
         scrollEnabled={!isZoomed}
         showsHorizontalScrollIndicator={false}
+        style={styles.flatList}
         keyExtractor={(_, index) => `img_view_${index}`}
         initialScrollIndex={Math.max(0, Math.min(initialIndex || 0, images.length - 1))}
         getItemLayout={(_, index) => ({
-          length: SCREEN_WIDTH,
-          offset: SCREEN_WIDTH * index,
+          length: screenWidth,
+          offset: screenWidth * index,
           index,
         })}
         onMomentumScrollEnd={(e) => {
           const offsetX = e.nativeEvent.contentOffset.x;
-          const newIndex = Math.round(offsetX / SCREEN_WIDTH);
+          const newIndex = Math.round(offsetX / screenWidth);
           if (newIndex >= 0 && newIndex < images.length) {
             setCurrentIndex(newIndex);
             setIsZoomed(false);
@@ -455,14 +632,16 @@ export default function ImageViewerModal({
         renderItem={({ item, index }) => (
           <ZoomableImage
             uri={item}
-            screenWidth={SCREEN_WIDTH}
-            screenHeight={SCREEN_HEIGHT}
+            screenWidth={screenWidth}
+            screenHeight={screenHeight}
             onZoomChange={setIsZoomed}
             isActive={index === currentIndex}
+            onDismissMove={handleDismissMove}
+            onDismissRelease={handleDismissRelease}
           />
         )}
       />
-    </View>
+    </Animated.View>
   );
 
   if (asModal) {
@@ -485,9 +664,22 @@ export default function ImageViewerModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flex: 1,
     backgroundColor: '#000000',
+    width: '100%',
+    height: '100%',
     zIndex: 999999,
     elevation: 999999,
+  },
+  flatList: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   headerBar: {
     position: 'absolute',
@@ -554,6 +746,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   zoomWrapper: {
     width: '100%',
@@ -566,8 +759,13 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 99,
   },
 });

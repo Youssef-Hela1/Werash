@@ -21,6 +21,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { supabase, getUserProfile } from './src/services/supabase';
 import { registerForPushNotificationsAsync } from './src/services/notificationService';
+import {
+  loadPersistedNotifications,
+  savePersistedNotifications,
+  setupRealtimeNotifications,
+  INITIAL_NOTIFICATIONS,
+} from './src/services/notificationManager';
+import {
+  initUserProfileCache,
+  syncCurrentUserProfile,
+  resolveUserAvatar,
+  resolveUserBanner,
+} from './src/services/userProfileCache';
 
 const STORAGE_KEY_USER_VEHICLES = '@werash_user_vehicles';
 const STORAGE_KEY_ACTIVE_VEHICLE_ID = '@werash_active_vehicle_id';
@@ -222,68 +234,7 @@ function AppContent() {
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [activeAd, setActiveAd] = useState(null);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'n1',
-      type: 'message',
-      title: 'New message',
-      titleAr: 'رسالة جديدة',
-      body: 'Ahmed sent you a message about your post.',
-      bodyAr: 'أرسل لك أحمد رسالة بخصوص منشورك.',
-      date: '5 min ago',
-      dateAr: 'منذ 5 دقائق',
-      read: false,
-      section: 'today',
-    },
-    {
-      id: 'n2',
-      type: 'reply',
-      title: 'New reply',
-      titleAr: 'رد جديد',
-      body: 'Omar replied to your question in Community.',
-      bodyAr: 'رد عمر على سؤالك في المجتمع.',
-      date: '24 min ago',
-      dateAr: 'منذ 24 دقيقة',
-      read: false,
-      section: 'today',
-    },
-    {
-      id: 'n3',
-      type: 'service',
-      title: 'Service reminder',
-      titleAr: 'تذكير بالصيانة',
-      body: 'Check your saved engine oil service details.',
-      bodyAr: 'تحقق من تفاصيل صيانة زيت المحرك المحفوظة.',
-      date: '1 hr ago',
-      dateAr: 'منذ ساعة',
-      read: false,
-      section: 'today',
-    },
-    {
-      id: 'n4',
-      type: 'welcome',
-      title: 'Welcome to WERASH',
-      titleAr: 'مرحباً بك في ورش',
-      body: 'Your garage, specialists, and community in one place.',
-      bodyAr: 'كراجك، الفنيين، والمجتمع في مكان واحد.',
-      date: 'Yesterday',
-      dateAr: 'أمس',
-      read: true,
-      section: 'earlier',
-    },
-    {
-      id: 'n5',
-      type: 'profile',
-      title: 'Profile updated',
-      titleAr: 'تم تحديث الملف الشخصي',
-      body: 'Your profile changes have been saved.',
-      bodyAr: 'تم حفظ تغييرات ملفك الشخصي بنجاح.',
-      date: 'Yesterday',
-      dateAr: 'أمس',
-      read: true,
-      section: 'earlier',
-    },
-  ]);
+  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [communityScrollTrigger, setCommunityScrollTrigger] = useState(0);
   const [splashFinished, setSplashFinished] = useState(false);
   
@@ -347,7 +298,7 @@ function AppContent() {
     });
   }, [homeTranslateY]);
   
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const styles = useThemeStyles(createStyles);
 
   const [fontsLoaded] = useFonts({
@@ -415,6 +366,9 @@ function AppContent() {
           setSelectedLanguage(storedLang);
         }
 
+        // Initialize centralized user profile cache (loads persistent cache and syncs cloud profiles)
+        initUserProfileCache().catch(() => {});
+
         // Restore User from Supabase session or cached storage
         let loadedUser = null;
         try {
@@ -422,9 +376,10 @@ function AppContent() {
           if (session && session.user) {
             const profile = await getUserProfile(session.user.id);
             const cachedAvatar = await AsyncStorage.getItem(`@werash_user_avatar_${session.user.id}`).catch(() => null);
-            const resolvedAvatar = cachedAvatar || profile?.avatar_url || session.user.user_metadata?.avatar_url || null;
+            const resolvedAvatarSource = resolveUserAvatar(session.user.id, cachedAvatar || profile?.avatar_url || session.user.user_metadata?.avatar_url || null);
+            const resolvedAvatar = (resolvedAvatarSource && resolvedAvatarSource.uri) ? resolvedAvatarSource.uri : (typeof resolvedAvatarSource === 'string' ? resolvedAvatarSource : null);
             const cachedBanner = await AsyncStorage.getItem(`@werash_user_banner_${session.user.id}`).catch(() => null);
-            const resolvedBanner = cachedBanner || profile?.banner_url || session.user.user_metadata?.banner_url || null;
+            const resolvedBanner = resolveUserBanner(session.user.id, cachedBanner || profile?.banner_url || session.user.user_metadata?.banner_url || null);
             loadedUser = {
               id: session.user.id,
               email: session.user.email,
@@ -443,6 +398,7 @@ function AppContent() {
               bannerUrl: resolvedBanner,
             };
             setCurrentUser(loadedUser);
+            syncCurrentUserProfile(loadedUser).catch(() => {});
           }
         } catch (_) {}
 
@@ -606,6 +562,7 @@ function AppContent() {
   const handleSetCurrentUser = async (user) => {
     setCurrentUser(user);
     if (user) {
+      syncCurrentUserProfile(user).catch(() => {});
       if (user.email === 'customer@werash.com' || user.id === 'customer-admin') {
         setUserVehicles([CUSTOMER_ADMIN_COUPE]);
         setActiveVehicleId(CUSTOMER_ADMIN_COUPE.id);
@@ -774,30 +731,29 @@ function AppContent() {
     };
   }, [currentUser?.id]);
 
-  // Restore persisted read notifications state from storage
+  // Load persisted notifications and subscribe to realtime updates
   useEffect(() => {
-    const loadReadStatus = async () => {
-      try {
-        const storageKey = currentUser?.id
-          ? `@werash_notifications_read_ids_${currentUser.id}`
-          : '@werash_notifications_read_ids_guest';
-        const raw = await AsyncStorage.getItem(storageKey);
-        if (raw) {
-          const readIds = JSON.parse(raw);
-          if (Array.isArray(readIds)) {
-            const readSet = new Set(readIds);
-            setNotifications((prev) =>
-              prev.map((item) => ({
-                ...item,
-                read: readSet.has(item.id) ? true : item.read,
-              }))
-            );
-          }
-        }
-      } catch (_) {}
+    let isMounted = true;
+    loadPersistedNotifications(currentUser?.id).then((saved) => {
+      if (isMounted && Array.isArray(saved) && saved.length > 0) {
+        setNotifications(saved);
+      }
+    });
+
+    const unsubscribe = setupRealtimeNotifications({
+      currentUser,
+      userVehicles,
+      setNotifications,
+      isRTL: selectedLanguage === 'Arabic',
+    });
+
+    return () => {
+      isMounted = false;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
-    loadReadStatus();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, userVehicles, selectedLanguage]);
 
   const handleNavigate = (tab, targetSpecialistId = null) => {
     homeTranslateY.setValue(0);
@@ -924,11 +880,16 @@ function AppContent() {
         return (
           <NotificationsScreen 
             currentUser={currentUser}
+            userVehicles={userVehicles}
             selectedLanguage={selectedLanguage}
             notifications={notifications}
             setNotifications={setNotifications}
             onBack={() => setCurrentTab('home')}
             onNavigate={handleNavigate}
+            onOpenChat={(chatUser) => {
+              setChatInitialUser(chatUser);
+              setChatsVisible(true);
+            }}
           />
         );
       case 'more':
@@ -954,7 +915,7 @@ function AppContent() {
   };
 
   return (
-    <View style={[styles.appContainer, (currentTab === 'home' || currentTab === 'more' || currentTab === 'notifications') && { backgroundColor: '#FFFFFF' }]}>
+    <View style={[styles.appContainer, (currentTab === 'home' || currentTab === 'more') && { backgroundColor: '#FFFFFF' }, currentTab === 'notifications' && { backgroundColor: isDarkMode ? colors.screenBg : '#FFFFFF' }]}>
       {/* Animated Main Content Container (Moves Header + Home Content together on bounce) */}
       <Animated.View 
         style={styles.mainContentContainer}
@@ -979,7 +940,7 @@ function AppContent() {
       </Animated.View>
 
       {/* Custom Floating Bottom Navigation Bar */}
-      {currentTab !== 'more' && (
+      {currentTab !== 'more' && currentTab !== 'notifications' && (
         <BottomNavBar 
           activeTab={currentTab} 
           hidden={currentTab === 'community' && isCommunityNavHidden}
@@ -1012,6 +973,13 @@ function AppContent() {
         notifications={notifications}
         setNotifications={setNotifications}
         selectedLanguage={selectedLanguage}
+        currentUser={currentUser}
+        userVehicles={userVehicles}
+        onNavigate={handleNavigate}
+        onOpenChat={(chatUser) => {
+          setChatInitialUser(chatUser);
+          setChatsVisible(true);
+        }}
       />
 
       {/* Specialist Recipient Picker Modal */}

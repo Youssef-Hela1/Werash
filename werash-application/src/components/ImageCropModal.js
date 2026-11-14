@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { useTheme } from '../styles/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ export default function ImageCropModal({
   onCancel,
   isRtl = false,
 }) {
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [origSize, setOrigSize] = useState({ width: 0, height: 0 });
@@ -323,7 +325,7 @@ export default function ImageCropModal({
         >
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#00A843" />
+              <ActivityIndicator size="large" color={isDarkMode ? '#4ADE80' : '#00A843'} />
             </View>
           ) : (
             <>
