@@ -4,15 +4,17 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
-// Configure foreground notification behavior safely
+// Configure foreground notification behavior safely (skip on iOS for sideloaded/AltStore compatibility)
 try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
+  if (Platform.OS !== 'ios') {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }
 } catch (e) {
   console.warn('[NotificationService] setNotificationHandler note:', e?.message);
 }
@@ -26,6 +28,11 @@ const PUSH_TOKEN_CACHE_KEY = '@werash_cached_push_token';
  */
 export async function registerForPushNotificationsAsync(userId) {
   try {
+    if (Platform.OS === 'ios') {
+      // Remote APNs push notifications require Apple Developer paid certificate; disabled for AltStore builds
+      return null;
+    }
+
     if (!Device.isDevice) {
       console.log('[NotificationService] Push notifications require a physical device');
       return null;

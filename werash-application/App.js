@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, View, Text, Image, StatusBar, Animated, PanResponder } from 'react-native';
+import { StyleSheet, View, Text, Image, StatusBar, Animated, PanResponder, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import HomeScreen from './src/screens/HomeScreen';
@@ -701,6 +701,9 @@ function AppContent() {
   useEffect(() => {
     let responseSubscription = null;
     try {
+      if (Platform.OS === 'ios') {
+        return;
+      }
       if (currentUser?.id) {
         registerForPushNotificationsAsync(currentUser.id).catch(() => {});
       }

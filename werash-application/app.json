@@ -30,7 +30,13 @@
       "expo-font",
       "expo-status-bar",
       "expo-asset",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

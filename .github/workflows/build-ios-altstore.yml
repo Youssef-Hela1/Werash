@@ -28,6 +28,11 @@ jobs:
       - name: Generate Native iOS Project
         run: npx expo prebuild -p ios --clean
 
+      - name: Strip Restricted Entitlements for AltStore
+        run: |
+          echo "Checking and stripping restricted entitlements..."
+          find ios -name "*.entitlements" -exec /usr/libexec/PlistBuddy -c "Delete :aps-environment" {} \; 2>/dev/null || true
+
       - name: Build Unsigned iOS App
         working-directory: werash-application/ios
         run: |
@@ -49,6 +54,9 @@ jobs:
         run: |
           mkdir -p Payload
           mv ios/build/Build/Products/Release-iphoneos/*.app Payload/
+          find Payload -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
+          find Payload -name "*.xcent" -delete 2>/dev/null || true
+          find Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           zip -qr werash-app.ipa Payload
       
       - name: Upload IPA Artifact
